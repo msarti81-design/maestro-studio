@@ -81,7 +81,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           if (keys[i].type === 'white') whiteCountBefore++;
         }
         const blackWidth = whiteWidth * 0.62;
-        const blackHeight = height * 0.60;
+        // Proportionally capped black key height so keys never stretch down to the white key labels
+        const blackHeight = Math.min(height * 0.55, Math.max(70, whiteWidth * 3.8));
         const x = whiteCountBefore * whiteWidth - blackWidth / 2;
 
         blackKeys.push({

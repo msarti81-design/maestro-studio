@@ -58,16 +58,18 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
-      <Navbar
-        currentView={currentView === 'home' ? 'piano' : currentView}
-        onSelectView={(v) => handleSelectView(v)}
-        volume={volume}
-        onVolumeChange={handleVolumeChange}
-        isAudioActive={isAudioActive}
-        onInitAudio={handleInitAudio}
-      />
+      {currentView !== 'piano' && (
+        <Navbar
+          currentView={currentView === 'home' ? 'piano' : currentView}
+          onSelectView={(v) => handleSelectView(v)}
+          volume={volume}
+          onVolumeChange={handleVolumeChange}
+          isAudioActive={isAudioActive}
+          onInitAudio={handleInitAudio}
+        />
+      )}
 
-      <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8">
+      <main className={`flex-1 ${currentView === 'piano' ? 'p-0' : 'py-8 px-4 sm:px-6 lg:px-8'}`}>
         {currentView === 'home' && (
           <HomeView onSelectView={(v) => handleSelectView(v)} onInitAudio={handleInitAudio} />
         )}

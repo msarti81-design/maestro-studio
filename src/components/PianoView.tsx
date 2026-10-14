@@ -848,7 +848,7 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
           paddingLeft: 'max(env(safe-area-inset-left, 0px), 6px)',
           paddingRight: 'max(env(safe-area-inset-right, 0px), 6px)',
         }}
-        className="h-9 min-h-[36px] max-h-[38px] bg-slate-900/95 border-b border-slate-800/80 px-1 sm:px-2 flex items-center justify-between shrink-0 z-20 text-[10px] sm:text-[11px]"
+        className="h-9 min-h-[36px] max-h-[38px] bg-slate-900/95 border-b border-slate-800/80 px-1 sm:px-2 flex items-center justify-between flex-nowrap overflow-x-auto scrollbar-none shrink-0 z-20 text-[10px] sm:text-[11px]"
       >
         {/* Left: Home & User & Library & Falling Notes Toggle */}
         <div className="flex items-center gap-1">

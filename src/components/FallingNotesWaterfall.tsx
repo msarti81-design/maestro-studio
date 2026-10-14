@@ -91,8 +91,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const keyPositionsMapRef = useRef<Map<string, KeyPosition>>(new Map());
 
   const songDuration = Math.max(...song.notes.map((n) => n.time + n.duration), 5);
-  const TRAVEL_TIME = 2.0; // Responsive 2s travel speed
-  // Visual offset calibrated to 0.0s for perfect zero-lag hit alignment on the gold bar
+  const TRAVEL_TIME = 3.8; // Calibrated 3.8s travel time: plenty of time to see notes falling
   const AUDIO_SYNC_OFFSET = 0.0;
 
   const whiteKeys = useMemo(() => keys.filter((k) => k.type === 'white'), [keys]);
@@ -269,7 +268,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
     const render = (now: number) => {
       const { width, height } = dimsRef.current;
-      const hitLineY = height - 14;
+      const hitLineY = height - 4; // Positioned right at bottom edge above keys
 
       if (isPlayingRef.current) {
         // High-precision clock synced with performance.now() to prevent drift
@@ -343,8 +342,8 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
       }
       ctx.fill();
 
-      // Perfect 2.0s travel speed for falling notes
-      const travelTime = 2.0;
+      // Smooth 3.8s travel speed for falling notes
+      const travelTime = 3.8;
       const pixelsPerSecond = hitLineY / travelTime;
       const keyPosMap = keyPositionsMapRef.current;
 
@@ -544,14 +543,6 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
       {/* 60 FPS Canvas with zero lag and O(1) rendering */}
       <canvas ref={canvasRef} className="w-full h-full block cursor-pointer" />
-
-      {/* Progress Line */}
-      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-800">
-        <div
-          className="h-full bg-cyan-400 transition-all duration-300"
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
 
       {/* Sleek, Ultra-Compact Floating Completion Banner */}
       {isCompleted && (
