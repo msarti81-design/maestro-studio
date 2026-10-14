@@ -205,7 +205,7 @@ Return a JSON object containing:
   } else {
     // Development mode with Vite middlewares - bypass Vite for .sh and .py scripts
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, allowedHosts: true },
       appType: "custom",
     });
     app.use((req, res, next) => {
