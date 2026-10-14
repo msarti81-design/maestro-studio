@@ -182,7 +182,8 @@ Return a JSON object containing:
   });
 
   const distPath = path.join(__dirname, "dist");
-  if (process.env.NODE_ENV === "production" && fs.existsSync(distPath)) {
+  const isProd = process.env.NODE_ENV === "production" || fs.existsSync(distPath);
+  if (isProd) {
     // Serve static compiled assets directly
     app.use("/Song/assets", express.static(path.join(distPath, "assets")));
     app.use("/song/assets", express.static(path.join(distPath, "assets")));
