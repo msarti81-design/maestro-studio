@@ -7,12 +7,18 @@ body,
   height: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
   background-color: #020617;
-  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Ensure all scrollable containers allow smooth vertical touch panning on mobile touchscreens */
+.overflow-y-auto,
+.overflow-auto,
+[data-scrollable="true"] {
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Ultra-responsive 0ms latency piano key press states */

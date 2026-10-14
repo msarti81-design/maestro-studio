@@ -253,6 +253,11 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
     resizeCanvas();
 
+    // Schedule additional resize passes after DOM flex layout pass completes
+    const raf1 = requestAnimationFrame(() => resizeCanvas());
+    const raf2 = requestAnimationFrame(() => requestAnimationFrame(() => resizeCanvas()));
+    const timer = setTimeout(resizeCanvas, 150);
+
     let resizeTimer: any = null;
     const handleResize = () => {
       if (resizeTimer) clearTimeout(resizeTimer);
@@ -261,12 +266,29 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
     window.addEventListener('resize', handleResize);
 
+    let resizeObserver: ResizeObserver | null = null;
+    if (containerRef.current && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        resizeCanvas();
+      });
+      resizeObserver.observe(containerRef.current);
+    }
+
     playheadAnchorRef.current = {
       audioTime: currentTimeRef.current,
       wallTime: performance.now(),
     };
 
     const render = (now: number) => {
+      // Auto-recalibrate canvas if flex container dimensions change or on initial DOM mount
+      if (containerRef.current) {
+        const curW = Math.floor(containerRef.current.clientWidth);
+        const curH = Math.floor(containerRef.current.clientHeight);
+        if (curW > 0 && curH > 0 && (curW !== dimsRef.current.width || curH !== dimsRef.current.height)) {
+          resizeCanvas();
+        }
+      }
+
       const { width, height } = dimsRef.current;
       const hitLineY = height - 1; // Positioned as low as possible right at bottom edge above keys
 
@@ -391,6 +413,10 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (resizeObserver) resizeObserver.disconnect();
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      clearTimeout(timer);
       if (resizeTimer) clearTimeout(resizeTimer);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);

@@ -357,7 +357,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
 
         {/* Tab 1: Published Songs */}
         {activeTab === 'published' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto touch-pan-y p-6 space-y-4">
             {/* Search & Filter */}
             <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80">
               <input
@@ -454,7 +454,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
 
         {/* Tab 2: Local Songs */}
         {activeTab === 'local' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto touch-pan-y p-6 space-y-4">
             {localSongs.length === 0 ? (
               <div className="text-center py-12 px-4 border border-dashed border-slate-800 rounded-3xl bg-slate-950/40">
                 <Disc className="w-12 h-12 text-slate-600 mx-auto mb-3 animate-pulse" />
@@ -548,7 +548,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
 
         {/* Tab 3: Create New Song */}
         {activeTab === 'create' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          <div className="flex-1 overflow-y-auto touch-pan-y p-6 space-y-5">
             <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 space-y-4">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-amber-400" />

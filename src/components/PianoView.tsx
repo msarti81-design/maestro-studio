@@ -1154,7 +1154,7 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
               </button>
             </div>
 
-            <div className="p-4 space-y-5 overflow-y-auto text-xs">
+            <div className="p-4 space-y-5 overflow-y-auto max-h-[75vh] touch-pan-y text-xs">
               {/* Volume Master */}
               <div>
                 <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
@@ -1301,7 +1301,7 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
       {/* GAMIFICATION & PROFILE MODAL */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div className="flex items-center justify-between px-4 py-3 bg-slate-850 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Trophy className="w-4 h-4 text-amber-400" />
@@ -1315,7 +1315,7 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
               </button>
             </div>
 
-            <div className="p-4 space-y-4 text-xs">
+            <div className="p-4 space-y-4 text-xs overflow-y-auto max-h-[75vh] touch-pan-y">
               {/* Level & XP Card */}
               <div className="bg-gradient-to-r from-amber-500/20 to-orange-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between">
                 <div>

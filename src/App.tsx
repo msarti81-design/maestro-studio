@@ -57,7 +57,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+    <div className={`bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 ${
+      currentView === 'piano'
+        ? 'w-screen h-screen overflow-hidden fixed inset-0 touch-none'
+        : 'w-full min-h-screen h-full overflow-y-auto touch-pan-y'
+    }`}>
       {currentView !== 'piano' && (
         <Navbar
           currentView={currentView === 'home' ? 'piano' : currentView}
@@ -69,7 +73,7 @@ export default function App() {
         />
       )}
 
-      <main className={`flex-1 ${currentView === 'piano' ? 'p-0' : 'py-8 px-4 sm:px-6 lg:px-8'}`}>
+      <main className={`flex-1 ${currentView === 'piano' ? 'p-0 h-full overflow-hidden' : 'py-8 px-4 sm:px-6 lg:px-8 touch-pan-y'}`}>
         {currentView === 'home' && (
           <HomeView onSelectView={(v) => handleSelectView(v)} onInitAudio={handleInitAudio} />
         )}
