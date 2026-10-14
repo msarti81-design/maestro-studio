@@ -118,13 +118,13 @@ public class MainActivity extends BridgeActivity {{
     }}
 
     @Override
-    protected void onResume() {{
+    public void onResume() {{
         super.onResume();
         enableStickyImmersiveMode();
     }}
 
     @Override
-    protected void onStart() {{
+    public void onStart() {{
         super.onStart();
         enableStickyImmersiveMode();
     }}
