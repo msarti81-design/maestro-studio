@@ -151,10 +151,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           });
 
           // Resume playhead cleanly
-          playheadAnchorRef.current = {
-            audioTime: currentTimeRef.current,
-            wallTime: performance.now(),
-          };
+          lastFrameTimeRef.current = null;
           setIsPlaying(true);
           return;
         }
@@ -216,6 +213,14 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
     return () => window.removeEventListener('piano:noteplayed', handleEvent);
   }, [processPlayedNote]);
 
+  const sortedNotes = useMemo(() => {
+    return [...song.notes]
+      .map((n, originalIndex) => ({ ...n, originalIndex }))
+      .sort((a, b) => a.time - b.time);
+  }, [song.notes]);
+
+  const lastFrameTimeRef = useRef<number | null>(null);
+
   // Main 60 FPS Canvas Render Loop
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -243,11 +248,6 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         ctx.scale(dpr, dpr);
 
         updateKeyPositionsMap(cssWidth);
-        // Reset timing anchor on resize so playback clock never stutters when turning screen
-        playheadAnchorRef.current = {
-          audioTime: currentTimeRef.current,
-          wallTime: performance.now(),
-        };
       }
     };
 
@@ -274,10 +274,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
       resizeObserver.observe(containerRef.current);
     }
 
-    playheadAnchorRef.current = {
-      audioTime: currentTimeRef.current,
-      wallTime: performance.now(),
-    };
+    lastFrameTimeRef.current = null;
 
     const render = (now: number) => {
       // Auto-recalibrate canvas if flex container dimensions change or on initial DOM mount
@@ -292,21 +289,26 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
       const { width, height } = dimsRef.current;
       const hitLineY = height - 1; // Positioned as low as possible right at bottom edge above keys
 
+      if (lastFrameTimeRef.current === null) {
+        lastFrameTimeRef.current = now;
+      }
+      const deltaSec = Math.max(0, Math.min(0.1, (now - lastFrameTimeRef.current) / 1000));
+      lastFrameTimeRef.current = now;
+
       if (isPlayingRef.current) {
-        // High-precision clock synced with performance.now() to prevent drift
-        const elapsedSec = (now - playheadAnchorRef.current.wallTime) / 1000;
-        let newTime = playheadAnchorRef.current.audioTime + elapsedSec * playbackSpeedRef.current;
+        let newTime = currentTimeRef.current + deltaSec * playbackSpeedRef.current;
 
         // Learn Mode: pause right at target note line
         if (playModeRef.current === 'learn') {
-          for (let i = 0; i < song.notes.length; i++) {
-            if (!hitNotesSetRef.current.has(i)) {
-              const n = song.notes[i];
-              if (newTime >= n.time) {
-                newTime = n.time;
-                waitingNoteIndexRef.current = i;
+          for (let i = 0; i < sortedNotes.length; i++) {
+            const sn = sortedNotes[i];
+            const origIdx = sn.originalIndex;
+            if (!hitNotesSetRef.current.has(origIdx)) {
+              if (newTime >= sn.time) {
+                newTime = sn.time;
+                waitingNoteIndexRef.current = origIdx;
                 setIsPlaying(false);
-                setWaitingTargetNote(n.note);
+                setWaitingTargetNote(sn.note);
                 break;
               }
             }
@@ -315,10 +317,11 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
         // Demo Mode: automated acoustic playback
         if (playModeRef.current === 'demo') {
-          song.notes.forEach((n, idx) => {
-            if (!hitNotesSetRef.current.has(idx) && newTime >= n.time) {
-              hitNotesSetRef.current.add(idx);
-              audioEngine.playNote(getTransposedNote(n.note), '4n', 'piano');
+          sortedNotes.forEach((sn) => {
+            const origIdx = sn.originalIndex;
+            if (!hitNotesSetRef.current.has(origIdx) && newTime >= sn.time) {
+              hitNotesSetRef.current.add(origIdx);
+              audioEngine.playNote(getTransposedNote(sn.note), '4n', 'piano');
             }
           });
         }
@@ -427,10 +430,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const handleReset = () => {
     currentTimeRef.current = 0;
     setCurrentTime(0);
-    playheadAnchorRef.current = {
-      audioTime: 0,
-      wallTime: performance.now(),
-    };
+    lastFrameTimeRef.current = null;
     songPlaybackState.currentTime = 0;
     songPlaybackState.isPlaying = true;
     songPlaybackState.activeSong = song;
@@ -447,10 +447,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
   const togglePlayPause = () => {
     if (!isPlaying) {
-      playheadAnchorRef.current = {
-        audioTime: currentTimeRef.current,
-        wallTime: performance.now(),
-      };
+      lastFrameTimeRef.current = null;
       setIsPlaying(true);
     } else {
       setIsPlaying(false);
@@ -502,10 +499,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 key={s}
                 onClick={() => {
                   setPlaybackSpeed(s);
-                  playheadAnchorRef.current = {
-                    audioTime: currentTimeRef.current,
-                    wallTime: performance.now(),
-                  };
+                  lastFrameTimeRef.current = null;
                 }}
                 className={`px-1 py-0.2 rounded transition-colors ${
                   playbackSpeed === s ? 'bg-amber-400 text-slate-950 font-black' : 'text-slate-300 hover:text-white'
