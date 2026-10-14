@@ -1,0 +1,14 @@
+{
+  "appId": "com.maestrostudio.piano",
+  "appName": "Maestro Piano Studio",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "ScreenOrientation": {
+      "orientation": "landscape"
+    }
+  }
+}
