@@ -268,7 +268,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
     const render = (now: number) => {
       const { width, height } = dimsRef.current;
-      const hitLineY = height - 4; // Positioned right at bottom edge above keys
+      const hitLineY = height - 1; // Positioned as low as possible right at bottom edge above keys
 
       if (isPlayingRef.current) {
         // High-precision clock synced with performance.now() to prevent drift

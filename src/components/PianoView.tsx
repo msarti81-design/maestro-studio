@@ -438,15 +438,25 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
       refreshKeyboardGeometry();
     };
 
+    const handleFsChange = () => {
+      const doc = document as any;
+      setIsFullscreen(Boolean(document.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement));
+    };
+
     handleResize();
+    handleFsChange();
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
     const t1 = setTimeout(refreshKeyboardGeometry, 50);
     const t2 = setTimeout(refreshKeyboardGeometry, 200);
 
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
       clearTimeout(t1);
       clearTimeout(t2);
     };
@@ -1010,6 +1020,14 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
             title="Sustain (pedale)"
           >
             Pedale
+          </button>
+
+          <button
+            onClick={toggleFullscreen}
+            className="p-1 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-md transition-colors"
+            title={isFullscreen ? 'Esci da Schermo Intero' : 'Schermo Intero (Nascondi Barre Sistema)'}
+          >
+            {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
           </button>
 
           <button
