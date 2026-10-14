@@ -9,6 +9,10 @@
   "plugins": {
     "ScreenOrientation": {
       "orientation": "landscape"
+    },
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "DARK"
     }
   }
 }

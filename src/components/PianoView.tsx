@@ -806,12 +806,20 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
 
   const toggleFullscreen = async () => {
     try {
+      if (typeof window !== 'undefined' && (window as any).Capacitor) {
+        const plugins = (window as any).Capacitor.Plugins;
+        if (plugins && plugins.StatusBar) {
+          try {
+            await plugins.StatusBar.hide();
+          } catch (e) {}
+        }
+      }
       const doc = document as any;
       const docEl = document.documentElement as any;
       const isFs = Boolean(document.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement);
       if (!isFs) {
         if (docEl.requestFullscreen) {
-          await docEl.requestFullscreen();
+          await docEl.requestFullscreen({ navigationUI: 'hide' } as any);
         } else if (docEl.webkitRequestFullscreen) {
           await docEl.webkitRequestFullscreen();
         }
@@ -826,6 +834,18 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
       console.warn('Fullscreen toggle:', e);
     }
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).Capacitor) {
+      const plugins = (window as any).Capacitor.Plugins;
+      if (plugins && plugins.StatusBar) {
+        try {
+          plugins.StatusBar.hide();
+          plugins.StatusBar.setOverlaysWebView({ overlay: true });
+        } catch (e) {}
+      }
+    }
+  }, []);
 
   // ZERO-LATENCY NATIVE LAYOUT:
   // When in landscape (physical phone or Android native locked app), do NOT apply any transform: translate(-50%, -50%) rotate(0deg).
