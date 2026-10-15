@@ -125,7 +125,7 @@ import android.view.WindowManager;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.DownloadListener;
-import android.webkit.URLUtil;
+import android.webkit.JavascriptInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.widget.Toast;
@@ -168,8 +168,53 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    public class AndroidFileSaver {
+        @JavascriptInterface
+        public void saveFileToDownloads(String fileName, String base64Data, String mimeType) {
+            try {
+                byte[] fileData = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    android.content.ContentValues values = new android.content.ContentValues();
+                    values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                    values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType);
+                    values.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
+
+                    android.net.Uri uri = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                    if (uri != null) {
+                        java.io.OutputStream out = getContentResolver().openOutputStream(uri);
+                        if (out != null) {
+                            out.write(fileData);
+                            out.close();
+                        }
+                    }
+                } else {
+                    java.io.File downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+                    if (!downloadsDir.exists()) downloadsDir.mkdirs();
+                    java.io.File file = new java.io.File(downloadsDir, fileName);
+                    java.io.FileOutputStream out = new java.io.FileOutputStream(file);
+                    out.write(fileData);
+                    out.close();
+
+                    android.media.MediaScannerConnection.scanFile(getApplicationContext(), new String[]{file.getAbsolutePath()}, null, null);
+                }
+
+                runOnUiThread(() -> {
+                    Toast.makeText(getApplicationContext(), "✓ File " + fileName + " salvato in Download!", Toast.LENGTH_LONG).show();
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() -> {
+                    Toast.makeText(getApplicationContext(), "Errore salvataggio: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        }
+    }
+
     private void setupWebViewDownloadAndAudioHandler() {
         if (bridge != null && bridge.getWebView() != null) {
+            // Register JavascriptInterface for instant direct file saves to Downloads folder
+            bridge.getWebView().addJavascriptInterface(new AndroidFileSaver(), "AndroidFileSaver");
+
             // 1. Grant WebView permission for microphone input automatically
             bridge.getWebView().setWebChromeClient(new WebChromeClient() {
                 @Override
@@ -250,7 +295,7 @@ public class MainActivity extends BridgeActivity {
     full_main_activity = template.replace("{package_name}", package_name)
     with open(main_act_path, 'w', encoding='utf-8') as f:
         f.write(full_main_activity)
-    print("Successfully configured MainActivity.java with Sticky Immersive, Mic Permissions & Download Handler!")
+    print("Successfully configured MainActivity.java with Sticky Immersive, Mic Permissions & AndroidFileSaver Bridge!")
 
 if __name__ == '__main__':
     configure_manifest()

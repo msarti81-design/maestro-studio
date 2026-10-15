@@ -250,7 +250,24 @@ export function createMidiBase64(song: SheetSong): string {
  * Bulletproof, zero-fail direct file download helper for modern browsers & mobile
  */
 export function downloadBlobFile(filename: string, blob: Blob): boolean {
-  // 1. Try Web Share API with File object (Perfect for Capacitor Mobile App & Android WebViews)
+  // 1. Android Capacitor Native App FileSaver Bridge (Instant Direct Save to Downloads Folder)
+  if (typeof window !== 'undefined' && (window as any).AndroidFileSaver?.saveFileToDownloads) {
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const base64Data = dataUrl.split(',')[1] || '';
+        const mimeType = blob.type || 'application/octet-stream';
+        (window as any).AndroidFileSaver.saveFileToDownloads(filename, base64Data, mimeType);
+      };
+      reader.readAsDataURL(blob);
+      return true;
+    } catch (e) {
+      console.warn('AndroidFileSaver failed:', e);
+    }
+  }
+
+  // 2. Try Web Share API with File object (Perfect for Mobile Web & iOS)
   try {
     if (typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
       const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
