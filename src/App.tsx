@@ -4,13 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { ViewMode, SheetSong } from './types';
+import { ViewMode } from './types';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
 import { PianoView } from './components/PianoView';
 import { SheetComposerView } from './components/SheetComposerView';
 import { JamBandView } from './components/JamBandView';
-import { AiSongwriterView } from './components/AiSongwriterView';
 import { audioEngine } from './utils/audioEngine';
 
 export default function App() {
@@ -20,17 +19,15 @@ export default function App() {
       if (path.includes('piano') || path.includes('song')) return 'piano';
       if (path.includes('sheet')) return 'sheet';
       if (path.includes('jam')) return 'jam';
-      if (path.includes('ai')) return 'ai';
 
       const hash = window.location.hash.toLowerCase();
       if (hash === '#piano' || hash === '#song') return 'piano';
       if (hash === '#sheet') return 'sheet';
       if (hash === '#jam') return 'jam';
-      if (hash === '#ai') return 'ai';
 
       try {
         const saved = localStorage.getItem('maestro_last_view');
-        if (saved === 'piano' || saved === 'sheet' || saved === 'jam' || saved === 'ai') {
+        if (saved === 'piano' || saved === 'sheet' || saved === 'jam') {
           return saved;
         }
       } catch (e) {}
@@ -66,10 +63,6 @@ export default function App() {
     audioEngine.setVolume(vol);
   };
 
-  const handleLoadAiSong = (song: SheetSong) => {
-    handleSelectView('sheet');
-  };
-
   return (
     <div className={`bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 ${
       currentView === 'piano'
@@ -87,7 +80,7 @@ export default function App() {
         />
       )}
 
-      <main className={`flex-1 ${currentView === 'piano' ? 'p-0 h-full overflow-hidden' : 'py-8 px-4 sm:px-6 lg:px-8 touch-pan-y'}`}>
+      <main className={`flex-1 ${currentView === 'piano' ? 'p-0 h-full overflow-hidden' : 'py-4 px-4 sm:px-6 lg:px-8 touch-pan-y'}`}>
         {currentView === 'home' && (
           <HomeView onSelectView={(v) => handleSelectView(v)} onInitAudio={handleInitAudio} />
         )}
@@ -96,7 +89,6 @@ export default function App() {
         )}
         {currentView === 'sheet' && <SheetComposerView />}
         {currentView === 'jam' && <JamBandView />}
-        {currentView === 'ai' && <AiSongwriterView onLoadSong={handleLoadAiSong} />}
       </main>
     </div>
   );
