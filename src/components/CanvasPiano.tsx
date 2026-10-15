@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import { NoteNotationFormat } from '../types';
+import { formatNoteLabel } from '../utils/noteFormatting';
 
 export interface KeyConfig {
   note: string;
@@ -15,6 +16,7 @@ interface CanvasPianoProps {
   onNoteUp: (note: string) => void;
   sustain: boolean;
   showWaterfall: boolean;
+  noteNotation?: NoteNotationFormat;
 }
 
 interface KeyRect {
@@ -36,6 +38,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
   onNoteUp,
   sustain,
   showWaterfall,
+  noteNotation = 'latin',
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -61,6 +64,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
 
     // Build white keys
     whiteKeysList.forEach((k, idx) => {
+      const transposed = getTransposedNote(k.note);
+      const label = formatNoteLabel(transposed, noteNotation, true);
       whiteKeys.push({
         note: k.note,
         type: 'white',
@@ -68,7 +73,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         y: 0,
         width: whiteWidth,
         height: height,
-        label: getTransposedNote(k.note),
+        label,
         computerKey: k.computerKey,
       });
     });
@@ -86,6 +91,9 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         const blackHeight = height * blackHeightProportion;
         const x = whiteCountBefore * whiteWidth - blackWidth / 2;
 
+        const transposed = getTransposedNote(k.note);
+        const label = formatNoteLabel(transposed, noteNotation, true);
+
         blackKeys.push({
           note: k.note,
           type: 'black',
@@ -93,14 +101,14 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           y: 0,
           width: blackWidth,
           height: blackHeight,
-          label: getTransposedNote(k.note),
+          label,
           computerKey: k.computerKey,
         });
       }
     });
 
     keyRectsRef.current = { whiteKeys, blackKeys };
-  }, [keys, whiteKeysList, numWhiteKeys, getTransposedNote, showWaterfall]);
+  }, [keys, whiteKeysList, numWhiteKeys, getTransposedNote, showWaterfall, noteNotation]);
 
   // Ultra-fast instant touch detection (Priority: Black Keys -> White Keys)
   const getNoteAtCoords = useCallback((clientX: number, clientY: number): string | null => {

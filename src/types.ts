@@ -1,4 +1,5 @@
 export type ViewMode = 'piano' | 'sheet' | 'jam' | 'ai';
+export type NoteNotationFormat = 'latin' | 'letter' | 'german' | 'numeric' | 'none';
 
 export interface NoteEvent {
   note: string; // e.g. "C4"

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { audioEngine } from '../utils/audioEngine';
-import { InstrumentType, RecordedNote, InteractiveSong } from '../types';
+import { InstrumentType, RecordedNote, InteractiveSong, NoteNotationFormat } from '../types';
 import {
   Home,
   Maximize,
@@ -227,6 +227,27 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
 
   const [octaveShift, setOctaveShift] = useState<number>(0);
   const [username, setUsername] = useState<string>(() => getUsername());
+
+  const [noteNotation, setNoteNotation] = useState<NoteNotationFormat>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('maestro_note_notation');
+        if (saved === 'latin' || saved === 'letter' || saved === 'german' || saved === 'numeric' || saved === 'none') {
+          return saved;
+        }
+      } catch (e) {}
+    }
+    return 'latin';
+  });
+
+  const handleNotationChange = (fmt: NoteNotationFormat) => {
+    setNoteNotation(fmt);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('maestro_note_notation', fmt);
+      } catch (e) {}
+    }
+  };
 
   const [activeSong, setActiveSong] = useState<InteractiveSong | null>(() => {
     const list = getPublishedSongs();
@@ -1127,6 +1148,7 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
         onNoteUp={handleCanvasNoteUp}
         sustain={sustain}
         showWaterfall={Boolean(showWaterfall && activeSong)}
+        noteNotation={noteNotation}
       />
 
       {/* OPTIONS MODAL */}
@@ -1248,6 +1270,39 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
                       +1
                     </button>
                   </div>
+                </div>
+              </div>
+
+              {/* Formato Nomenclatura Note */}
+              <div>
+                <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
+                  5. Nomenclatura Note (Etichette Tasti)
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: 'latin', label: 'Latino / Solfeggio', example: 'DO, RE, MI, FA, SOL...', desc: 'Solfeggio classico' },
+                    { id: 'letter', label: 'Anglosassone', example: 'C, D, E, F, G, A, B', desc: 'Standard internazionale' },
+                    { id: 'german', label: 'Tedesca', example: 'C, D, E, F, G, A, H', desc: 'B -> H, A# -> B' },
+                    { id: 'numeric', label: 'Numerica / Gradi', example: '1, 2, 3, 4, 5, 6, 7', desc: 'Gradi della scala' },
+                    { id: 'none', label: 'Nessuna (Tasti Vuoti)', example: '—', desc: 'Per pianisti avanzati' },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleNotationChange(item.id as NoteNotationFormat)}
+                      className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                        noteNotation === item.id
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-md'
+                          : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold">{item.label}</span>
+                        {noteNotation === item.id && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                      </div>
+                      <div className="text-[10px] font-mono font-bold text-amber-400/90 mt-1">{item.example}</div>
+                      <div className="text-[9px] text-slate-400 mt-0.5">{item.desc}</div>
+                    </button>
+                  ))}
                 </div>
               </div>
 
