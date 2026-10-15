@@ -396,9 +396,9 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
 
             {/* Song Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-              {filteredPublished.map((song) => (
+              {filteredPublished.map((song, idx) => (
                 <div
-                  key={song.id}
+                  key={`${song.id}-${idx}`}
                   className="bg-slate-800/40 hover:bg-slate-800/70 border border-slate-700/60 hover:border-amber-500/40 rounded-2xl p-4 transition-all group flex flex-col justify-between shadow-md"
                 >
                   <div>
@@ -492,9 +492,9 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {filteredLocal.map((song) => (
+                {filteredLocal.map((song, idx) => (
                   <div
-                    key={song.id}
+                    key={`${song.id}-${idx}`}
                     className="bg-slate-800/40 hover:bg-slate-800/70 border border-slate-700/60 rounded-2xl p-4 transition-all flex flex-col justify-between shadow-md"
                   >
                     <div>

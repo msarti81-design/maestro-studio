@@ -62,7 +62,24 @@ const BASS_NOTES = [
 export const SheetComposerView: React.FC = () => {
   const [songs, setSongs] = useState<SheetSong[]>(() => {
     const saved = getSavedSheetSongs();
-    return [...saved, ...PRESET_SONGS];
+    const seen = new Set<string>();
+    const result: SheetSong[] = [];
+
+    for (const s of saved) {
+      if (s && s.id && !seen.has(s.id)) {
+        seen.add(s.id);
+        result.push(s);
+      }
+    }
+
+    for (const p of PRESET_SONGS) {
+      if (p && p.id && !seen.has(p.id)) {
+        seen.add(p.id);
+        result.push(p);
+      }
+    }
+
+    return result;
   });
 
   const [selectedSongId, setSelectedSongId] = useState<string>(() => {
@@ -277,22 +294,32 @@ export const SheetComposerView: React.FC = () => {
       bpm: 100,
       timeSignature: '4/4',
       chords: ['C', 'G', 'Am', 'F'],
-      melody: [
-        { note: 'C4', duration: '4n', time: 0 },
-        { note: 'E4', duration: '4n', time: 1 },
-        { note: 'G4', duration: '4n', time: 2 },
-        { note: 'C5', duration: '2n', time: 3 },
-      ],
-      bassline: [
-        { note: 'C3', duration: '2n', time: 0 },
-        { note: 'G2', duration: '2n', time: 2 },
-      ]
+      melody: [],
+      bassline: []
     };
     saveCustomSheetSong(newSong);
     setSongs(prev => [newSong, ...prev]);
     setSelectedSongId(newId);
     setHasUnsavedChanges(false);
-    showToast(`Creato "${newSong.title}". Clicca sui tasti per comporre la tua musica!`);
+    showToast(`Creato "${newSong.title}". Tocca i tasti del pianoforte per comporre la tua musica!`);
+  };
+
+  const handleClearMelody = () => {
+    if (currentSong.melody.length === 0) return;
+    if (confirm('Vuoi cancellare tutte le note della melodia del pianoforte?')) {
+      stopPlayback();
+      updateCurrentSong(s => ({ ...s, melody: [] }));
+      showToast('Melodia del pianoforte svuotata.');
+    }
+  };
+
+  const handleClearBassline = () => {
+    if (currentSong.bassline.length === 0) return;
+    if (confirm('Vuoi cancellare tutte le note del basso?')) {
+      stopPlayback();
+      updateCurrentSong(s => ({ ...s, bassline: [] }));
+      showToast('Linea di basso svuotata.');
+    }
   };
 
   // Explicit Save Action
@@ -440,14 +467,6 @@ export const SheetComposerView: React.FC = () => {
     }
   };
 
-  // Generate piano keys based on octave offset
-  const baseStartOctave = 3 + keyboardOctaveOffset;
-  const keyboardKeys = [
-    ...NOTE_PATTERNS.map(p => ({ note: `${p.note}${baseStartOctave}`, type: p.type })),
-    ...NOTE_PATTERNS.map(p => ({ note: `${p.note}${baseStartOctave + 1}`, type: p.type })),
-    { note: `C${baseStartOctave + 2}`, type: 'white' as const },
-  ];
-
   return (
     <div className="max-w-6xl mx-auto p-2 sm:p-4 space-y-4 select-none">
       {/* Toast Notification */}
@@ -513,8 +532,8 @@ export const SheetComposerView: React.FC = () => {
                 }}
                 className="bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-bold rounded-lg px-2 py-1 outline-none focus:border-amber-400 max-w-[180px] sm:max-w-[220px] truncate cursor-pointer"
               >
-                {songs.map(s => (
-                  <option key={s.id} value={s.id}>
+                {songs.map((s, idx) => (
+                  <option key={`${s.id}-${idx}`} value={s.id}>
                     {s.title} ({s.key})
                   </option>
                 ))}
@@ -789,13 +808,26 @@ export const SheetComposerView: React.FC = () => {
             <span className="text-xs text-slate-400 font-mono">({currentSong.melody.length} note)</span>
           </div>
 
-          <button
-            onClick={() => handlePianoKeyClick('C4')}
-            className="px-2.5 py-1 text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/30 flex items-center gap-1 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Aggiungi Nota</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {currentSong.melody.length > 0 && (
+              <button
+                onClick={handleClearMelody}
+                className="px-2.5 py-1 text-xs font-bold bg-red-500/15 hover:bg-red-500/25 text-red-300 rounded-lg border border-red-500/30 flex items-center gap-1 transition-colors"
+                title="Svuota e cancella tutte le note della melodia"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                <span>Svuota Melodia</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => handlePianoKeyClick('C4')}
+              className="px-2.5 py-1 text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/30 flex items-center gap-1 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Aggiungi Nota</span>
+            </button>
+          </div>
         </div>
 
         {currentSong.melody.length === 0 ? (
@@ -879,13 +911,26 @@ export const SheetComposerView: React.FC = () => {
             <span className="text-xs text-slate-400 font-mono">({currentSong.bassline.length} note)</span>
           </div>
 
-          <button
-            onClick={() => handlePianoKeyClick('C2')}
-            className="px-2.5 py-1 text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-lg border border-emerald-500/30 flex items-center gap-1 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Aggiungi Basso</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {currentSong.bassline.length > 0 && (
+              <button
+                onClick={handleClearBassline}
+                className="px-2.5 py-1 text-xs font-bold bg-red-500/15 hover:bg-red-500/25 text-red-300 rounded-lg border border-red-500/30 flex items-center gap-1 transition-colors"
+                title="Svuota e cancella tutte le note del basso"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                <span>Svuota Basso</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => handlePianoKeyClick('C2')}
+              className="px-2.5 py-1 text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-lg border border-emerald-500/30 flex items-center gap-1 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Aggiungi Basso</span>
+            </button>
+          </div>
         </div>
 
         {currentSong.bassline.length === 0 ? (

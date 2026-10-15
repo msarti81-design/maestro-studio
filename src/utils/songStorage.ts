@@ -1,4 +1,4 @@
-import { InteractiveSong } from '../types';
+import { InteractiveSong, SheetSong } from '../types';
 import { DEFAULT_INTERACTIVE_SONGS } from '../data/interactiveSongs';
 
 const USERNAME_KEY = 'maestro_username';
@@ -28,7 +28,16 @@ export const getLocalSongs = (): InteractiveSong[] => {
   try {
     const raw = localStorage.getItem(LOCAL_SONGS_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed: InteractiveSong[] = JSON.parse(raw);
+    const seen = new Set<string>();
+    const unique: InteractiveSong[] = [];
+    for (const s of parsed) {
+      if (s && s.id && !seen.has(s.id)) {
+        seen.add(s.id);
+        unique.push(s);
+      }
+    }
+    return unique;
   } catch (e) {
     console.error('Failed to parse local songs', e);
     return [];
@@ -60,21 +69,28 @@ export const getPublishedSongs = (): InteractiveSong[] => {
   if (typeof window === 'undefined') return DEFAULT_INTERACTIVE_SONGS;
   try {
     const raw = localStorage.getItem(PUBLISHED_SONGS_KEY);
-    if (!raw) {
-      // Seed initial default community songs
-      localStorage.setItem(PUBLISHED_SONGS_KEY, JSON.stringify(DEFAULT_INTERACTIVE_SONGS));
-      return DEFAULT_INTERACTIVE_SONGS;
-    }
-    const parsed: InteractiveSong[] = JSON.parse(raw);
-    // Ensure all default songs exist in the list
-    const existingIds = new Set(parsed.map(s => s.id));
-    const merged = [...parsed];
-    for (const def of DEFAULT_INTERACTIVE_SONGS) {
-      if (!existingIds.has(def.id)) {
-        merged.push(def);
+    const parsed: InteractiveSong[] = raw ? JSON.parse(raw) : [];
+
+    const seen = new Set<string>();
+    const unique: InteractiveSong[] = [];
+
+    // First add parsed community/user published songs
+    for (const s of parsed) {
+      if (s && s.id && !seen.has(s.id)) {
+        seen.add(s.id);
+        unique.push(s);
       }
     }
-    return merged;
+
+    // Then ensure default songs exist without duplicating
+    for (const def of DEFAULT_INTERACTIVE_SONGS) {
+      if (def && def.id && !seen.has(def.id)) {
+        seen.add(def.id);
+        unique.push(def);
+      }
+    }
+
+    return unique;
   } catch (e) {
     console.error('Failed to load published songs', e);
     return DEFAULT_INTERACTIVE_SONGS;
@@ -120,7 +136,16 @@ export const getSavedSheetSongs = (): SheetSong[] => {
   try {
     const raw = localStorage.getItem(SHEET_SONGS_STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed: SheetSong[] = JSON.parse(raw);
+    const seen = new Set<string>();
+    const unique: SheetSong[] = [];
+    for (const s of parsed) {
+      if (s && s.id && !seen.has(s.id)) {
+        seen.add(s.id);
+        unique.push(s);
+      }
+    }
+    return unique;
   } catch (e) {
     console.error('Failed to parse saved sheet songs', e);
     return [];

@@ -26,7 +26,7 @@ interface ActiveVoice {
 class AudioEngine {
   private audioCtx: AudioContext | null = null;
   private isSustainOn = false;
-  private volumePercent = 90;
+  private volumePercent = 85;
   private soundProfile: SoundProfile = 'concert';
 
   // Master Audio Chain Nodes
@@ -73,6 +73,9 @@ class AudioEngine {
       // 1. Initialize Tone.js
       try {
         await Tone.start();
+
+        // Sync initial volume to Tone.Destination
+        this.applyVolumeToGain();
 
         // Initialize Real Acoustic Grand Piano Sampler
         if (!this.sampler) {
@@ -183,9 +186,7 @@ class AudioEngine {
 
     for (let i = 0; i < length; i++) {
       const t = i / length;
-      // Exponential decay envelope
       const env = Math.pow(1 - t, decay);
-      // Frequency-dependent damping (high frequencies absorb faster)
       const damping = Math.exp(-t * 3.0);
       left[i] = (Math.random() * 2 - 1) * env * damping;
       right[i] = (Math.random() * 2 - 1) * env * damping;
@@ -203,26 +204,23 @@ class AudioEngine {
         });
 
         // 1. Acoustic Soundboard Equalizer
-        // Deep body resonance (160 Hz, warm spruce soundboard)
         this.masterEqualizerLow = this.audioCtx.createBiquadFilter();
         this.masterEqualizerLow.type = 'lowshelf';
         this.masterEqualizerLow.frequency.setValueAtTime(160, this.audioCtx.currentTime);
         this.masterEqualizerLow.gain.setValueAtTime(3.5, this.audioCtx.currentTime);
 
-        // Presence & wooden hammer clarity (1400 Hz)
         this.masterEqualizerMid = this.audioCtx.createBiquadFilter();
         this.masterEqualizerMid.type = 'peaking';
         this.masterEqualizerMid.frequency.setValueAtTime(1400, this.audioCtx.currentTime);
         this.masterEqualizerMid.Q.setValueAtTime(1.1, this.audioCtx.currentTime);
         this.masterEqualizerMid.gain.setValueAtTime(2.0, this.audioCtx.currentTime);
 
-        // High brilliance / air shimmer (6500 Hz)
         this.masterEqualizerHigh = this.audioCtx.createBiquadFilter();
         this.masterEqualizerHigh.type = 'highshelf';
         this.masterEqualizerHigh.frequency.setValueAtTime(6500, this.audioCtx.currentTime);
         this.masterEqualizerHigh.gain.setValueAtTime(2.5, this.audioCtx.currentTime);
 
-        // 2. Convolution Reverb (True Stereo Concert Hall)
+        // 2. Convolution Reverb
         this.convolver = this.audioCtx.createConvolver();
         const decayTime = this.soundProfile === 'cathedral' ? 4.8 : this.soundProfile === 'studio' ? 1.0 : 2.6;
         this.convolver.buffer = this.createStereoConcertHallImpulse(this.audioCtx, decayTime);
@@ -244,9 +242,6 @@ class AudioEngine {
         this.applyVolumeToGain();
 
         // Graph Routing:
-        // Input -> EQ Low -> EQ Mid -> EQ High
-        //    ├─> dryGain ─────────────────────┐
-        //    └─> convolver -> reverbGain ────┴─> compressor -> masterGain -> destination
         this.masterEqualizerLow.connect(this.masterEqualizerMid);
         this.masterEqualizerMid.connect(this.masterEqualizerHigh);
 
@@ -274,22 +269,22 @@ class AudioEngine {
     const now = this.audioCtx.currentTime;
 
     switch (this.soundProfile) {
-      case 'concert': // Balanced, majestic grand hall
+      case 'concert':
         this.dryGain.gain.setValueAtTime(0.85, now);
         this.reverbGain.gain.setValueAtTime(0.26, now);
         this.masterEqualizerHigh.gain.setValueAtTime(2.2, now);
         break;
-      case 'studio': // Intimate, dry, punchy, direct
+      case 'studio':
         this.dryGain.gain.setValueAtTime(0.96, now);
         this.reverbGain.gain.setValueAtTime(0.08, now);
         this.masterEqualizerHigh.gain.setValueAtTime(1.2, now);
         break;
-      case 'bright': // Stage piano, crisp, piercing highs
+      case 'bright':
         this.dryGain.gain.setValueAtTime(0.90, now);
         this.reverbGain.gain.setValueAtTime(0.18, now);
         this.masterEqualizerHigh.gain.setValueAtTime(4.0, now);
         break;
-      case 'cathedral': // Ethereal, huge ambient wash
+      case 'cathedral':
         this.dryGain.gain.setValueAtTime(0.60, now);
         this.reverbGain.gain.setValueAtTime(0.52, now);
         this.masterEqualizerHigh.gain.setValueAtTime(2.8, now);
@@ -298,14 +293,31 @@ class AudioEngine {
   }
 
   private applyVolumeToGain() {
-    if (!this.masterGain || !this.audioCtx) return;
-    const now = this.audioCtx.currentTime;
-    // Map volumePercent (0-100 or -30 to 6 dB) smoothly
     let normalized = Math.max(0, Math.min(100, this.volumePercent)) / 100;
-    if (this.volumePercent <= -25) normalized = 0;
-    const gainValue = normalized === 0 ? 0 : Math.pow(normalized, 1.2) * 1.5;
-    this.masterGain.gain.cancelScheduledValues(now);
-    this.masterGain.gain.setValueAtTime(gainValue, now);
+    if (this.volumePercent <= 0) normalized = 0;
+    const gainValue = normalized === 0 ? 0 : Math.pow(normalized, 1.25) * 1.5;
+
+    // 1. Web Audio API Master Gain
+    if (this.masterGain && this.audioCtx) {
+      const now = this.audioCtx.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(gainValue, now);
+    }
+
+    // 2. Tone.js Destination Master Volume (Directly controls Tone.Sampler acoustic piano and Tone synths!)
+    try {
+      if (typeof Tone !== 'undefined' && Tone.getDestination) {
+        if (normalized === 0) {
+          Tone.getDestination().volume.value = -Infinity;
+        } else {
+          // Tone.gainToDb converts gain factor to decibels
+          const db = Tone.gainToDb(gainValue);
+          Tone.getDestination().volume.value = db;
+        }
+      }
+    } catch (e) {
+      console.warn("Tone destination volume update error:", e);
+    }
   }
 
   getVolume(): number {
@@ -421,7 +433,7 @@ class AudioEngine {
       const oscNodes: (AudioNode | OscillatorNode)[] = [];
       const gainNodes: GainNode[] = [];
 
-      // Binaural Stereo Panning based on keyboard pitch (C1 left -0.45 -> C8 right +0.45)
+      // Binaural Stereo Panning based on keyboard pitch
       const midi = NOTE_TO_MIDI[note] ?? 60;
       const panValue = Math.max(-0.45, Math.min(0.45, (midi - 60) / 42));
       let panNode: StereoPannerNode | null = null;
@@ -431,19 +443,15 @@ class AudioEngine {
       }
 
       if (instrument === "piano") {
-        // -------------------------------------------------------------
-        // CONCERT GRAND PIANO ULTRA-REALISTIC SYNTHESIS:
-        // Inharmonic stiff string partials: f_k = k * f0 * sqrt(1 + B * k^2)
-        // -------------------------------------------------------------
-        const B = 0.00032; // Real piano string stiffness coefficient
+        const B = 0.00032;
 
         const partials = [
-          { k: 1, amp: 1.00, decay: 1.00, type: 'triangle' as const }, // Fundamental
-          { k: 2, amp: 0.62, decay: 0.75, type: 'sine' as const },     // 2nd harmonic (octave)
-          { k: 3, amp: 0.38, decay: 0.52, type: 'sine' as const },     // 3rd harmonic (fifth)
-          { k: 4, amp: 0.22, decay: 0.35, type: 'sine' as const },     // 4th harmonic
-          { k: 5, amp: 0.12, decay: 0.22, type: 'sine' as const },     // 5th harmonic
-          { k: 6, amp: 0.06, decay: 0.15, type: 'sine' as const },     // 6th harmonic (sparkle)
+          { k: 1, amp: 1.00, decay: 1.00, type: 'triangle' as const },
+          { k: 2, amp: 0.62, decay: 0.75, type: 'sine' as const },
+          { k: 3, amp: 0.38, decay: 0.52, type: 'sine' as const },
+          { k: 4, amp: 0.22, decay: 0.35, type: 'sine' as const },
+          { k: 5, amp: 0.12, decay: 0.22, type: 'sine' as const },
+          { k: 6, amp: 0.06, decay: 0.15, type: 'sine' as const },
         ];
 
         partials.forEach(p => {
@@ -456,7 +464,7 @@ class AudioEngine {
 
           const g = this.audioCtx!.createGain();
           g.gain.setValueAtTime(0.0001, now);
-          g.gain.linearRampToValueAtTime(p.amp * 0.9, now + 0.0025); // Instant acoustic attack
+          g.gain.linearRampToValueAtTime(p.amp * 0.9, now + 0.0025);
           g.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration * p.decay);
 
           osc.connect(g);
@@ -465,7 +473,7 @@ class AudioEngine {
           gainNodes.push(g);
         });
 
-        // Triple-String Acoustic Detune Chorus (2 secondary unison strings)
+        // Triple-String Acoustic Detune Chorus
         const detuneFrequencies = [freq + 0.38, freq - 0.42];
         detuneFrequencies.forEach((dFreq) => {
           const detuneOsc = this.audioCtx!.createOscillator();
@@ -496,7 +504,7 @@ class AudioEngine {
         // Master Voice Envelope
         voiceMasterGain.gain.setValueAtTime(0.0001, now);
         voiceMasterGain.gain.linearRampToValueAtTime(0.98, now + 0.0025);
-        voiceMasterGain.gain.exponentialRampToValueAtTime(0.68, now + 0.16); // Hammer ring out
+        voiceMasterGain.gain.exponentialRampToValueAtTime(0.68, now + 0.16);
         voiceMasterGain.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration);
 
       } else if (instrument === "guitar") {
