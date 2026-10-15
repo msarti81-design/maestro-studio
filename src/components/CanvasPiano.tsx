@@ -41,6 +41,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
   sustain,
   showWaterfall,
   noteNotation = 'latin',
+  className,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
