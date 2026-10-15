@@ -16,10 +16,18 @@ import { audioEngine } from './utils/audioEngine';
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewMode | 'home'>(() => {
     if (typeof window !== 'undefined') {
-      if (window.location.hash === '#piano') return 'piano';
-      if (window.location.hash === '#sheet') return 'sheet';
-      if (window.location.hash === '#jam') return 'jam';
-      if (window.location.hash === '#ai') return 'ai';
+      const path = window.location.pathname.toLowerCase();
+      if (path.includes('piano') || path.includes('song')) return 'piano';
+      if (path.includes('sheet')) return 'sheet';
+      if (path.includes('jam')) return 'jam';
+      if (path.includes('ai')) return 'ai';
+
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#piano' || hash === '#song') return 'piano';
+      if (hash === '#sheet') return 'sheet';
+      if (hash === '#jam') return 'jam';
+      if (hash === '#ai') return 'ai';
+
       const saved = localStorage.getItem('maestro_last_view');
       if (saved === 'piano' || saved === 'sheet' || saved === 'jam' || saved === 'ai') {
         return saved;

@@ -158,13 +158,20 @@ Return a JSON object containing:
     res.status(200).sendFile(path.join(__dirname, "update_song.py"));
   });
   const distPath = path.join(__dirname, "dist");
-  if (process.env.NODE_ENV === "production" && fs.existsSync(distPath)) {
+  const isProd = process.env.NODE_ENV === "production" || fs.existsSync(distPath);
+  if (isProd) {
+    app.use("/assets", express.static(path.join(distPath, "assets")));
     app.use("/Song/assets", express.static(path.join(distPath, "assets")));
     app.use("/song/assets", express.static(path.join(distPath, "assets")));
-    app.use("/assets", express.static(path.join(distPath, "assets")));
     app.use("/Song", express.static(distPath));
     app.use("/song", express.static(distPath));
     app.use(express.static(distPath));
+    app.get(["/song", "/song/*", "/Song", "/Song/*"], (req, res, next) => {
+      if (path.extname(req.path)) {
+        return next();
+      }
+      res.sendFile(path.join(distPath, "index.html"));
+    });
     app.get("*", (req, res) => {
       if (req.path.endsWith(".sh") || req.path.endsWith(".py")) {
         const file = path.join(__dirname, path.basename(req.path));

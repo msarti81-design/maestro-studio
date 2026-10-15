@@ -185,12 +185,19 @@ Return a JSON object containing:
   const isProd = process.env.NODE_ENV === "production" || fs.existsSync(distPath);
   if (isProd) {
     // Serve static compiled assets directly
+    app.use("/assets", express.static(path.join(distPath, "assets")));
     app.use("/Song/assets", express.static(path.join(distPath, "assets")));
     app.use("/song/assets", express.static(path.join(distPath, "assets")));
-    app.use("/assets", express.static(path.join(distPath, "assets")));
     app.use("/Song", express.static(distPath));
     app.use("/song", express.static(distPath));
     app.use(express.static(distPath));
+
+    app.get(["/song", "/song/*", "/Song", "/Song/*"], (req, res, next) => {
+      if (path.extname(req.path)) {
+        return next();
+      }
+      res.sendFile(path.join(distPath, "index.html"));
+    });
 
     // SPA fallback: handle all paths EXCEPT raw update scripts
     app.get("*", (req, res) => {
