@@ -393,7 +393,7 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
       const numWhiteKeys = Math.max(1, whiteKeys.length);
       const whiteWidth = rect.width / numWhiteKeys;
       const blackWidth = Math.max(20, whiteWidth * 0.65);
-      const blackHeight = Math.min(rect.height * 0.58, 88);
+      const blackHeight = rect.height * 0.58;
 
       GAMEPLAY_KEYS.forEach((k, idx) => {
         if (k.type === 'black') {
@@ -1040,14 +1040,6 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
             title="Sustain (pedale)"
           >
             Pedale
-          </button>
-
-          <button
-            onClick={toggleFullscreen}
-            className="p-1 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-md transition-colors"
-            title={isFullscreen ? 'Esci da Schermo Intero' : 'Schermo Intero (Nascondi Barre Sistema)'}
-          >
-            {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
           </button>
 
           <button
