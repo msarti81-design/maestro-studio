@@ -12,13 +12,39 @@ def configure_manifest():
     root = tree.getroot()
     android_ns = '{http://schemas.android.com/apk/res/android}'
     
+    # 1. Add missing Android Permissions for Audio Recording (Mic) & External Storage (Downloads)
+    required_permissions = [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+    ]
+
+    existing_permissions = set()
+    for perm in root.findall('uses-permission'):
+        name = perm.get(f'{android_ns}name')
+        if name:
+            existing_permissions.add(name)
+
+    for perm_name in required_permissions:
+        if perm_name not in existing_permissions:
+            perm_elem = ET.Element('uses-permission')
+            perm_elem.set(f'{android_ns}name', perm_name)
+            if "EXTERNAL_STORAGE" in perm_name:
+                perm_elem.set(f'{android_ns}maxSdkVersion', '32')
+            root.insert(0, perm_elem)
+
+    # 2. Activity Configuration
     for activity in root.findall('.//activity'):
         activity.set(f'{android_ns}screenOrientation', 'sensorLandscape')
         activity.set(f'{android_ns}configChanges', 'orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode')
         activity.set(f'{android_ns}theme', '@style/AppTheme.NoActionBarFullscreen')
     
     tree.write(manifest_path, encoding='utf-8', xml_declaration=True)
-    print("Successfully configured AndroidManifest.xml for sensorLandscape & NoActionBarFullscreen!")
+    print("Successfully configured AndroidManifest.xml with Mic & Storage Permissions!")
 
 def configure_styles():
     styles_content = """<?xml version="1.0" encoding="utf-8"?>
@@ -96,6 +122,16 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
+import android.webkit.DownloadListener;
+import android.webkit.URLUtil;
+import android.content.Intent;
+import android.net.Uri;
+import android.widget.Toast;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import android.content.pm.PackageManager;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -107,6 +143,61 @@ public class MainActivity extends BridgeActivity {{
     protected void onCreate(Bundle savedInstanceState) {{
         super.onCreate(savedInstanceState);
         enableStickyImmersiveMode();
+        requestAudioAndStoragePermissions();
+        setupWebViewDownloadAndAudioHandler();
+    }}
+
+    private void requestAudioAndStoragePermissions() {{
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {{
+            String[] permissions = {{
+                android.Manifest.permission.RECORD_AUDIO,
+                android.Manifest.permission.MODIFY_AUDIO_SETTINGS,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                android.Manifest.permission.READ_EXTERNAL_STORAGE
+            }};
+            boolean needsRequest = false;
+            for (String p : permissions) {{
+                if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {{
+                    needsRequest = true;
+                    break;
+                }}
+            }}
+            if (needsRequest) {{
+                ActivityCompat.requestPermissions(this, permissions, 1001);
+            }}
+        }}
+    }}
+
+    private void setupWebViewDownloadAndAudioHandler() {{
+        if (bridge != null && bridge.getWebView() != null) {{
+            // 1. Grant WebView permission for microphone input automatically
+            bridge.getWebView().setWebChromeClient(new WebChromeClient() {{
+                @Override
+                public void onPermissionRequest(final PermissionRequest request) {{
+                    runOnUiThread(() -> {{
+                        try {{
+                            request.grant(request.getResources());
+                        }} catch (Exception e) {{
+                            e.printStackTrace();
+                        }}
+                    }});
+                }}
+            }});
+
+            // 2. Handle WebView file download triggers (JSON & MIDI)
+            bridge.getWebView().setDownloadListener(new DownloadListener() {{
+                @Override
+                public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {{
+                    try {{
+                        Intent intent = new Intent(Intent.ACTION_VIEW);
+                        intent.setData(Uri.parse(url));
+                        startActivity(intent);
+                    } catch (Exception e) {{
+                        Toast.makeText(getApplicationContext(), "Download avviato", Toast.LENGTH_SHORT).show();
+                    }}
+                }}
+            }});
+        }}
     }}
 
     @Override
@@ -158,7 +249,7 @@ public class MainActivity extends BridgeActivity {{
 """
     with open(main_act_path, 'w', encoding='utf-8') as f:
         f.write(full_main_activity)
-    print("Successfully configured MainActivity.java with Sticky Immersive Fullscreen!")
+    print("Successfully configured MainActivity.java with Sticky Immersive, Mic Permissions & Download Handler!")
 
 if __name__ == '__main__':
     configure_manifest()

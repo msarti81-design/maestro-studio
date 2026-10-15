@@ -250,12 +250,37 @@ export function createMidiBase64(song: SheetSong): string {
  * Bulletproof, zero-fail direct file download helper for modern browsers & mobile
  */
 export function downloadBlobFile(filename: string, blob: Blob): boolean {
+  // 1. Try Web Share API with File object (Perfect for Capacitor Mobile App & Android WebViews)
+  try {
+    if (typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
+      const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+      if (navigator.canShare({ files: [file] })) {
+        navigator.share({
+          files: [file],
+          title: filename,
+          text: `File ${filename} da Maestro Studio`,
+        }).catch((err) => {
+          console.warn('Share dismissed or failed, using direct download', err);
+          triggerDirectDownload(filename, blob);
+        });
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn('Web share check error:', e);
+  }
+
+  return triggerDirectDownload(filename, blob);
+}
+
+function triggerDirectDownload(filename: string, blob: Blob): boolean {
   try {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
     link.setAttribute('download', filename);
+    link.target = '_blank';
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
@@ -273,6 +298,7 @@ export function downloadBlobFile(filename: string, blob: Blob): boolean {
         link.href = reader.result as string;
         link.download = filename;
         link.setAttribute('download', filename);
+        link.target = '_blank';
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
