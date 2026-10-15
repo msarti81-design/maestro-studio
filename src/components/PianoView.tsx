@@ -393,7 +393,7 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
       const numWhiteKeys = Math.max(1, whiteKeys.length);
       const whiteWidth = rect.width / numWhiteKeys;
       const blackWidth = Math.max(20, whiteWidth * 0.65);
-      const blackHeight = rect.height * 0.58;
+      const blackHeight = rect.height * (showWaterfall ? 0.54 : 0.50);
 
       GAMEPLAY_KEYS.forEach((k, idx) => {
         if (k.type === 'black') {

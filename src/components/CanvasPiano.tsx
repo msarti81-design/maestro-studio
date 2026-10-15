@@ -81,8 +81,9 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           if (keys[i].type === 'white') whiteCountBefore++;
         }
         const blackWidth = whiteWidth * 0.62;
-        // Constant height proportion relative to white keys (58%), matching 14-key proportions
-        const blackHeight = height * 0.58;
+        // Balanced height proportion relative to white keys: 50% when notes are OFF, 54% when notes are ON
+        const blackHeightProportion = showWaterfall ? 0.54 : 0.50;
+        const blackHeight = height * blackHeightProportion;
         const x = whiteCountBefore * whiteWidth - blackWidth / 2;
 
         blackKeys.push({
@@ -99,7 +100,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     });
 
     keyRectsRef.current = { whiteKeys, blackKeys };
-  }, [keys, whiteKeysList, numWhiteKeys, getTransposedNote]);
+  }, [keys, whiteKeysList, numWhiteKeys, getTransposedNote, showWaterfall]);
 
   // Ultra-fast instant touch detection (Priority: Black Keys -> White Keys)
   const getNoteAtCoords = useCallback((clientX: number, clientY: number): string | null => {
