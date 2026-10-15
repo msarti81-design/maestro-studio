@@ -71,7 +71,7 @@ export default function App() {
     }`}>
       {currentView !== 'piano' && (
         <Navbar
-          currentView={currentView === 'home' ? 'piano' : currentView}
+          currentView={currentView}
           onSelectView={(v) => handleSelectView(v)}
           volume={volume}
           onVolumeChange={handleVolumeChange}

@@ -21,7 +21,8 @@ const ai = new GoogleGenAI({
 
 async function startServer() {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
   // Serve update scripts as raw plain text at top level before any middleware
   app.use((req, res, next) => {
@@ -98,6 +99,29 @@ async function startServer() {
     } catch (e: any) {
       console.error("Error saving community song:", e);
       res.status(500).json({ error: e.message || "Failed to publish song" });
+    }
+  });
+
+  // Guaranteed native file download endpoint for mobile browsers / WebViews
+  app.post("/api/download-export", (req, res) => {
+    try {
+      const { filename, content, mimeType, isBase64 } = req.body;
+      if (!filename || !content) {
+        return res.status(400).send("Parametri mancanti");
+      }
+      const safeFilename = filename.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
+      res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
+      res.setHeader("Content-Type", mimeType || "application/octet-stream");
+
+      if (isBase64) {
+        const buffer = Buffer.from(content, "base64");
+        return res.send(buffer);
+      } else {
+        return res.send(content);
+      }
+    } catch (e: any) {
+      console.error("Download export error:", e);
+      res.status(500).send("Download fallito");
     }
   });
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { SheetSong, NoteEvent } from '../types';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { SheetSong, NoteEvent, NoteNotationFormat } from '../types';
 import { PRESET_SONGS } from '../data/songs';
 import { audioEngine } from '../utils/audioEngine';
 import {
@@ -15,38 +15,36 @@ import {
   Check,
   Copy,
   Share2,
-  FileCode,
   Upload,
   X,
   FilePlus,
   Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Disc,
 } from 'lucide-react';
 import { formatNoteLabel } from '../utils/noteFormatting';
 import { getSavedSheetSongs, saveCustomSheetSong, deleteCustomSheetSong } from '../utils/songStorage';
+import { downloadJson, downloadMidi, createMidiBlob } from '../utils/midiExport';
 
-const PIANO_KEYS = [
-  { note: 'C3', type: 'white' }, { note: 'C#3', type: 'black' },
-  { note: 'D3', type: 'white' }, { note: 'D#3', type: 'black' },
-  { note: 'E3', type: 'white' },
-  { note: 'F3', type: 'white' }, { note: 'F#3', type: 'black' },
-  { note: 'G3', type: 'white' }, { note: 'G#3', type: 'black' },
-  { note: 'A3', type: 'white' }, { note: 'A#3', type: 'black' },
-  { note: 'B3', type: 'white' },
-
-  { note: 'C4', type: 'white' }, { note: 'C#4', type: 'black' },
-  { note: 'D4', type: 'white' }, { note: 'D#4', type: 'black' },
-  { note: 'E4', type: 'white' },
-  { note: 'F4', type: 'white' }, { note: 'F#4', type: 'black' },
-  { note: 'G4', type: 'white' }, { note: 'G#4', type: 'black' },
-  { note: 'A4', type: 'white' }, { note: 'A#4', type: 'black' },
-  { note: 'B4', type: 'white' },
-
-  { note: 'C5', type: 'white' }, { note: 'C#5', type: 'black' },
-  { note: 'D5', type: 'white' }, { note: 'D#5', type: 'black' },
-  { note: 'E5', type: 'white' },
+// Base keys generator for dynamic octave range
+const NOTE_PATTERNS = [
+  { note: 'C', type: 'white' as const },
+  { note: 'C#', type: 'black' as const },
+  { note: 'D', type: 'white' as const },
+  { note: 'D#', type: 'black' as const },
+  { note: 'E', type: 'white' as const },
+  { note: 'F', type: 'white' as const },
+  { note: 'F#', type: 'black' as const },
+  { note: 'G', type: 'white' as const },
+  { note: 'G#', type: 'black' as const },
+  { note: 'A', type: 'white' as const },
+  { note: 'A#', type: 'black' as const },
+  { note: 'B', type: 'white' as const },
 ];
 
 const AVAILABLE_NOTES = [
+  'C2', 'D2', 'E2', 'F2', 'G2', 'A2', 'B2',
   'C3', 'C#3', 'D3', 'D#3', 'E3', 'F3', 'F#3', 'G3', 'G#3', 'A3', 'A#3', 'B3',
   'C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4',
   'C5', 'C#5', 'D5', 'D#5', 'E5', 'F5', 'F#5', 'G5', 'G#5', 'A5', 'A#5', 'B5',
@@ -63,17 +61,32 @@ export const SheetComposerView: React.FC = () => {
     const saved = getSavedSheetSongs();
     return [...saved, ...PRESET_SONGS];
   });
-  
+
   const [selectedSongId, setSelectedSongId] = useState<string>(() => {
     const saved = getSavedSheetSongs();
     return saved.length > 0 ? saved[0].id : PRESET_SONGS[0].id;
   });
-  
+
   const currentSong = songs.find(s => s.id === selectedSongId) || songs[0] || PRESET_SONGS[0];
 
   const [targetChannel, setTargetChannel] = useState<'melody' | 'bassline'>('melody');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activeNoteIndex, setActiveNoteIndex] = useState<number>(-1);
+  const [activeKeyNote, setActiveKeyNote] = useState<string | null>(null);
+  const [keyboardOctaveOffset, setKeyboardOctaveOffset] = useState<number>(0); // -1, 0, +1
+
+  // Note notation format (Latin Do-Re-Mi, Anglo-Saxon C-D-E, etc.)
+  const [noteNotation, setNoteNotation] = useState<NoteNotationFormat>(() => {
+    try {
+      return (localStorage.getItem('maestro_note_notation') as NoteNotationFormat) || 'latin';
+    } catch (e) {
+      return 'latin';
+    }
+  });
+
+  // Track unsaved modifications
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(true);
 
   // Modals & Feedback
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
@@ -84,22 +97,56 @@ export const SheetComposerView: React.FC = () => {
   const [saveToast, setSaveToast] = useState<string | null>(null);
 
   const playbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Initialize audio context eagerly on mount
   useEffect(() => {
+    audioEngine.init().catch(() => {});
     return () => {
       if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
   }, []);
 
+  const showToast = (msg: string) => {
+    setSaveToast(msg);
+    setTimeout(() => setSaveToast(null), 3500);
+  };
+
+  const isPreset = PRESET_SONGS.some(p => p.id === currentSong.id);
+
+  // Update song helper with auto-save
   const updateCurrentSong = (updater: (s: SheetSong) => SheetSong) => {
-    setSongs(prev => prev.map(s => s.id === currentSong.id ? updater(s) : s));
+    setSongs(prev => prev.map(s => {
+      if (s.id === currentSong.id) {
+        const updated = updater(s);
+        setHasUnsavedChanges(true);
+
+        // Auto-save debounced if enabled
+        if (autoSaveEnabled) {
+          if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+          autoSaveTimerRef.current = setTimeout(() => {
+            saveCustomSheetSong(updated);
+            setHasUnsavedChanges(false);
+          }, 1200);
+        }
+
+        return updated;
+      }
+      return s;
+    }));
   };
 
   const playSingleNote = (note: string, duration = '4n', inst: 'piano' | 'bass' = 'piano') => {
+    audioEngine.init().catch(() => {});
     audioEngine.playNote(note, duration, inst);
   };
 
   const handlePianoKeyClick = (note: string) => {
+    audioEngine.init().catch(() => {});
+    setActiveKeyNote(note);
+    setTimeout(() => setActiveKeyNote(null), 180);
+
     playSingleNote(note, '4n', targetChannel === 'melody' ? 'piano' : 'bass');
 
     if (targetChannel === 'melody') {
@@ -128,6 +175,7 @@ export const SheetComposerView: React.FC = () => {
       return;
     }
 
+    audioEngine.init().catch(() => {});
     setIsPlaying(true);
     let step = 0;
     const melodyLen = currentSong.melody.length;
@@ -192,7 +240,7 @@ export const SheetComposerView: React.FC = () => {
     const newId = `custom_${Date.now()}`;
     const newSong: SheetSong = {
       id: newId,
-      title: 'Nuovo Spartito',
+      title: 'Nuova Composizione',
       description: 'Spartito personalizzato',
       key: 'DO Magg (C)',
       bpm: 100,
@@ -212,12 +260,16 @@ export const SheetComposerView: React.FC = () => {
     saveCustomSheetSong(newSong);
     setSongs(prev => [newSong, ...prev]);
     setSelectedSongId(newId);
-    showToast(`Creato "${newSong.title}". Ricorda di cliccare Salva quando modifichi!`);
+    setHasUnsavedChanges(false);
+    showToast(`Creato "${newSong.title}". Clicca sui tasti per comporre la tua musica!`);
   };
 
+  // Explicit Save Action
   const handleSaveSong = () => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     saveCustomSheetSong(currentSong);
-    showToast(`Spartito "${currentSong.title}" salvato nella memoria locale! Sincronizzato con il Pianoforte.`);
+    setHasUnsavedChanges(false);
+    showToast(`✓ Spartito "${currentSong.title}" salvato con successo! Sincronizzato con il Pianoforte.`);
   };
 
   const handleDeleteCurrentSong = () => {
@@ -227,38 +279,48 @@ export const SheetComposerView: React.FC = () => {
       const remaining = songs.filter(s => s.id !== currentSong.id);
       setSongs(remaining.length > 0 ? remaining : PRESET_SONGS);
       setSelectedSongId(remaining[0]?.id || PRESET_SONGS[0].id);
+      setHasUnsavedChanges(false);
       showToast('Spartito eliminato.');
     }
   };
 
-  const showToast = (msg: string) => {
-    setSaveToast(msg);
-    setTimeout(() => setSaveToast(null), 3800);
-  };
+  const safeFilenameBase = (currentSong.title || 'spartito')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '_');
 
-  // Export handlers
-  const jsonString = JSON.stringify(currentSong, null, 2);
-
-  const handleDownloadFile = () => {
+  // Direct MIDI Download
+  const handleDirectDownloadMidi = () => {
     try {
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${currentSong.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}_sheet.json`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 200);
-      showToast('File JSON scaricato con successo!');
+      const filename = `${safeFilenameBase}.mid`;
+      const ok = downloadMidi(filename, currentSong);
+      if (ok) {
+        showToast(`🎹 Download avviato per "${filename}"!`);
+      } else {
+        showToast('Download MIDI non riuscito sul tuo browser.');
+      }
     } catch (e) {
-      console.error(e);
-      // Fallback: Copy to clipboard
-      handleCopyJson();
+      console.error('MIDI export error:', e);
+      showToast('Errore durante la creazione del file MIDI');
     }
   };
+
+  // Direct JSON Download
+  const handleDirectDownloadJson = () => {
+    try {
+      const filename = `${safeFilenameBase}_sheet.json`;
+      const ok = downloadJson(filename, currentSong);
+      if (ok) {
+        showToast(`📄 Download avviato per "${filename}"!`);
+      } else {
+        showToast('Download JSON non riuscito sul tuo browser.');
+      }
+    } catch (e) {
+      console.error('JSON export error:', e);
+      showToast('Errore durante il salvataggio del JSON');
+    }
+  };
+
+  const jsonString = JSON.stringify(currentSong, null, 2);
 
   const handleCopyJson = async () => {
     try {
@@ -276,24 +338,44 @@ export const SheetComposerView: React.FC = () => {
       setTimeout(() => setCopiedNotification(false), 2500);
       showToast('JSON copiato negli appunti!');
     } catch (e) {
-      alert('Non è stato possibile copiare automaticamente. Seleziona e copia il testo nel riquadro sottostante.');
+      showToast('Seleziona e copia il codice JSON nel riquadro sottostante.');
     }
   };
 
-  const handleShareNative = async () => {
-    if (navigator.share) {
-      try {
+  const handleShareMidi = async () => {
+    try {
+      const blob = createMidiBlob(currentSong);
+      const file = new File([blob], `${safeFilenameBase}.mid`, { type: 'audio/midi' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
-          title: `Spartito Maestro: ${currentSong.title}`,
-          text: `Ecco il codice spartito per "${currentSong.title}":\n\n${jsonString}`,
+          files: [file],
+          title: `MIDI: ${currentSong.title}`,
+          text: `File MIDI di "${currentSong.title}" creato con Maestro Studio`,
         });
-      } catch (e) {}
-    } else {
-      handleCopyJson();
-    }
+        showToast('File MIDI condiviso!');
+        return;
+      }
+    } catch (e) {}
+    handleDirectDownloadMidi();
   };
 
-  // Import handler
+  const handleShareJson = async () => {
+    try {
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const file = new File([blob], `${safeFilenameBase}_sheet.json`, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Spartito: ${currentSong.title}`,
+          text: `File spartito JSON di "${currentSong.title}"`,
+        });
+        showToast('Spartito condiviso!');
+        return;
+      }
+    } catch (e) {}
+    handleDirectDownloadJson();
+  };
+
   const handleImportSubmit = () => {
     setImportError(null);
     try {
@@ -320,17 +402,24 @@ export const SheetComposerView: React.FC = () => {
       setSelectedSongId(newId);
       setIsImportModalOpen(false);
       setImportJsonText('');
+      setHasUnsavedChanges(false);
       showToast(`Spartito "${importedSong.title}" importato e salvato con successo!`);
     } catch (err: any) {
       setImportError(err.message || 'Errore nella sintassi del JSON. Verifica il testo.');
     }
   };
 
-  const isPreset = PRESET_SONGS.some(p => p.id === currentSong.id);
+  // Generate piano keys based on octave offset
+  const baseStartOctave = 3 + keyboardOctaveOffset;
+  const keyboardKeys = [
+    ...NOTE_PATTERNS.map(p => ({ note: `${p.note}${baseStartOctave}`, type: p.type })),
+    ...NOTE_PATTERNS.map(p => ({ note: `${p.note}${baseStartOctave + 1}`, type: p.type })),
+    { note: `C${baseStartOctave + 2}`, type: 'white' as const },
+  ];
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-5 space-y-5">
-      {/* Save Notification Toast */}
+    <div className="max-w-6xl mx-auto p-2 sm:p-4 space-y-4 select-none">
+      {/* Toast Notification */}
       {saveToast && (
         <div className="fixed top-4 right-4 z-50 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2 border border-amber-300 animate-in fade-in slide-in-from-top-4 duration-300 text-xs sm:text-sm">
           <Check className="w-4 h-4 stroke-[3]" />
@@ -338,75 +427,96 @@ export const SheetComposerView: React.FC = () => {
         </div>
       )}
 
-      {/* Top Toolbar */}
-      <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-            <BookOpen className="w-5 h-5" />
+      {/* REVOLUTIONARY CONSOLE HEADER & UNMISSABLE SAVE CONTROLS */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-amber-500/30 p-3 sm:p-4 rounded-2xl shadow-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        {/* Title, Preset Badge & Quick Song Selector */}
+        <div className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-400 flex items-center justify-center text-slate-950 shadow-md shadow-amber-500/20 shrink-0 font-serif text-lg font-bold">
+            🎼
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base sm:text-lg font-black text-white">
-                Sheet Composer
-              </h2>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                value={currentSong.title}
+                onChange={(e) => updateCurrentSong(s => ({ ...s, title: e.target.value }))}
+                placeholder="Titolo Spartito..."
+                className="bg-slate-800/80 hover:bg-slate-800 focus:bg-slate-800 text-white font-black text-sm sm:text-base px-2 py-0.5 rounded-lg border border-slate-700 focus:border-amber-400 outline-none max-w-[220px] sm:max-w-[280px] truncate"
+                title="Modifica titolo dello spartito"
+              />
+
               {isPreset ? (
                 <span className="text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full">
-                  Brano Predefinito
+                  Predefinito
                 </span>
               ) : (
-                <span className="text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                  Spartito Personale
+                <span className="text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Disc className="w-2.5 h-2.5" />
+                  <span>Personale</span>
+                </span>
+              )}
+
+              {/* Unsaved Changes Visual Indicator */}
+              {hasUnsavedChanges ? (
+                <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span>Modifiche non salvate</span>
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                  <span>Salvato</span>
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-400">
-              Tocca i tasti del piano per comporre o modifica le note nello spartito.
-            </p>
+
+            <div className="flex items-center gap-2 mt-1">
+              {/* Song Select Dropdown */}
+              <select
+                value={selectedSongId}
+                onChange={(e) => {
+                  stopPlayback();
+                  setSelectedSongId(e.target.value);
+                  setHasUnsavedChanges(false);
+                }}
+                className="bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-bold rounded-lg px-2 py-1 outline-none focus:border-amber-400 max-w-[180px] sm:max-w-[220px] truncate cursor-pointer"
+              >
+                {songs.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.title} ({s.key})
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={handleCreateNewBlankSong}
+                className="px-2 py-1 text-[11px] font-bold bg-slate-800 hover:bg-slate-750 text-amber-300 rounded-lg border border-slate-700 flex items-center gap-1 transition-colors whitespace-nowrap active:scale-95"
+                title="Crea nuovo spartito vuoto"
+              >
+                <FilePlus className="w-3 h-3 text-amber-400" />
+                <span>+ Nuovo</span>
+              </button>
+
+              {!isPreset && (
+                <button
+                  onClick={handleDeleteCurrentSong}
+                  className="p-1 text-slate-400 hover:text-red-400 bg-slate-800 rounded-lg border border-slate-700 transition-colors"
+                  title="Elimina questo spartito"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Song Selector */}
-          <select
-            value={selectedSongId}
-            onChange={(e) => {
-              stopPlayback();
-              setSelectedSongId(e.target.value);
-            }}
-            className="bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-amber-500"
-          >
-            {songs.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.title} ({s.key})
-              </option>
-            ))}
-          </select>
-
-          {/* New Score Button */}
-          <button
-            onClick={handleCreateNewBlankSong}
-            className="px-3 py-2 text-xs font-bold bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors"
-            title="Crea un nuovo spartito da zero"
-          >
-            <FilePlus className="w-3.5 h-3.5 text-amber-400" />
-            <span>Nuovo</span>
-          </button>
-
-          {/* SAVE BUTTON - Prominently highlighted */}
-          <button
-            onClick={handleSaveSong}
-            className="px-3.5 py-2 text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-emerald-500/20 active:scale-95"
-            title="Salva le modifiche allo spartito nella memoria dell'app"
-          >
-            <Save className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Salva Spartito</span>
-          </button>
-
-          {/* Play/Stop Button */}
+        {/* PROMINENT ACTION BUTTONS: SAVE, MIDI, EXPORT, PLAY */}
+        <div className="flex items-center gap-2 flex-wrap shrink-0 justify-end">
+          {/* PLAY / STOP BUTTON */}
           <button
             onClick={startPlayback}
-            className={`px-3.5 py-2 text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-md ${
+            className={`px-3.5 py-2 text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
               isPlaying
                 ? 'bg-red-500 text-white animate-pulse'
                 : 'bg-amber-500 text-slate-950 hover:bg-amber-400'
@@ -417,20 +527,44 @@ export const SheetComposerView: React.FC = () => {
             ) : (
               <Play className="w-3.5 h-3.5 fill-slate-950" />
             )}
-            <span>{isPlaying ? 'Ferma' : 'Riproduci'}</span>
+            <span>{isPlaying ? 'Ferma' : 'Ascolta'}</span>
           </button>
 
-          {/* Export Button */}
+          {/* UNMISSABLE SAVE SPARTITO BUTTON */}
+          <button
+            onClick={handleSaveSong}
+            className={`px-3.5 py-2 text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
+              hasUnsavedChanges
+                ? 'bg-emerald-400 hover:bg-emerald-300 text-slate-950 ring-2 ring-emerald-300 ring-offset-2 ring-offset-slate-950 animate-bounce'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+            }`}
+            title="Salva le modifiche allo spartito nella memoria dell'app"
+          >
+            <Save className="w-4 h-4 stroke-[2.5]" />
+            <span>SALVA SPARTITO</span>
+          </button>
+
+          {/* DIRECT MIDI EXPORT BUTTON */}
+          <button
+            onClick={handleDirectDownloadMidi}
+            className="px-3 py-2 text-xs font-black bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+            title="Scarica direttamente il file MIDI (.mid) della tua composizione"
+          >
+            <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Scarica MIDI</span>
+          </button>
+
+          {/* EXPORT / BACKUP MODAL BUTTON */}
           <button
             onClick={() => setIsExportModalOpen(true)}
-            className="px-3 py-2 text-xs font-bold bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors"
-            title="Esporta o condividi spartito"
+            className="px-2.5 py-2 text-xs font-bold bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-xl border border-slate-700 flex items-center gap-1 transition-colors"
+            title="Opzioni complete di esportazione, JSON e condivisione"
           >
-            <Download className="w-3.5 h-3.5 text-amber-400" />
-            <span>Esporta</span>
+            <Share2 className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Esporta</span>
           </button>
 
-          {/* Import Button */}
+          {/* IMPORT MODAL BUTTON */}
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="px-2.5 py-2 text-xs font-bold bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-xl border border-slate-700 flex items-center gap-1 transition-colors"
@@ -439,40 +573,16 @@ export const SheetComposerView: React.FC = () => {
             <Upload className="w-3.5 h-3.5 text-indigo-400" />
             <span className="hidden sm:inline">Importa</span>
           </button>
-
-          {/* Delete Button (for custom songs) */}
-          {!isPreset && (
-            <button
-              onClick={handleDeleteCurrentSong}
-              className="p-2 text-xs font-bold bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/30 flex items-center transition-colors"
-              title="Elimina questo spartito"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Song Metadata & BPM Controls */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
-          <label className="text-[10px] text-slate-400 uppercase font-black tracking-wider block mb-1">
-            Titolo Brano
-          </label>
-          <input
-            type="text"
-            value={currentSong.title}
-            onChange={(e) => updateCurrentSong(s => ({ ...s, title: e.target.value }))}
-            className="w-full bg-slate-800 border border-slate-700 text-white font-bold text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-amber-500"
-          />
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
-          <div className="flex justify-between items-center mb-1">
-            <label className="text-[10px] text-slate-400 uppercase font-black tracking-wider">
-              Tempo (BPM)
-            </label>
-            <span className="text-xs font-mono font-bold text-amber-400">{currentSong.bpm} BPM</span>
+      {/* SONG SETTINGS BAR: BPM, TONALITY & CHANNEL ROUTING */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-900/90 border border-slate-800 p-3 rounded-2xl">
+        {/* BPM Range */}
+        <div className="space-y-1">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-slate-400 font-bold uppercase">Tempo (BPM)</span>
+            <span className="text-xs font-mono font-bold text-amber-400">{currentSong.bpm}</span>
           </div>
           <input
             type="range"
@@ -480,42 +590,40 @@ export const SheetComposerView: React.FC = () => {
             max="180"
             value={currentSong.bpm}
             onChange={(e) => updateCurrentSong(s => ({ ...s, bpm: parseInt(e.target.value) }))}
-            className="w-full accent-amber-500 bg-slate-800 h-2 rounded cursor-pointer mt-1"
+            className="w-full accent-amber-500 bg-slate-800 h-1.5 rounded cursor-pointer"
           />
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
-          <label className="text-[10px] text-slate-400 uppercase font-black tracking-wider block mb-1">
-            Tonalit&agrave;
-          </label>
+        {/* Musical Key */}
+        <div className="space-y-1">
+          <span className="text-[10px] text-slate-400 font-bold uppercase block">Tonalit&agrave;</span>
           <input
             type="text"
             value={currentSong.key}
             onChange={(e) => updateCurrentSong(s => ({ ...s, key: e.target.value }))}
-            className="w-full bg-slate-800 border border-slate-700 text-white font-bold text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-amber-500"
+            className="w-full bg-slate-800 border border-slate-700 text-white font-bold text-xs rounded-lg px-2 py-1 outline-none focus:border-amber-400"
           />
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
-          <label className="text-[10px] text-slate-400 uppercase font-black tracking-wider block mb-1">
-            Destinazione Tasti Piano
-          </label>
-          <div className="grid grid-cols-2 gap-1.5 mt-0.5">
+        {/* Input Target Channel */}
+        <div className="space-y-1">
+          <span className="text-[10px] text-slate-400 font-bold uppercase block">Destinazione Note</span>
+          <div className="grid grid-cols-2 gap-1">
             <button
               onClick={() => setTargetChannel('melody')}
               className={`py-1 text-[11px] font-bold rounded-lg transition-all ${
                 targetChannel === 'melody'
-                  ? 'bg-amber-500 text-slate-950 font-black shadow'
+                  ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
                   : 'bg-slate-800 text-slate-400 hover:text-white'
               }`}
             >
-              Melodia 🎹
+              Piano 🎹
             </button>
             <button
               onClick={() => setTargetChannel('bassline')}
               className={`py-1 text-[11px] font-bold rounded-lg transition-all ${
                 targetChannel === 'bassline'
-                  ? 'bg-emerald-500 text-slate-950 font-black shadow'
+                  ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
                   : 'bg-slate-800 text-slate-400 hover:text-white'
               }`}
             >
@@ -523,135 +631,207 @@ export const SheetComposerView: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Auto-Save & Notation Info */}
+        <div className="flex flex-col justify-between">
+          <span className="text-[10px] text-slate-400 font-bold uppercase block">Salvataggio Auto</span>
+          <button
+            onClick={() => setAutoSaveEnabled(!autoSaveEnabled)}
+            className={`py-1 px-2 text-[11px] font-bold rounded-lg border flex items-center justify-center gap-1 transition-all ${
+              autoSaveEnabled
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-slate-800 border-slate-700 text-slate-400'
+            }`}
+          >
+            <span>{autoSaveEnabled ? 'Auto-Save: Attivo' : 'Auto-Save: Disattivato'}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Interactive Piano Keyboard for Inputting Notes */}
-      <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-2 shadow-lg">
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-bold text-white flex items-center gap-1.5">
+      {/* ULTRA-RESPONSIVE INTERACTIVE PIANO KEYBOARD (0ms Touch Response) */}
+      <div className="bg-slate-900 border border-slate-800 p-3 sm:p-4 rounded-2xl space-y-2.5 shadow-xl">
+        <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+          <div className="flex items-center gap-2">
             <Music className="w-4 h-4 text-amber-400" />
-            Tastiera Interattiva (Tocca qualsiasi tasto per inserire la nota nello spartito)
-          </span>
-          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${
-            targetChannel === 'melody'
-              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-          }`}>
-            Canale: {targetChannel === 'melody' ? 'Melodia' : 'Linea di Basso'}
-          </span>
+            <span className="font-black text-white text-xs sm:text-sm">
+              Tastiera Interattiva
+            </span>
+            <span className="text-[10px] text-slate-400 hidden sm:inline">
+              (Tocca i tasti per inserire istantaneamente la nota nello spartito)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Octave Shift Controls */}
+            <div className="flex items-center gap-1 bg-slate-800 px-1.5 py-0.5 rounded-lg border border-slate-700">
+              <span className="text-[10px] text-slate-400 font-bold">Ottava:</span>
+              <button
+                onClick={() => setKeyboardOctaveOffset(prev => Math.max(-1, prev - 1))}
+                disabled={keyboardOctaveOffset <= -1}
+                className="w-5 h-5 flex items-center justify-center bg-slate-700 hover:bg-slate-600 disabled:opacity-30 rounded text-white text-xs font-black"
+                title="Abbassa di un'ottava"
+              >
+                -
+              </button>
+              <span className="text-xs font-mono font-bold text-amber-400 px-1">
+                {baseStartOctave}
+              </span>
+              <button
+                onClick={() => setKeyboardOctaveOffset(prev => Math.min(1, prev + 1))}
+                disabled={keyboardOctaveOffset >= 1}
+                className="w-5 h-5 flex items-center justify-center bg-slate-700 hover:bg-slate-600 disabled:opacity-30 rounded text-white text-xs font-black"
+                title="Alza di un'ottava"
+              >
+                +
+              </button>
+            </div>
+
+            {/* Notation selector (Do-Re-Mi vs C-D-E) */}
+            <div className="flex items-center gap-1 bg-slate-800 px-1.5 py-0.5 rounded-lg border border-slate-700">
+              <button
+                onClick={() => {
+                  const next = noteNotation === 'latin' ? 'letter' : 'latin';
+                  setNoteNotation(next);
+                  try { localStorage.setItem('maestro_note_notation', next); } catch (e) {}
+                }}
+                className="text-[10px] font-bold text-amber-300 hover:text-white"
+                title="Cambia formato note (Italiano / Anglosassone)"
+              >
+                {noteNotation === 'latin' ? 'DO RE MI' : 'C D E'}
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="relative h-28 w-full bg-slate-950 rounded-xl overflow-x-auto flex select-none p-1 border border-slate-800">
-          {PIANO_KEYS.map((key) => {
+        {/* Piano Keys Strip */}
+        <div className="relative h-28 w-full bg-slate-950 rounded-xl overflow-x-auto flex select-none p-1 border border-slate-800 scrollbar-thin">
+          {keyboardKeys.map((key) => {
             const isBlack = key.type === 'black';
+            const isCurrentlyHit = activeKeyNote === key.note;
+
             return (
               <button
                 key={key.note}
-                onClick={() => handlePianoKeyClick(key.note)}
-                className={`relative shrink-0 border transition-all active:scale-95 ${
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  handlePianoKeyClick(key.note);
+                }}
+                className={`relative shrink-0 border select-none transition-transform duration-75 active:scale-95 ${
                   isBlack
-                    ? 'w-6 h-16 -mx-3 bg-slate-800 hover:bg-amber-500 text-white z-10 rounded-b shadow-lg border-slate-900 text-[9px] font-bold flex items-end justify-center pb-1'
-                    : 'w-9 h-24 bg-slate-100 hover:bg-amber-300 text-slate-900 z-0 rounded-b shadow border-slate-300 text-[10px] font-black flex items-end justify-center pb-1'
+                    ? `w-7 h-16 -mx-3.5 z-10 rounded-b shadow-lg text-[9px] font-bold flex items-end justify-center pb-1 ${
+                        isCurrentlyHit
+                          ? 'bg-amber-400 text-slate-950 border-amber-300 scale-95'
+                          : 'bg-slate-850 hover:bg-slate-700 text-white border-slate-950'
+                      }`
+                    : `w-10 h-24 z-0 rounded-b shadow text-[10px] font-black flex items-end justify-center pb-1 ${
+                        isCurrentlyHit
+                          ? 'bg-amber-300 text-slate-950 border-amber-400 scale-95'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-950 border-slate-300'
+                      }`
                 }`}
               >
-                {formatNoteLabel(key.note, 'latin', false)}
+                {formatNoteLabel(key.note, noteNotation, false)}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Melody Notes Editor */}
-      <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-3">
+      {/* MELODY NOTES SEQUENCE (Pianoforte) */}
+      <div className="bg-slate-900 border border-slate-800 p-3 sm:p-5 rounded-2xl space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+            <div className="w-3 h-3 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" />
             <h3 className="font-bold text-white text-sm">Sequenza Melodia (Pianoforte)</h3>
             <span className="text-xs text-slate-400 font-mono">({currentSong.melody.length} note)</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePianoKeyClick('C4')}
-              className="px-2.5 py-1 text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/30 flex items-center gap-1 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Aggiungi Nota</span>
-            </button>
+          <button
+            onClick={() => handlePianoKeyClick('C4')}
+            className="px-2.5 py-1 text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/30 flex items-center gap-1 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Aggiungi Nota</span>
+          </button>
+        </div>
+
+        {currentSong.melody.length === 0 ? (
+          <div className="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-800 rounded-xl">
+            Nessuna nota nella melodia. Tocca qualsiasi tasto del pianoforte sopra per aggiungere note!
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-          {currentSong.melody.map((mNote, idx) => {
-            const isActive = activeNoteIndex === idx;
-            return (
-              <div
-                key={idx}
-                className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
-                  isActive
-                    ? 'bg-amber-500/30 border-amber-400 shadow-lg shadow-amber-500/20 scale-105'
-                    : 'bg-slate-800/80 border-slate-700/80 hover:bg-slate-800'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <button
-                    onClick={() => playSingleNote(mNote.note, mNote.duration, 'piano')}
-                    className="text-sm font-black text-amber-400 hover:text-amber-300 flex items-center gap-1"
-                    title="Ascolta nota"
-                  >
-                    <Volume2 className="w-3.5 h-3.5 shrink-0" />
-                    <span>{formatNoteLabel(mNote.note, 'latin', true)}</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleRemoveMelodyNote(idx)}
-                    className="text-slate-400 hover:text-red-400 p-0.5 rounded transition-colors"
-                    title="Elimina nota"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div>
-                    <label className="text-[9px] text-slate-400 font-bold uppercase block">Altezza</label>
-                    <select
-                      value={mNote.note}
-                      onChange={(e) => handleUpdateMelodyNote(idx, 'note', e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 text-white font-bold text-xs rounded px-1.5 py-0.5"
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            {currentSong.melody.map((mNote, idx) => {
+              const isActive = activeNoteIndex === idx;
+              return (
+                <div
+                  key={idx}
+                  className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
+                    isActive
+                      ? 'bg-amber-500/30 border-amber-400 shadow-lg shadow-amber-500/20 scale-105'
+                      : 'bg-slate-800/80 border-slate-700/80 hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <button
+                      onClick={() => playSingleNote(mNote.note, mNote.duration, 'piano')}
+                      className="text-sm font-black text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                      title="Ascolta nota"
                     >
-                      {AVAILABLE_NOTES.map(n => (
-                        <option key={n} value={n}>{formatNoteLabel(n, 'latin', true)} ({n})</option>
-                      ))}
-                    </select>
+                      <Volume2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>{formatNoteLabel(mNote.note, noteNotation, true)}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleRemoveMelodyNote(idx)}
+                      className="text-slate-400 hover:text-red-400 p-0.5 rounded transition-colors"
+                      title="Elimina nota"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="text-[9px] text-slate-400 font-bold uppercase block">Durata</label>
-                    <select
-                      value={mNote.duration}
-                      onChange={(e) => handleUpdateMelodyNote(idx, 'duration', e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded px-1.5 py-0.5"
-                    >
-                      <option value="16n">1/16 (Sedicesimo)</option>
-                      <option value="8n">1/8 (Ottavo)</option>
-                      <option value="4n">1/4 (Quarto)</option>
-                      <option value="2n">1/2 (Met&agrave;)</option>
-                      <option value="1m">1/1 (Intero)</option>
-                    </select>
+                  <div className="space-y-1.5">
+                    <div>
+                      <label className="text-[9px] text-slate-400 font-bold uppercase block">Altezza</label>
+                      <select
+                        value={mNote.note}
+                        onChange={(e) => handleUpdateMelodyNote(idx, 'note', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 text-white font-bold text-xs rounded px-1.5 py-0.5"
+                      >
+                        {AVAILABLE_NOTES.map(n => (
+                          <option key={n} value={n}>{formatNoteLabel(n, noteNotation, true)} ({n})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] text-slate-400 font-bold uppercase block">Durata</label>
+                      <select
+                        value={mNote.duration}
+                        onChange={(e) => handleUpdateMelodyNote(idx, 'duration', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded px-1.5 py-0.5"
+                      >
+                        <option value="16n">1/16 (Sedicesimo)</option>
+                        <option value="8n">1/8 (Ottavo)</option>
+                        <option value="4n">1/4 (Quarto)</option>
+                        <option value="2n">1/2 (Met&agrave;)</option>
+                        <option value="1m">1/1 (Intero)</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Bassline Notes Editor */}
-      <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-2xl space-y-3">
+      {/* BASSLINE SEQUENCE (Basso) */}
+      <div className="bg-slate-900 border border-slate-800 p-3 sm:p-5 rounded-2xl space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+            <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
             <h3 className="font-bold text-white text-sm">Sequenza Basso (Basso Elettrico)</h3>
             <span className="text-xs text-slate-400 font-mono">({currentSong.bassline.length} note)</span>
           </div>
@@ -665,58 +845,79 @@ export const SheetComposerView: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-          {currentSong.bassline.map((bNote, idx) => (
-            <div
-              key={idx}
-              className="p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl flex flex-col justify-between"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <button
-                  onClick={() => playSingleNote(bNote.note, bNote.duration, 'bass')}
-                  className="text-sm font-black text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
-                  title="Ascolta nota basso"
-                >
-                  <Volume2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>{formatNoteLabel(bNote.note, 'latin', true)}</span>
-                </button>
-
-                <button
-                  onClick={() => handleRemoveBassNote(idx)}
-                  className="text-slate-400 hover:text-red-400 p-0.5 rounded transition-colors"
-                  title="Elimina nota basso"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="space-y-1.5">
-                <div>
-                  <label className="text-[9px] text-slate-400 font-bold uppercase block">Nota Basso</label>
-                  <select
-                    value={bNote.note}
-                    onChange={(e) => handleUpdateBassNote(idx, 'note', e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 text-white font-bold text-xs rounded px-1.5 py-0.5"
+        {currentSong.bassline.length === 0 ? (
+          <div className="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-800 rounded-xl">
+            Nessuna nota nella linea di basso. Seleziona &quot;Basso 🎸&quot; in alto e tocca i tasti per aggiungerne!
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            {currentSong.bassline.map((bNote, idx) => (
+              <div
+                key={idx}
+                className="p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <button
+                    onClick={() => playSingleNote(bNote.note, bNote.duration, 'bass')}
+                    className="text-sm font-black text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                    title="Ascolta nota basso"
                   >
-                    {BASS_NOTES.map(n => (
-                      <option key={n} value={n}>{formatNoteLabel(n, 'latin', true)} ({n})</option>
-                    ))}
-                  </select>
+                    <Volume2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>{formatNoteLabel(bNote.note, noteNotation, true)}</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleRemoveBassNote(idx)}
+                    className="text-slate-400 hover:text-red-400 p-0.5 rounded transition-colors"
+                    title="Elimina nota basso"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div>
+                    <label className="text-[9px] text-slate-400 font-bold uppercase block">Nota Basso</label>
+                    <select
+                      value={bNote.note}
+                      onChange={(e) => handleUpdateBassNote(idx, 'note', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 text-white font-bold text-xs rounded px-1.5 py-0.5"
+                    >
+                      {BASS_NOTES.map(n => (
+                        <option key={n} value={n}>{formatNoteLabel(n, noteNotation, true)} ({n})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] text-slate-400 font-bold uppercase block">Durata</label>
+                    <select
+                      value={bNote.duration}
+                      onChange={(e) => handleUpdateBassNote(idx, 'duration', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded px-1.5 py-0.5"
+                    >
+                      <option value="16n">1/16 (Sedicesimo)</option>
+                      <option value="8n">1/8 (Ottavo)</option>
+                      <option value="4n">1/4 (Quarto)</option>
+                      <option value="2n">1/2 (Met&agrave;)</option>
+                      <option value="1m">1/1 (Intero)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* EXPORT MODAL */}
+      {/* EXPORT MODAL (Direct JSON & MIDI Download) */}
       {isExportModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 animate-in fade-in duration-200">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-5 py-3.5 bg-slate-850 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Download className="w-4 h-4 text-amber-400" />
-                <h3 className="font-bold text-white text-sm">Esporta Spartito & Condividi</h3>
+                <h3 className="font-bold text-white text-sm">Esporta Spartito &amp; Condividi</h3>
               </div>
               <button
                 onClick={() => setIsExportModalOpen(false)}
@@ -727,56 +928,99 @@ export const SheetComposerView: React.FC = () => {
             </div>
 
             <div className="p-5 space-y-4 overflow-y-auto text-xs">
-              <p className="text-slate-300">
-                Puoi scaricare il file JSON dello spartito, copiarlo per inviarlo ad amici, oppure salvarlo in locale.
-              </p>
+              {/* MIDI File Section */}
+              <div className="p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-slate-950 font-black text-xs shadow">
+                    MIDI
+                  </div>
+                  <div>
+                    <h4 className="font-black text-white text-xs">File Musicale Standard MIDI (.mid)</h4>
+                    <p className="text-[10px] text-amber-300/80">
+                      Include melodia (Pianoforte) e linea di basso a {currentSong.bpm} BPM. Compatibile con GarageBand, Logic, Synthesia, FL Studio e tastiere fisiche.
+                    </p>
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <button
-                  onClick={handleDownloadFile}
-                  className="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
-                >
-                  <Download className="w-4 h-4 stroke-[2.5]" />
-                  <span>Scarica File .JSON</span>
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={handleDirectDownloadMidi}
+                    className="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
+                  >
+                    <Download className="w-4 h-4 stroke-[2.5]" />
+                    <span>Scarica File .MID</span>
+                  </button>
+
+                  <button
+                    onClick={handleShareMidi}
+                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-750 text-amber-300 font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all active:scale-95"
+                  >
+                    <Share2 className="w-4 h-4 text-amber-400" />
+                    <span>Condividi / Salva MIDI</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* JSON Sheet File Section */}
+              <div className="p-4 bg-slate-800/40 border border-slate-700/60 rounded-2xl space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white font-black text-xs shadow">
+                    JSON
+                  </div>
+                  <div>
+                    <h4 className="font-black text-white text-xs">File Spartito Maestro Studio (.json)</h4>
+                    <p className="text-[10px] text-slate-400">
+                      Salva o fai il backup completo della tua composizione con tutte le note e impostazioni.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={handleDirectDownloadJson}
+                    className="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
+                  >
+                    <Download className="w-4 h-4 stroke-[2.5]" />
+                    <span>Scarica File .JSON</span>
+                  </button>
+
+                  <button
+                    onClick={handleCopyJson}
+                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-750 text-white font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all active:scale-95"
+                  >
+                    {copiedNotification ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+                        <span className="text-emerald-400">Copiato!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 text-amber-400" />
+                        <span>Copia Codice</span>
+                      </>
+                    )}
+                  </button>
+                </div>
 
                 <button
-                  onClick={handleCopyJson}
-                  className="py-2.5 px-3 bg-slate-800 hover:bg-slate-750 text-white font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all active:scale-95"
+                  onClick={handleShareJson}
+                  className="w-full py-2 bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-700/80 font-bold rounded-xl flex items-center justify-center gap-2 transition-all"
                 >
-                  {copiedNotification ? (
-                    <>
-                      <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
-                      <span className="text-emerald-400">Copiato!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4 text-amber-400" />
-                      <span>Copia negli Appunti</span>
-                    </>
-                  )}
+                  <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Condividi tramite WhatsApp, Drive, Files...</span>
                 </button>
               </div>
 
-              {typeof navigator !== 'undefined' && 'share' in navigator && (
-                <button
-                  onClick={handleShareNative}
-                  className="w-full py-2 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 font-bold rounded-xl flex items-center justify-center gap-2 transition-all"
-                >
-                  <Share2 className="w-4 h-4" />
-                  <span>Condividi tramite App (WhatsApp, Telegram, Mail...)</span>
-                </button>
-              )}
-
+              {/* JSON Text Viewer */}
               <div>
-                <label className="text-[10px] text-slate-400 font-bold uppercase block mb-1.5">
-                  Codice JSON Spartito
+                <label className="text-[10px] text-slate-400 font-bold uppercase block mb-1">
+                  Anteprima Codice JSON
                 </label>
                 <textarea
                   readOnly
                   value={jsonString}
-                  rows={8}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-amber-300/90 select-all outline-none focus:border-amber-500"
+                  rows={4}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 font-mono text-[10px] text-amber-300/80 select-all outline-none focus:border-amber-500"
                 />
               </div>
             </div>
@@ -841,7 +1085,7 @@ export const SheetComposerView: React.FC = () => {
                   value={importJsonText}
                   onChange={(e) => setImportJsonText(e.target.value)}
                   placeholder="Incolla qui il JSON..."
-                  rows={8}
+                  rows={6}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-white outline-none focus:border-indigo-500"
                 />
               </div>

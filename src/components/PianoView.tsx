@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { audioEngine } from '../utils/audioEngine';
-import { InstrumentType, RecordedNote, InteractiveSong, NoteNotationFormat } from '../types';
+import { InstrumentType, RecordedNote, InteractiveSong, NoteNotationFormat, SoundProfile } from '../types';
 import {
   Home,
   Maximize,
@@ -247,6 +247,14 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
         localStorage.setItem('maestro_note_notation', fmt);
       } catch (e) {}
     }
+  };
+
+  const [soundProfile, setSoundProfileState] = useState<SoundProfile>(() => audioEngine.getSoundProfile());
+
+  const handleSoundProfileChange = (p: SoundProfile) => {
+    setSoundProfileState(p);
+    audioEngine.setSoundProfile(p);
+    audioEngine.playNote('C4', '4n', instrument);
   };
 
   const [activeSong, setActiveSong] = useState<InteractiveSong | null>(() => {
@@ -1246,10 +1254,41 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
                 </div>
               </div>
 
+              {/* Profilo Acustico & Riverbero Hi-Fi */}
+              <div>
+                <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
+                  4. Profilo Acustico & Riverbero Hi-Fi
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'concert', label: 'Gran Concerto', desc: 'Sala reale (Steinway D), profondo e maestoso' },
+                    { id: 'studio', label: 'Studio Intimo', desc: 'Ripresa ravvicinata, caldo, secco e definito' },
+                    { id: 'bright', label: 'Palco Live', desc: 'Tagliente e brillante, grande presenza ritmica' },
+                    { id: 'cathedral', label: 'Cattedrale', desc: 'Riverbero etereo 4.5s con eco spaziale' },
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSoundProfileChange(p.id as SoundProfile)}
+                      className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                        soundProfile === p.id
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-md'
+                          : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span>{p.label}</span>
+                        {soundProfile === p.id && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                      </div>
+                      <div className="text-[9px] text-slate-400 mt-1 leading-snug">{p.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Trasposizione */}
               <div>
                 <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
-                  4. Trasposizione Ottave
+                  5. Trasposizione Ottave
                 </label>
                 <div className="flex items-center gap-3 bg-slate-800/60 p-3 rounded-xl border border-slate-800">
                   <span className="text-slate-300">Sposta Ottava:</span>
@@ -1276,7 +1315,7 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
               {/* Formato Nomenclatura Note */}
               <div>
                 <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
-                  5. Nomenclatura Note (Etichette Tasti)
+                  6. Nomenclatura Note (Etichette Tasti)
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {[

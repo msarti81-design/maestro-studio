@@ -11,6 +11,7 @@ import {
 } from '../utils/songStorage';
 import { audioEngine } from '../utils/audioEngine';
 import { parseMidiFile } from '../utils/midiParser';
+import { downloadMidi, downloadJson } from '../utils/midiExport';
 import {
   BookOpen,
   Globe,
@@ -153,13 +154,21 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
   };
 
   const handleExportJson = (song: InteractiveSong) => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(song, null, 2));
-    const dlAnchor = document.createElement('a');
-    dlAnchor.setAttribute('href', dataStr);
-    dlAnchor.setAttribute('download', `${song.title.toLowerCase().replace(/\s+/g, '_')}.json`);
-    document.body.appendChild(dlAnchor);
-    dlAnchor.click();
-    dlAnchor.remove();
+    const filename = `${song.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}.json`;
+    const ok = downloadJson(filename, song);
+    if (ok) {
+      showToast(`📄 File JSON "${filename}" scaricato!`);
+    }
+  };
+
+  const handleExportMidi = (song: InteractiveSong) => {
+    const filename = `${song.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}.mid`;
+    const ok = downloadMidi(filename, song);
+    if (ok) {
+      showToast(`🎹 File MIDI "${filename}" scaricato!`);
+    } else {
+      showToast('Errore nella creazione del file MIDI.');
+    }
   };
 
   const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -427,13 +436,24 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-slate-700/50 mt-2">
-                    <button
-                      onClick={() => handleExportJson(song)}
-                      className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg text-xs flex items-center gap-1"
-                      title="Esporta JSON"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleExportMidi(song)}
+                        className="px-2 py-1 text-slate-300 hover:text-amber-300 hover:bg-slate-700 rounded-lg text-xs flex items-center gap-1 font-bold border border-slate-700"
+                        title="Scarica File MIDI (.mid)"
+                      >
+                        <Download className="w-3 h-3 text-amber-400" />
+                        <span>MIDI</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleExportJson(song)}
+                        className="px-2 py-1 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg text-xs flex items-center gap-1 border border-slate-700"
+                        title="Esporta JSON"
+                      >
+                        <span>JSON</span>
+                      </button>
+                    </div>
 
                     <button
                       onClick={() => {
@@ -503,11 +523,19 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                     <div className="flex items-center justify-between pt-3 border-t border-slate-700/50 mt-2 gap-2">
                       <div className="flex items-center gap-1">
                         <button
+                          onClick={() => handleExportMidi(song)}
+                          className="px-2 py-1 text-slate-300 hover:text-amber-300 hover:bg-slate-700 rounded-lg text-xs flex items-center gap-1 font-bold border border-slate-700"
+                          title="Scarica File MIDI (.mid)"
+                        >
+                          <Download className="w-3.5 h-3.5 text-amber-400" />
+                          <span>MIDI</span>
+                        </button>
+                        <button
                           onClick={() => handleExportJson(song)}
-                          className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg text-xs"
+                          className="px-1.5 py-1 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg text-xs border border-slate-700"
                           title="Esporta JSON"
                         >
-                          <Download className="w-3.5 h-3.5" />
+                          <span>JSON</span>
                         </button>
                         <button
                           onClick={() => handleDeleteLocal(song.id, song.title)}
