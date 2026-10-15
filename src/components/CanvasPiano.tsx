@@ -1,3 +1,4 @@
+import React, { useEffect, useRef, useCallback } from 'react';
 import { NoteNotationFormat } from '../types';
 import { formatNoteLabel } from '../utils/noteFormatting';
 
