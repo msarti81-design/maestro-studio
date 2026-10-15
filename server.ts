@@ -184,6 +184,14 @@ Return a JSON object containing:
   const distPath = path.join(__dirname, "dist");
   const isProd = process.env.NODE_ENV === "production" || fs.existsSync(distPath);
   if (isProd) {
+    // Redirect subpaths without trailing slash to enforce trailing slash for relative asset resolution
+    app.get(["/song", "/Song", "/piano", "/sheet", "/jam", "/ai"], (req, res, next) => {
+      if (!req.originalUrl.endsWith("/")) {
+        return res.redirect(301, req.originalUrl + "/");
+      }
+      next();
+    });
+
     // Serve static compiled assets directly
     app.use("/assets", express.static(path.join(distPath, "assets")));
     app.use("/Song/assets", express.static(path.join(distPath, "assets")));
@@ -192,7 +200,7 @@ Return a JSON object containing:
     app.use("/song", express.static(distPath));
     app.use(express.static(distPath));
 
-    app.get(["/song", "/song/*", "/Song", "/Song/*"], (req, res, next) => {
+    app.get(["/song", "/song/*", "/Song", "/Song/*", "/piano", "/piano/*", "/sheet", "/sheet/*", "/jam", "/jam/*", "/ai", "/ai/*"], (req, res, next) => {
       if (path.extname(req.path)) {
         return next();
       }

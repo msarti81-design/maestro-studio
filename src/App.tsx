@@ -28,10 +28,12 @@ export default function App() {
       if (hash === '#jam') return 'jam';
       if (hash === '#ai') return 'ai';
 
-      const saved = localStorage.getItem('maestro_last_view');
-      if (saved === 'piano' || saved === 'sheet' || saved === 'jam' || saved === 'ai') {
-        return saved;
-      }
+      try {
+        const saved = localStorage.getItem('maestro_last_view');
+        if (saved === 'piano' || saved === 'sheet' || saved === 'jam' || saved === 'ai') {
+          return saved;
+        }
+      } catch (e) {}
     }
     return 'home';
   });
@@ -41,9 +43,13 @@ export default function App() {
   const handleSelectView = (view: ViewMode | 'home') => {
     setCurrentView(view);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('maestro_last_view', view);
+      try {
+        localStorage.setItem('maestro_last_view', view);
+      } catch (e) {}
       if (view === 'home') {
-        history.replaceState(null, '', window.location.pathname);
+        try {
+          history.replaceState(null, '', window.location.pathname);
+        } catch (e) {}
       } else {
         window.location.hash = view;
       }
