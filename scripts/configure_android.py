@@ -115,7 +115,7 @@ def configure_main_activity():
         print("MainActivity.java not found, skipping MainActivity customization")
         return
 
-    full_main_activity = f"""package {package_name};
+    template = """package {package_name};
 
 import android.os.Build;
 import android.os.Bundle;
@@ -137,97 +137,97 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
-public class MainActivity extends BridgeActivity {{
+public class MainActivity extends BridgeActivity {
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {{
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         enableStickyImmersiveMode();
         requestAudioAndStoragePermissions();
         setupWebViewDownloadAndAudioHandler();
-    }}
+    }
 
-    private void requestAudioAndStoragePermissions() {{
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {{
-            String[] permissions = {{
+    private void requestAudioAndStoragePermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            String[] permissions = {
                 android.Manifest.permission.RECORD_AUDIO,
                 android.Manifest.permission.MODIFY_AUDIO_SETTINGS,
                 android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 android.Manifest.permission.READ_EXTERNAL_STORAGE
-            }};
+            };
             boolean needsRequest = false;
-            for (String p : permissions) {{
-                if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {{
+            for (String p : permissions) {
+                if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
                     needsRequest = true;
                     break;
-                }}
-            }}
-            if (needsRequest) {{
+                }
+            }
+            if (needsRequest) {
                 ActivityCompat.requestPermissions(this, permissions, 1001);
-            }}
-        }}
-    }}
+            }
+        }
+    }
 
-    private void setupWebViewDownloadAndAudioHandler() {{
-        if (bridge != null && bridge.getWebView() != null) {{
+    private void setupWebViewDownloadAndAudioHandler() {
+        if (bridge != null && bridge.getWebView() != null) {
             // 1. Grant WebView permission for microphone input automatically
-            bridge.getWebView().setWebChromeClient(new WebChromeClient() {{
+            bridge.getWebView().setWebChromeClient(new WebChromeClient() {
                 @Override
-                public void onPermissionRequest(final PermissionRequest request) {{
-                    runOnUiThread(() -> {{
-                        try {{
+                public void onPermissionRequest(final PermissionRequest request) {
+                    runOnUiThread(() -> {
+                        try {
                             request.grant(request.getResources());
-                        }} catch (Exception e) {{
+                        } catch (Exception e) {
                             e.printStackTrace();
-                        }}
-                    }});
-                }}
-            }});
+                        }
+                    });
+                }
+            });
 
             // 2. Handle WebView file download triggers (JSON & MIDI)
-            bridge.getWebView().setDownloadListener(new DownloadListener() {{
+            bridge.getWebView().setDownloadListener(new DownloadListener() {
                 @Override
-                public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {{
-                    try {{
+                public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+                    try {
                         Intent intent = new Intent(Intent.ACTION_VIEW);
                         intent.setData(Uri.parse(url));
                         startActivity(intent);
-                    } catch (Exception e) {{
+                    } catch (Exception e) {
                         Toast.makeText(getApplicationContext(), "Download avviato", Toast.LENGTH_SHORT).show();
-                    }}
-                }}
-            }});
-        }}
-    }}
+                    }
+                }
+            });
+        }
+    }
 
     @Override
-    public void onWindowFocusChanged(boolean hasFocus) {{
+    public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) {{
+        if (hasFocus) {
             enableStickyImmersiveMode();
-        }}
-    }}
+        }
+    }
 
     @Override
-    public void onResume() {{
+    public void onResume() {
         super.onResume();
         enableStickyImmersiveMode();
-    }}
+    }
 
     @Override
-    public void onStart() {{
+    public void onStart() {
         super.onStart();
         enableStickyImmersiveMode();
-    }}
+    }
 
-    private void enableStickyImmersiveMode() {{
+    private void enableStickyImmersiveMode() {
         Window window = getWindow();
         if (window == null) return;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {{
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.getAttributes().layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        }}
+        }
 
         WindowCompat.setDecorFitsSystemWindows(window, false);
 
@@ -244,9 +244,10 @@ public class MainActivity extends BridgeActivity {{
             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
             | View.SYSTEM_UI_FLAG_FULLSCREEN
         );
-    }}
-}}
+    }
+}
 """
+    full_main_activity = template.replace("{package_name}", package_name)
     with open(main_act_path, 'w', encoding='utf-8') as f:
         f.write(full_main_activity)
     print("Successfully configured MainActivity.java with Sticky Immersive, Mic Permissions & Download Handler!")
