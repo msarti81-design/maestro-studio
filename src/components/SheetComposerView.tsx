@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { SheetSong, NoteEvent, NoteNotationFormat } from '../types';
 import { PRESET_SONGS } from '../data/songs';
 import { audioEngine } from '../utils/audioEngine';
@@ -26,6 +26,9 @@ import {
 import { formatNoteLabel } from '../utils/noteFormatting';
 import { getSavedSheetSongs, saveCustomSheetSong, deleteCustomSheetSong } from '../utils/songStorage';
 import { downloadJson, downloadMidi, createMidiBlob } from '../utils/midiExport';
+import { MiniMapKeyboard } from './MiniMapKeyboard';
+import { CanvasPiano } from './CanvasPiano';
+import { ALL_PIANO_KEYS, ALL_WHITE_KEYS } from '../data/pianoKeys';
 
 // Base keys generator for dynamic octave range
 const NOTE_PATTERNS = [
@@ -72,8 +75,30 @@ export const SheetComposerView: React.FC = () => {
   const [targetChannel, setTargetChannel] = useState<'melody' | 'bassline'>('melody');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activeNoteIndex, setActiveNoteIndex] = useState<number>(-1);
-  const [activeKeyNote, setActiveKeyNote] = useState<string | null>(null);
-  const [keyboardOctaveOffset, setKeyboardOctaveOffset] = useState<number>(0); // -1, 0, +1
+
+  // 88-Key Navigation and Realistic Piano Keyboard Layout
+  const [keyboardLayout, setKeyboardLayout] = useState<'compact' | 'balanced' | 'extended'>('balanced');
+  const windowSize = keyboardLayout === 'compact' ? 14 : keyboardLayout === 'extended' ? 28 : 21;
+  const maxStartWhiteIdx = Math.max(0, ALL_WHITE_KEYS.length - windowSize);
+  const [startWhiteKeyIdx, setStartWhiteKeyIdx] = useState<number>(() => Math.min(16, maxStartWhiteIdx));
+  const clampedStartWhiteIdx = Math.min(startWhiteKeyIdx, maxStartWhiteIdx);
+
+  const currentlyPressedNotesRef = useRef<Set<string>>(new Set());
+
+  const GAMEPLAY_KEYS = useMemo(() => {
+    const startWhite = ALL_WHITE_KEYS[clampedStartWhiteIdx] || ALL_WHITE_KEYS[0];
+    const endWhiteIdx = Math.min(ALL_WHITE_KEYS.length - 1, clampedStartWhiteIdx + windowSize - 1);
+    const endWhite = ALL_WHITE_KEYS[endWhiteIdx];
+
+    const startIndex = ALL_PIANO_KEYS.findIndex((k) => k.note === startWhite.note);
+    let endIndex = ALL_PIANO_KEYS.findIndex((k) => k.note === endWhite.note);
+
+    if (endIndex < ALL_PIANO_KEYS.length - 1 && ALL_PIANO_KEYS[endIndex + 1].type === 'black') {
+      endIndex += 1;
+    }
+
+    return ALL_PIANO_KEYS.slice(startIndex, endIndex + 1);
+  }, [clampedStartWhiteIdx, windowSize]);
 
   // Note notation format (Latin Do-Re-Mi, Anglo-Saxon C-D-E, etc.)
   const [noteNotation, setNoteNotation] = useState<NoteNotationFormat>(() => {
@@ -144,9 +169,6 @@ export const SheetComposerView: React.FC = () => {
 
   const handlePianoKeyClick = (note: string) => {
     audioEngine.init().catch(() => {});
-    setActiveKeyNote(note);
-    setTimeout(() => setActiveKeyNote(null), 180);
-
     playSingleNote(note, '4n', targetChannel === 'melody' ? 'piano' : 'bass');
 
     if (targetChannel === 'melody') {
@@ -158,6 +180,15 @@ export const SheetComposerView: React.FC = () => {
       const newNote: NoteEvent = { note, duration: '2n', time: lastTime };
       updateCurrentSong(s => ({ ...s, bassline: [...s.bassline, newNote] }));
     }
+  };
+
+  const handleCanvasNoteDown = (note: string) => {
+    currentlyPressedNotesRef.current.add(note);
+    handlePianoKeyClick(note);
+  };
+
+  const handleCanvasNoteUp = (note: string) => {
+    currentlyPressedNotesRef.current.delete(note);
   };
 
   const stopPlayback = () => {
@@ -648,92 +679,104 @@ export const SheetComposerView: React.FC = () => {
         </div>
       </div>
 
-      {/* ULTRA-RESPONSIVE INTERACTIVE PIANO KEYBOARD (0ms Touch Response) */}
-      <div className="bg-slate-900 border border-slate-800 p-3 sm:p-4 rounded-2xl space-y-2.5 shadow-xl">
-        <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+      {/* 88-KEY MINI-MAP & REALISTIC CANVAS PIANO (Simile a quella principale del piano con tasti neri e minimap) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl space-y-0">
+        {/* Header Bar of Keyboard Section */}
+        <div className="p-3 bg-slate-850 border-b border-slate-800 flex items-center justify-between text-xs flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 text-amber-400" />
             <span className="font-black text-white text-xs sm:text-sm">
-              Tastiera Interattiva
+              Tastiera Interattiva da Concerto
             </span>
             <span className="text-[10px] text-slate-400 hidden sm:inline">
-              (Tocca i tasti per inserire istantaneamente la nota nello spartito)
+              (Tocca i tasti per comporre note • Usa la minimap sopra per spostarti)
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Octave Shift Controls */}
-            <div className="flex items-center gap-1 bg-slate-800 px-1.5 py-0.5 rounded-lg border border-slate-700">
-              <span className="text-[10px] text-slate-400 font-bold">Ottava:</span>
-              <button
-                onClick={() => setKeyboardOctaveOffset(prev => Math.max(-1, prev - 1))}
-                disabled={keyboardOctaveOffset <= -1}
-                className="w-5 h-5 flex items-center justify-center bg-slate-700 hover:bg-slate-600 disabled:opacity-30 rounded text-white text-xs font-black"
-                title="Abbassa di un'ottava"
-              >
-                -
-              </button>
-              <span className="text-xs font-mono font-bold text-amber-400 px-1">
-                {baseStartOctave}
-              </span>
-              <button
-                onClick={() => setKeyboardOctaveOffset(prev => Math.min(1, prev + 1))}
-                disabled={keyboardOctaveOffset >= 1}
-                className="w-5 h-5 flex items-center justify-center bg-slate-700 hover:bg-slate-600 disabled:opacity-30 rounded text-white text-xs font-black"
-                title="Alza di un'ottava"
-              >
-                +
-              </button>
+            {/* Keyboard Layout Size Pills: 14, 21, 28 */}
+            <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-lg border border-slate-700">
+              {(['compact', 'balanced', 'extended'] as const).map((layout) => (
+                <button
+                  key={layout}
+                  onClick={() => setKeyboardLayout(layout)}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded capitalize transition-all ${
+                    keyboardLayout === layout
+                      ? 'bg-amber-500 text-slate-950 font-black shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title={`Tasti a schermo: ${layout === 'compact' ? '14 (Grandi)' : layout === 'balanced' ? '21 (Standard)' : '28 (Tutti)'}`}
+                >
+                  {layout === 'compact' ? '14 Tasti' : layout === 'balanced' ? '21 Tasti' : '28 Tasti'}
+                </button>
+              ))}
             </div>
 
-            {/* Notation selector (Do-Re-Mi vs C-D-E) */}
-            <div className="flex items-center gap-1 bg-slate-800 px-1.5 py-0.5 rounded-lg border border-slate-700">
-              <button
-                onClick={() => {
-                  const next = noteNotation === 'latin' ? 'letter' : 'latin';
-                  setNoteNotation(next);
-                  try { localStorage.setItem('maestro_note_notation', next); } catch (e) {}
-                }}
-                className="text-[10px] font-bold text-amber-300 hover:text-white"
-                title="Cambia formato note (Italiano / Anglosassone)"
-              >
-                {noteNotation === 'latin' ? 'DO RE MI' : 'C D E'}
-              </button>
-            </div>
+            {/* Notation selector (DO RE MI vs C D E) */}
+            <button
+              onClick={() => {
+                const next = noteNotation === 'latin' ? 'letter' : 'latin';
+                setNoteNotation(next);
+                try { localStorage.setItem('maestro_note_notation', next); } catch (e) {}
+              }}
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-750 text-[10px] font-bold text-amber-300 rounded-lg border border-slate-700 transition-colors"
+              title="Cambia formato note (Latino / Anglosassone)"
+            >
+              {noteNotation === 'latin' ? 'DO RE MI' : 'C D E'}
+            </button>
           </div>
         </div>
 
-        {/* Piano Keys Strip */}
-        <div className="relative h-28 w-full bg-slate-950 rounded-xl overflow-x-auto flex select-none p-1 border border-slate-800 scrollbar-thin">
-          {keyboardKeys.map((key) => {
-            const isBlack = key.type === 'black';
-            const isCurrentlyHit = activeKeyNote === key.note;
+        {/* 88-KEY MINI-MAP KEYBOARD (Tastiera molto piccola sopra per fare gli spostamenti!) */}
+        <div className="w-full bg-slate-950 border-b border-slate-800/80 px-2 py-1 flex items-center justify-between gap-1.5 sm:gap-2 shrink-0">
+          <button
+            onClick={() => setStartWhiteKeyIdx((prev) => Math.max(0, prev - 7))}
+            disabled={clampedStartWhiteIdx === 0}
+            className="p-1 h-8 w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors"
+            title="Sposta indietro di 1 Ottava"
+          >
+            <ChevronLeft className="w-3.5 h-3.5 text-amber-400" />
+          </button>
 
-            return (
-              <button
-                key={key.note}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  handlePianoKeyClick(key.note);
-                }}
-                className={`relative shrink-0 border select-none transition-transform duration-75 active:scale-95 ${
-                  isBlack
-                    ? `w-7 h-16 -mx-3.5 z-10 rounded-b shadow-lg text-[9px] font-bold flex items-end justify-center pb-1 ${
-                        isCurrentlyHit
-                          ? 'bg-amber-400 text-slate-950 border-amber-300 scale-95'
-                          : 'bg-slate-850 hover:bg-slate-700 text-white border-slate-950'
-                      }`
-                    : `w-10 h-24 z-0 rounded-b shadow text-[10px] font-black flex items-end justify-center pb-1 ${
-                        isCurrentlyHit
-                          ? 'bg-amber-300 text-slate-950 border-amber-400 scale-95'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-950 border-slate-300'
-                      }`
-                }`}
-              >
-                {formatNoteLabel(key.note, noteNotation, false)}
-              </button>
-            );
-          })}
+          <div className="flex-1 min-w-0 h-9 sm:h-10">
+            <MiniMapKeyboard
+              allWhiteKeys={ALL_WHITE_KEYS}
+              allPianoKeys={ALL_PIANO_KEYS}
+              startWhiteKeyIdx={clampedStartWhiteIdx}
+              windowSize={windowSize}
+              maxStartWhiteIdx={maxStartWhiteIdx}
+              onSelectStartWhiteIdx={setStartWhiteKeyIdx}
+              currentlyPressedNotesRef={currentlyPressedNotesRef}
+              showWaterfall={false}
+            />
+          </div>
+
+          <button
+            onClick={() => setStartWhiteKeyIdx((prev) => Math.min(maxStartWhiteIdx, prev + 7))}
+            disabled={clampedStartWhiteIdx >= maxStartWhiteIdx}
+            className="p-1 h-8 w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors"
+            title="Sposta avanti di 1 Ottava"
+          >
+            <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
+          </button>
+        </div>
+
+        {/* Golden Accent Line */}
+        <div className="w-full h-1 bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+
+        {/* REALISTIC CANVAS PIANO (Identico a quello principale del pianoforte con tasti neri perfetti) */}
+        <div className="w-full bg-slate-950">
+          <CanvasPiano
+            keys={GAMEPLAY_KEYS}
+            getTransposedNote={(n) => n}
+            currentlyPressedNotesRef={currentlyPressedNotesRef}
+            onNoteDown={handleCanvasNoteDown}
+            onNoteUp={handleCanvasNoteUp}
+            sustain={false}
+            showWaterfall={false}
+            noteNotation={noteNotation}
+            className="w-full h-44 sm:h-52 relative select-none touch-none shrink-0"
+          />
         </div>
       </div>
 

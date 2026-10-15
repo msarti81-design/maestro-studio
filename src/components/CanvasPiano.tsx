@@ -18,6 +18,7 @@ interface CanvasPianoProps {
   sustain: boolean;
   showWaterfall: boolean;
   noteNotation?: NoteNotationFormat;
+  className?: string;
 }
 
 interface KeyRect {
@@ -499,11 +500,15 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`w-full transition-all duration-300 select-none touch-none relative ${
-        showWaterfall
-          ? 'h-[200px] sm:h-[230px] md:h-[260px] shrink-0'
-          : 'flex-1 min-h-[320px] sm:min-h-[400px] md:min-h-[480px] h-full'
-      }`}
+      className={
+        className
+          ? className
+          : `w-full transition-all duration-300 select-none touch-none relative ${
+              showWaterfall
+                ? 'h-[200px] sm:h-[230px] md:h-[260px] shrink-0'
+                : 'flex-1 min-h-[320px] sm:min-h-[400px] md:min-h-[480px] h-full'
+            }`
+      }
     >
       <canvas
         ref={canvasRef}
