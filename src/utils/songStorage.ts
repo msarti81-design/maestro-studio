@@ -111,3 +111,85 @@ export const getAllPlayableSongs = (): { local: InteractiveSong[]; published: In
     published: getPublishedSongs(),
   };
 };
+
+// Sheet Composer Persistence
+const SHEET_SONGS_STORAGE_KEY = 'maestro_custom_sheet_songs';
+
+export const getSavedSheetSongs = (): SheetSong[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(SHEET_SONGS_STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Failed to parse saved sheet songs', e);
+    return [];
+  }
+};
+
+export const saveCustomSheetSong = (song: SheetSong): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getSavedSheetSongs();
+    const idx = current.findIndex(s => s.id === song.id);
+    let updated: SheetSong[];
+    if (idx >= 0) {
+      updated = [...current];
+      updated[idx] = song;
+    } else {
+      updated = [song, ...current];
+    }
+    localStorage.setItem(SHEET_SONGS_STORAGE_KEY, JSON.stringify(updated));
+
+    // Also auto-sync as playable Interactive Song for Piano mode!
+    const interactive = convertSheetSongToInteractiveSong(song);
+    saveLocalSong(interactive);
+  } catch (e) {
+    console.error('Failed to save sheet song', e);
+  }
+};
+
+export const deleteCustomSheetSong = (id: string): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getSavedSheetSongs();
+    const updated = current.filter(s => s.id !== id);
+    localStorage.setItem(SHEET_SONGS_STORAGE_KEY, JSON.stringify(updated));
+    deleteLocalSong(`sheet_${id}`);
+  } catch (e) {
+    console.error('Failed to delete sheet song', e);
+  }
+};
+
+export const convertSheetSongToInteractiveSong = (sheetSong: SheetSong): InteractiveSong => {
+  const bpm = sheetSong.bpm || 100;
+  const beatSec = 60 / bpm;
+
+  const parseDurSec = (dur: string): number => {
+    switch (dur) {
+      case '16n': return beatSec * 0.25;
+      case '8n': return beatSec * 0.5;
+      case '4n': return beatSec * 1.0;
+      case '2n': return beatSec * 2.0;
+      case '1m': return beatSec * 4.0;
+      default: return beatSec * 0.5;
+    }
+  };
+
+  const interactiveNotes = sheetSong.melody.map(m => ({
+    note: m.note,
+    time: Math.round(m.time * beatSec * 100) / 100,
+    duration: Math.round(parseDurSec(m.duration) * 100) / 100,
+  }));
+
+  return {
+    id: `sheet_${sheetSong.id}`,
+    title: sheetSong.title || 'Spartito Personalizzato',
+    author: getUsername(),
+    bpm: sheetSong.bpm || 100,
+    difficulty: sheetSong.melody.length > 20 ? 'medio' : 'facile',
+    notes: interactiveNotes,
+    isPublished: false,
+    createdAt: new Date().toISOString().split('T')[0],
+  };
+};
