@@ -46,6 +46,15 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const sustainRef = useRef<boolean>(sustain);
+  sustainRef.current = sustain;
+
+  const onNoteDownRef = useRef(onNoteDown);
+  onNoteDownRef.current = onNoteDown;
+
+  const onNoteUpRef = useRef(onNoteUp);
+  onNoteUpRef.current = onNoteUp;
+
   // Cached Key Rectangles for 0ms sub-microsecond touch checks
   const keyRectsRef = useRef<{ whiteKeys: KeyRect[]; blackKeys: KeyRect[] }>({
     whiteKeys: [],
@@ -113,6 +122,17 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     keyRectsRef.current = { whiteKeys, blackKeys };
   }, [keys, whiteKeysList, numWhiteKeys, getTransposedNote, showWaterfall, noteNotation]);
 
+  const updateKeyGeometriesRef = useRef(updateKeyGeometries);
+  updateKeyGeometriesRef.current = updateKeyGeometries;
+
+  // Re-run geometry calculation if props change (without reconnecting ResizeObserver)
+  useEffect(() => {
+    const { width, height } = canvasDimsRef.current;
+    if (width > 0 && height > 0) {
+      updateKeyGeometries(width, height);
+    }
+  }, [updateKeyGeometries]);
+
   // Ultra-fast instant touch detection (Priority: Black Keys -> White Keys)
   const getNoteAtCoords = useCallback((clientX: number, clientY: number): string | null => {
     const canvas = canvasRef.current;
@@ -166,8 +186,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     // Turn off un-touched notes
     currentNotes.forEach((note) => {
       if (!nextTouchedNotes.has(note)) {
-        if (!sustain) {
-          onNoteUp(note);
+        if (!sustainRef.current) {
+          onNoteUpRef.current(note);
         }
       }
     });
@@ -175,12 +195,12 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     // Turn on newly touched notes
     nextTouchedNotes.forEach((note) => {
       if (!currentNotes.has(note)) {
-        onNoteDown(note);
+        onNoteDownRef.current(note);
       }
     });
 
     currentlyPressedNotesRef.current = nextTouchedNotes;
-  }, [getNoteAtCoords, currentlyPressedNotesRef, sustain, onNoteDown, onNoteUp]);
+  }, [getNoteAtCoords, currentlyPressedNotesRef]);
 
   // Mouse Mouse-Drag Glissando Support
   const isMouseDownRef = useRef<boolean>(false);
@@ -204,7 +224,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       e.preventDefault();
       if (e.touches.length === 0) {
         currentlyPressedNotesRef.current.forEach((note) => {
-          if (!sustain) onNoteUp(note);
+          if (!sustainRef.current) onNoteUpRef.current(note);
         });
         currentlyPressedNotesRef.current.clear();
       } else {
@@ -218,7 +238,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       const note = getNoteAtCoords(e.clientX, e.clientY);
       if (note) {
         currentlyPressedNotesRef.current.add(note);
-        onNoteDown(note);
+        onNoteDownRef.current(note);
       }
     };
 
@@ -230,11 +250,11 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         const currentNotes = currentlyPressedNotesRef.current;
         if (!currentNotes.has(note)) {
           currentNotes.forEach((n) => {
-            if (!sustain) onNoteUp(n);
+            if (!sustainRef.current) onNoteUpRef.current(n);
           });
           currentNotes.clear();
           currentNotes.add(note);
-          onNoteDown(note);
+          onNoteDownRef.current(note);
         }
       }
     };
@@ -243,7 +263,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       e.preventDefault();
       isMouseDownRef.current = false;
       currentlyPressedNotesRef.current.forEach((note) => {
-        if (!sustain) onNoteUp(note);
+        if (!sustainRef.current) onNoteUpRef.current(note);
       });
       currentlyPressedNotesRef.current.clear();
     };
@@ -267,7 +287,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [getNoteAtCoords, processTouches, currentlyPressedNotesRef, sustain, onNoteDown, onNoteUp]);
+  }, [getNoteAtCoords, processTouches, currentlyPressedNotesRef]);
 
   // Main High-Speed GPU 2D Canvas Render Loop (60-120 FPS)
   useEffect(() => {
@@ -275,17 +295,29 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
 
     const render = () => {
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      if (!canvas) {
+        animFrameId = requestAnimationFrame(render);
+        return;
+      }
 
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) {
+        animFrameId = requestAnimationFrame(render);
+        return;
+      }
 
       const { width, height } = canvasDimsRef.current;
-      if (width === 0 || height === 0) return;
+      if (width === 0 || height === 0) {
+        animFrameId = requestAnimationFrame(render);
+        return;
+      }
 
       const dpr = window.devicePixelRatio || 1;
 
-      // Clear canvas
+      ctx.save();
+      ctx.scale(dpr, dpr);
+
+      // Clear frame cleanly
       ctx.clearRect(0, 0, width, height);
 
       const { whiteKeys, blackKeys } = keyRectsRef.current;
@@ -456,6 +488,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         }
       });
 
+      ctx.restore();
+
       animFrameId = requestAnimationFrame(render);
     };
 
@@ -466,7 +500,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     };
   }, []);
 
-  // Responsive Resize Observer
+  // Responsive Resize Observer — Mounted ONCE to avoid flickering / canvas resets
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
@@ -477,16 +511,19 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0) {
           const dpr = window.devicePixelRatio || 1;
-          canvas.width = Math.floor(width * dpr);
-          canvas.height = Math.floor(height * dpr);
+          const targetW = Math.floor(width * dpr);
+          const targetH = Math.floor(height * dpr);
 
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.scale(dpr, dpr);
+          // ONLY re-allocate buffer if pixel dimensions changed to prevent canvas flicker
+          if (canvas.width !== targetW || canvas.height !== targetH) {
+            canvas.width = targetW;
+            canvas.height = targetH;
           }
 
           canvasDimsRef.current = { width, height };
-          updateKeyGeometries(width, height);
+          if (updateKeyGeometriesRef.current) {
+            updateKeyGeometriesRef.current(width, height);
+          }
         }
       }
     });
@@ -496,7 +533,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [updateKeyGeometries]);
+  }, []);
 
   return (
     <div
