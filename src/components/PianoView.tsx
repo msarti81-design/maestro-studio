@@ -340,6 +340,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
     };
   }, []);
 
+  const [masterclassPlayMode, setMasterclassPlayMode] = useState<'arcade' | 'learn'>('arcade');
+
   // Real-time WebSocket listener for Masterclass & Multiplayer Room
   useEffect(() => {
     if (!socialSession || !socialSession.roomId) return;
@@ -393,10 +395,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
               studentMatchedIndexRef.current = 0;
 
               if (msg.openWaterfall) {
+                const mode = msg.displayMode === 'learn' ? 'learn' : 'arcade';
+                setMasterclassPlayMode(mode);
                 const song = createMasterclassWaterfallSong(receivedPhrase, `Frase del Maestro (${receivedPhrase.length} note)`);
                 setActiveSong(song);
                 setShowWaterfall(true);
-                showToast(`🎮 Il Maestro ti ha inviato una frase di ${receivedPhrase.length} note in versione Caduta Arcade!`);
+                showToast(`🎮 Il Maestro ti ha inviato una frase di ${receivedPhrase.length} note (Caduta ${mode === 'learn' ? 'Impara' : 'Arcade'})!`);
               } else {
                 showToast(`🎼 Il Maestro ${msg.sender || ''} ti ha inviato una frase di ${receivedPhrase.length} note!`);
               }
@@ -425,7 +429,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     } catch (e) {}
   }, [socialSession, username, instrument, showToast, createMasterclassWaterfallSong]);
 
-  const handleSendTeacherPhrase = (openWaterfall: boolean = false) => {
+  const handleSendTeacherPhrase = (openWaterfall: boolean = false, displayMode: 'arcade' | 'learn' = 'arcade') => {
     if (recordedMasterclassNotes.length === 0) return;
 
     const simpleNotes = recordedMasterclassNotes.map((item) => item.note);
@@ -438,6 +442,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
           notes: simpleNotes,
           phraseData: recordedMasterclassNotes,
           openWaterfall,
+          displayMode,
         })
       );
     }
@@ -445,23 +450,25 @@ export const PianoView: React.FC<PianoViewProps> = ({
     setTeacherAssignedPhrase(recordedMasterclassNotes);
     setStudentMatchedIndex(0);
     studentMatchedIndexRef.current = 0;
+    setMasterclassPlayMode(displayMode);
 
     if (openWaterfall) {
       const song = createMasterclassWaterfallSong(recordedMasterclassNotes, `Frase del Maestro (${recordedMasterclassNotes.length} note)`);
       setActiveSong(song);
       setShowWaterfall(true);
-      showToast(`🎮 Frase di ${recordedMasterclassNotes.length} note inviata all'allievo in versione Caduta Arcade!`);
+      showToast(`🎮 Frase inviata all'allievo in versione Caduta ${displayMode === 'learn' ? 'Impara' : 'Arcade'}!`);
     } else {
       showToast(`Frase di ${recordedMasterclassNotes.length} note (con ritmo) inviata all'allievo!`);
     }
   };
 
-  const handleOpenLocalPhraseWaterfall = (phraseItems: MasterclassNoteItem[]) => {
+  const handleOpenLocalPhraseWaterfall = (phraseItems: MasterclassNoteItem[], displayMode: 'arcade' | 'learn' = 'arcade') => {
     if (!phraseItems || phraseItems.length === 0) return;
     const song = createMasterclassWaterfallSong(phraseItems, `Frase del Maestro (${phraseItems.length} note)`);
+    setMasterclassPlayMode(displayMode);
     setActiveSong(song);
     setShowWaterfall(true);
-    showToast(`🎮 Aperta modalità Caduta Arcade! Le note scendono dall'alto.`);
+    showToast(`🎮 Aperta modalità Caduta ${displayMode === 'learn' ? 'Impara' : 'Arcade'}!`);
   };
 
   const handlePlayMasterclassPhrase = (phraseItems: MasterclassNoteItem[]) => {
@@ -1387,21 +1394,30 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     className="px-2 py-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-extrabold rounded-lg shadow flex items-center gap-1 text-[10px] cursor-pointer whitespace-nowrap"
                     title="Invia la frase all'allievo in modalità testo/note standard"
                   >
-                    <span>📤 INVIA FRASE ({recordedMasterclassNotes.length})</span>
+                    <span>📤 INVIA NOTE</span>
                   </button>
 
                   <button
-                    onClick={() => handleSendTeacherPhrase(true)}
+                    onClick={() => handleSendTeacherPhrase(true, 'arcade')}
                     disabled={recordedMasterclassNotes.length === 0}
                     className="px-2.5 py-1 bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-500 hover:brightness-110 disabled:opacity-40 text-white font-black rounded-lg shadow-lg flex items-center gap-1 text-[10px] cursor-pointer whitespace-nowrap animate-pulse"
-                    title="Invia all'allievo la frase da eseguire in cascata visiva tipo Synthesia/Arcade!"
+                    title="Invia in modalità Arcade continua (flusso libero)"
                   >
-                    <span>🎮 INVIA CON CADUTA ARCADE</span>
+                    <span>🎮 INVIA CADUTA ARCADE</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleSendTeacherPhrase(true, 'learn')}
+                    disabled={recordedMasterclassNotes.length === 0}
+                    className="px-2 py-1 bg-gradient-to-r from-amber-600 to-emerald-600 hover:brightness-110 disabled:opacity-40 text-white font-black rounded-lg shadow-lg flex items-center gap-1 text-[10px] cursor-pointer whitespace-nowrap"
+                    title="Invia in modalità Impara (si ferma ad ogni nota finché l'allievo non la suona)"
+                  >
+                    <span>🎯 INVIA CADUTA IMPARA</span>
                   </button>
 
                   {recordedMasterclassNotes.length > 0 && (
                     <button
-                      onClick={() => handleOpenLocalPhraseWaterfall(recordedMasterclassNotes)}
+                      onClick={() => handleOpenLocalPhraseWaterfall(recordedMasterclassNotes, 'arcade')}
                       className="px-2 py-1 bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-500/40 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
                       title="Testa la tua frase suonata nella grafica a caduta dall'alto"
                     >
@@ -1523,6 +1539,22 @@ export const PianoView: React.FC<PianoViewProps> = ({
             song={activeSong}
             keys={GAMEPLAY_KEYS}
             getTransposedNote={getTransposedNote}
+            initialPlayMode={masterclassPlayMode}
+            isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
+            onMasterclassFinished={() => {
+              showToast('🎉 Frase completata! Il turno passa di nuovo al Maestro 👑');
+              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(
+                  JSON.stringify({
+                    type: 'piano:phrase_progress',
+                    roomId: socialSession?.roomId,
+                    currentIndex: activeSong.notes.length,
+                    totalNotes: activeSong.notes.length,
+                    completed: true,
+                  })
+                );
+              }
+            }}
             onClose={() => setShowWaterfall(false)}
           />
         </div>

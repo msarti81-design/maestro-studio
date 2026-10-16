@@ -20,6 +20,9 @@ interface FallingNotesWaterfallProps {
   onActiveSongChange?: (song: InteractiveSong) => void;
   onClose: () => void;
   lastPlayedNote?: { note: string; timestamp: number } | null;
+  initialPlayMode?: 'learn' | 'arcade' | 'demo';
+  isMasterclassMode?: boolean;
+  onMasterclassFinished?: () => void;
 }
 
 interface KeyPosition {
@@ -33,11 +36,14 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   keys,
   getTransposedNote,
   onClose,
+  initialPlayMode = 'arcade',
+  isMasterclassMode = false,
+  onMasterclassFinished,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const [playMode, setPlayMode] = useState<'learn' | 'arcade' | 'demo'>('learn');
+  const [playMode, setPlayMode] = useState<'learn' | 'arcade' | 'demo'>(initialPlayMode);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -143,7 +149,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           waitingNoteIndexRef.current = null;
           setWaitingTargetNote(null);
           setScore((s) => s + 100);
-          recordNoteHitBonus(5);
+          if (!isMasterclassMode) recordNoteHitBonus(5);
           setCombo((c) => {
             const next = c + 1;
             setMaxCombo((m) => Math.max(m, next));
@@ -164,7 +170,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           if (Math.abs(n.time - curTime) <= 0.4 && (n.note === playedNote || getTransposedNote(n.note) === playedNote)) {
             hitNotesSetRef.current.add(i);
             setScore((s) => s + 100);
-            recordNoteHitBonus(5);
+            if (!isMasterclassMode) recordNoteHitBonus(5);
             setCombo((c) => {
               const next = c + 1;
               setMaxCombo((m) => Math.max(m, next));
@@ -192,7 +198,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         hitNotesSetRef.current.add(bestIdx);
         const pts = minDiff < 0.15 ? 100 : 50;
         setScore((s) => s + pts);
-        recordNoteHitBonus(minDiff < 0.15 ? 10 : 5);
+        if (!isMasterclassMode) recordNoteHitBonus(minDiff < 0.15 ? 10 : 5);
         setCombo((c) => {
           const next = c + 1;
           setMaxCombo((m) => Math.max(m, next));
@@ -345,9 +351,13 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           setCurrentTime(newTime);
         }
 
-        if (newTime >= songDuration + 1) {
+        if (newTime >= songDuration + 0.8) {
           if (!isCompleted) {
-            recordSongCompletedBonus(score, maxCombo);
+            if (!isMasterclassMode) {
+              recordSongCompletedBonus(score, maxCombo);
+            } else if (onMasterclassFinished) {
+              onMasterclassFinished();
+            }
           }
           setIsCompleted(true);
           setIsPlaying(false);
@@ -553,12 +563,12 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         </div>
       </div>
 
-      {/* Target prompt in 'learn' mode */}
+      {/* Target prompt in 'learn' mode - Semi-transparent glass effect so incoming notes remain 100% visible behind badge */}
       {waitingTargetNote && (
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center">
-          <div className="bg-amber-500/95 text-slate-950 font-black px-4 py-1 rounded-full text-xs shadow-lg animate-bounce flex items-center gap-1.5">
-            <span>PREMI TASTO:</span>
-            <span className="text-sm bg-slate-950 text-amber-400 px-2 py-0.5 rounded font-mono">
+        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center">
+          <div className="bg-slate-950/40 border border-amber-500/40 text-amber-300 font-extrabold px-3 py-0.5 rounded-full text-[11px] shadow-sm backdrop-blur-xs flex items-center gap-1.5 opacity-85">
+            <span className="text-[10px] text-amber-300/80 uppercase">SUONA:</span>
+            <span className="text-xs bg-amber-500/30 text-amber-200 px-1.5 py-0.2 rounded font-mono font-black border border-amber-400/30">
               {waitingTargetNote}
             </span>
           </div>
@@ -568,8 +578,27 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
       {/* 60 FPS Canvas with zero lag and O(1) rendering */}
       <canvas ref={canvasRef} className="w-full h-full block cursor-pointer" />
 
-      {/* Sleek, Ultra-Compact Floating Completion Banner */}
-      {isCompleted && (
+      {/* Masterclass Completion Screen (No points, No rigioca modal, Handover back to Maestro) */}
+      {isCompleted && isMasterclassMode ? (
+        <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-30 flex items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-slate-900 border border-emerald-500/60 rounded-2xl p-5 max-w-sm w-full shadow-2xl flex flex-col items-center text-center">
+            <div className="w-12 h-12 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center text-emerald-400 font-bold text-xl mb-3">
+              👑
+            </div>
+            <h3 className="text-base font-black text-white">Frase Completata!</h3>
+            <p className="text-xs text-slate-300 mt-1 mb-5">
+              Hai eseguito tutte le {song.notes.length} note inviate dal Maestro! Il turno passa di nuovo al Maestro.
+            </p>
+            <button
+              onClick={onClose}
+              className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-lg cursor-pointer"
+            >
+              ⬅️ Torna al Pianoforte
+            </button>
+          </div>
+        </div>
+      ) : isCompleted && (
+        /* Standard Song Completion Banner */
         <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm z-30 flex items-center justify-center p-2">
           <div className="bg-slate-900/95 border border-amber-500/60 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 max-w-md w-auto shadow-2xl flex items-center gap-2.5 sm:gap-3.5 animate-in fade-in zoom-in-95 duration-200">
             {/* Trophy Icon */}
