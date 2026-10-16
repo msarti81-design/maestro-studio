@@ -124,8 +124,11 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
+import android.webkit.WebViewClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
 import android.content.Intent;
 import android.net.Uri;
 import android.widget.Toast;
@@ -138,6 +141,9 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+
+    private ValueCallback<Uri[]> filePathCallback;
+    private final static int FILE_CHOOSER_REQUEST_CODE = 1002;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -223,7 +229,7 @@ public class MainActivity extends BridgeActivity {
             // Register JavascriptInterface for instant direct file saves
             webView.addJavascriptInterface(new AndroidFileSaver(), "AndroidFileSaver");
 
-            // 1. Grant WebView permission for microphone input automatically
+            // 1. WebChromeClient for Mic permissions AND File Chooser (<input type="file">)
             webView.setWebChromeClient(new WebChromeClient() {
                 @Override
                 public void onPermissionRequest(final PermissionRequest request) {
@@ -235,17 +241,63 @@ public class MainActivity extends BridgeActivity {
                         }
                     });
                 }
+
+                @Override
+                public boolean onShowFileChooser(android.webkit.WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
+                    if (MainActivity.this.filePathCallback != null) {
+                        MainActivity.this.filePathCallback.onReceiveValue(null);
+                    }
+                    MainActivity.this.filePathCallback = filePathCallback;
+
+                    Intent intent = fileChooserParams.createIntent();
+                    try {
+                        startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE);
+                    } catch (Exception e) {
+                        MainActivity.this.filePathCallback = null;
+                        Toast.makeText(getApplicationContext(), "Impossibile aprire la selezione file", Toast.LENGTH_SHORT).show();
+                        return false;
+                    }
+                    return true;
+                }
             });
 
-            // 2. Handle WebView file download triggers (JSON & MIDI data/blob URLs)
+            // 2. WebViewClient for WhatsApp URL interception
+            webView.setWebViewClient(new WebViewClient() {
+                @Override
+                public boolean shouldOverrideUrlLoading(android.webkit.WebView view, WebResourceRequest request) {
+                    String url = request.getUrl().toString();
+                    if (url != null && (url.contains("whatsapp.com") || url.contains("wa.me") || url.startsWith("whatsapp:"))) {
+                        try {
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                            return true;
+                        } catch (Exception e) {
+                            Toast.makeText(getApplicationContext(), "WhatsApp non installato", Toast.LENGTH_SHORT).show();
+                            return true;
+                        }
+                    }
+                    return super.shouldOverrideUrlLoading(view, request);
+                }
+            });
+
+            // 3. Handle WebView file download triggers (JSON & MIDI data/blob URLs)
             webView.setDownloadListener(new DownloadListener() {
                 @Override
                 public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
                     try {
+                        // Intercept WhatsApp links before download handler
+                        if (url != null && (url.contains("whatsapp.com") || url.contains("wa.me") || url.startsWith("whatsapp:"))) {
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                            return;
+                        }
+
                         String fileName = "spartito_export";
                         if (contentDisposition != null && contentDisposition.contains("filename=")) {
                             fileName = contentDisposition.substring(contentDisposition.indexOf("filename=") + 9)
-                                .replace("\"", "").replace(";", "").trim();
+                                .replace("\u0022", "").replace(";", "").trim();
                         } else if (url.contains(".mid") || (mimetype != null && mimetype.contains("midi"))) {
                             fileName = "spartito_maestro.mid";
                         } else if (url.contains(".json") || (mimetype != null && mimetype.contains("json"))) {
@@ -288,6 +340,18 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
             });
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
+            if (filePathCallback != null) {
+                Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+                filePathCallback.onReceiveValue(results);
+                filePathCallback = null;
+            }
         }
     }
 

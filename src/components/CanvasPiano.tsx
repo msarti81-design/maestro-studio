@@ -380,12 +380,13 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
 
         ctx.restore();
 
-        // --- White Key Labels ---
+        // --- White Key Labels (Shadow Blur explicitly reset to 0 to prevent GPU flashing) ---
         ctx.save();
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // Note Name Label
         const fontSize = Math.max(10, Math.min(15, keyW * 0.38));
         ctx.font = `800 ${fontSize}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = isPressed ? '#0f172a' : '#334155';
@@ -393,7 +394,6 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         const labelY = keyH - Math.max(16, keyH * 0.12);
         ctx.fillText(wk.label, keyX + keyW / 2, labelY);
 
-        // Computer Key Badge (if present)
         if (wk.computerKey && keyW > 22) {
           const badgeY = labelY - fontSize - 6;
           const badgeW = Math.min(keyW * 0.6, 18);
@@ -415,7 +415,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         ctx.restore();
       });
 
-      // --- 2. DRAW BLACK KEYS (Layered on top of white keys) ---
+      // --- 2. DRAW BLACK KEYS ---
       blackKeys.forEach((bk) => {
         const isPressed = pressedNotes.has(bk.note);
 
@@ -426,10 +426,9 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         const keyH = bk.height;
         const radius = Math.min(5, keyW * 0.25);
 
-        // Drop shadow for 3D depth
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-        ctx.shadowBlur = isPressed ? 4 : 8;
-        ctx.shadowOffsetY = isPressed ? 2 : 4;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+        ctx.shadowBlur = isPressed ? 2 : 6;
+        ctx.shadowOffsetY = isPressed ? 1 : 3;
 
         ctx.beginPath();
         if (typeof ctx.roundRect === 'function') {
@@ -439,7 +438,6 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         }
 
         if (isPressed) {
-          // Glowing Gold / Orange Black Key Press
           const gradient = ctx.createLinearGradient(keyX, 0, keyX, keyH);
           gradient.addColorStop(0, '#d97706');
           gradient.addColorStop(0.7, '#f59e0b');
@@ -451,7 +449,6 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.lineWidth = 2;
           ctx.stroke();
         } else {
-          // Sleek Obsidian Black Key Gradient
           const gradient = ctx.createLinearGradient(keyX, 0, keyX, keyH);
           gradient.addColorStop(0, '#334155');
           gradient.addColorStop(0.15, '#1e293b');
@@ -460,7 +457,6 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.fillStyle = gradient;
           ctx.fill();
 
-          // 3D Top Bevel Highlight
           ctx.fillStyle = '#475569';
           ctx.fillRect(keyX + 1, 0, keyW - 2, Math.max(3, keyH * 0.05));
 
@@ -474,6 +470,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         // --- Black Key Note Label ---
         if (keyW > 16) {
           ctx.save();
+          ctx.shadowBlur = 0;
+          ctx.shadowColor = 'transparent';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 

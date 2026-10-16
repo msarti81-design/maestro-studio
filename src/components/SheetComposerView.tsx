@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Disc,
+  MessageCircle,
 } from 'lucide-react';
 import { formatNoteLabel } from '../utils/noteFormatting';
 import { getSavedSheetSongs, saveCustomSheetSong, deleteCustomSheetSong } from '../utils/songStorage';
@@ -403,44 +404,95 @@ export const SheetComposerView: React.FC = () => {
     }
   };
 
-  const handleShareMidi = async () => {
-    try {
-      const blob = createMidiBlob(currentSong);
-      const file = new File([blob], `${safeFilenameBase}.mid`, { type: 'audio/midi' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `MIDI: ${currentSong.title}`,
-          text: `File MIDI di "${currentSong.title}" creato con Maestro Studio`,
-        });
-        showToast('File MIDI condiviso!');
-        return;
-      }
-    } catch (e) {}
-    handleDirectDownloadMidi();
-  };
+  const handleWhatsAppShareSong = (song: SheetSong) => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const shareUrl = `${baseUrl}/#sheet?title=${encodeURIComponent(song.title)}`;
+    const text = `🎼 *SPARTITO MAESTRO STUDIO*\n*${song.title}* (${song.key}, ${song.bpm} BPM)\n\nAscolta e suona questo spartito su Maestro Studio!\n🔗 ${shareUrl}`;
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
 
-  const handleShareJson = async () => {
-    try {
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const file = new File([blob], `${safeFilenameBase}_sheet.json`, { type: 'application/json' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `Spartito: ${currentSong.title}`,
-          text: `File spartito JSON di "${currentSong.title}"`,
-        });
-        showToast('Spartito condiviso!');
-        return;
-      }
-    } catch (e) {}
-    handleDirectDownloadJson();
+    if (typeof window !== 'undefined') {
+      window.location.href = waUrl;
+    }
+    showToast('Apertura WhatsApp...');
   };
 
   const handleImportSubmit = () => {
     setImportError(null);
+    const text = importJsonText.trim();
+    if (!text) return;
+
     try {
-      const parsed = JSON.parse(importJsonText.trim());
+      if (text.startsWith('<')) {
+        // XML / MusicXML Score Parsing
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(text, 'text/xml');
+
+        const titleEl = xmlDoc.querySelector('work-title') || xmlDoc.querySelector('movement-title');
+        const title = titleEl?.textContent?.trim() || 'Spartito XML Importato';
+
+        const noteNodes = xmlDoc.querySelectorAll('note');
+        const melody: NoteEvent[] = [];
+
+        let currentStep = 0;
+        noteNodes.forEach((node) => {
+          const isRest = node.querySelector('rest') !== null;
+          if (isRest) {
+            currentStep++;
+            return;
+          }
+
+          const pitchNode = node.querySelector('pitch');
+          if (pitchNode) {
+            const step = pitchNode.querySelector('step')?.textContent || 'C';
+            const alter = pitchNode.querySelector('alter')?.textContent || '';
+            const octave = pitchNode.querySelector('octave')?.textContent || '4';
+
+            let acc = '';
+            if (alter === '1') acc = '#';
+            else if (alter === '-1') acc = 'b';
+
+            const noteName = `${step}${acc}${octave}`;
+            const typeNode = node.querySelector('type')?.textContent;
+            let duration = '4n';
+            if (typeNode === 'eighth') duration = '8n';
+            else if (typeNode === '16th') duration = '16n';
+            else if (typeNode === 'half') duration = '2n';
+            else if (typeNode === 'whole') duration = '1m';
+
+            melody.push({ note: noteName, duration, time: currentStep });
+            currentStep++;
+          }
+        });
+
+        if (melody.length === 0) {
+          throw new Error('Nessuna nota valida trovata nel file XML/MusicXML.');
+        }
+
+        const newId = `xml_${Date.now()}`;
+        const importedSong: SheetSong = {
+          id: newId,
+          title,
+          description: 'Spartito importato da file XML',
+          key: 'DO Magg (C)',
+          bpm: 100,
+          timeSignature: '4/4',
+          chords: ['C', 'G', 'Am', 'F'],
+          melody,
+          bassline: [],
+        };
+
+        saveCustomSheetSong(importedSong);
+        setSongs([importedSong, ...songs]);
+        setSelectedSongId(newId);
+        setIsImportModalOpen(false);
+        setImportJsonText('');
+        setHasUnsavedChanges(false);
+        showToast(`Spartito XML "${importedSong.title}" importato con successo!`);
+        return;
+      }
+
+      // JSON Parsing
+      const parsed = JSON.parse(text);
       if (!parsed.title || (!parsed.melody && !parsed.notes)) {
         throw new Error('Il formato JSON deve contenere almeno un titolo e la lista delle note (melody).');
       }
@@ -450,7 +502,7 @@ export const SheetComposerView: React.FC = () => {
         id: newId,
         title: parsed.title,
         description: parsed.description || 'Spartito importato',
-        key: parsed.key || 'C major',
+        key: parsed.key || 'DO Magg (C)',
         bpm: parsed.bpm || 100,
         timeSignature: parsed.timeSignature || '4/4',
         chords: Array.isArray(parsed.chords) ? parsed.chords : ['C'],
@@ -466,7 +518,7 @@ export const SheetComposerView: React.FC = () => {
       setHasUnsavedChanges(false);
       showToast(`Spartito "${importedSong.title}" importato e salvato con successo!`);
     } catch (err: any) {
-      setImportError(err.message || 'Errore nella sintassi del JSON. Verifica il testo.');
+      setImportError(err.message || 'Errore nella sintassi del file JSON/XML. Verifica il contenuto.');
     }
   };
 
@@ -951,18 +1003,18 @@ export const SheetComposerView: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   <button
                     onClick={handleDirectDownloadMidi}
-                    className="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
+                    className="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer"
                   >
                     <Download className="w-4 h-4 stroke-[2.5]" />
-                    <span>Scarica File .MID</span>
+                    <span>Scarica MIDI (.mid)</span>
                   </button>
 
                   <button
-                    onClick={handleShareMidi}
-                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-750 text-amber-300 font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all active:scale-95"
+                    onClick={() => handleWhatsAppShareSong(currentSong)}
+                    className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer active:scale-95"
                   >
-                    <Share2 className="w-4 h-4 text-amber-400" />
-                    <span>Condividi / Salva MIDI</span>
+                    <MessageCircle className="w-4 h-4 fill-white shrink-0" />
+                    <span>Condividi su WhatsApp</span>
                   </button>
                 </div>
               </div>
@@ -981,40 +1033,40 @@ export const SheetComposerView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                   <button
                     onClick={handleDirectDownloadJson}
-                    className="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
+                    className="py-2.5 px-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
                   >
-                    <Download className="w-4 h-4 stroke-[2.5]" />
-                    <span>Scarica File .JSON</span>
+                    <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Scarica JSON</span>
                   </button>
 
                   <button
                     onClick={handleCopyJson}
-                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-750 text-white font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all active:scale-95"
+                    className="py-2.5 px-2 bg-slate-800 hover:bg-slate-750 text-white font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                   >
                     {copiedNotification ? (
                       <>
-                        <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+                        <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
                         <span className="text-emerald-400">Copiato!</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="w-4 h-4 text-amber-400" />
+                        <Copy className="w-3.5 h-3.5 text-amber-400" />
                         <span>Copia Codice</span>
                       </>
                     )}
                   </button>
-                </div>
 
-                <button
-                  onClick={handleShareJson}
-                  className="w-full py-2 bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-700/80 font-bold rounded-xl flex items-center justify-center gap-2 transition-all"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Condividi tramite WhatsApp, Drive, Files...</span>
-                </button>
+                  <button
+                    onClick={() => handleWhatsAppShareSong(currentSong)}
+                    className="py-2.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-95"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 fill-white shrink-0" />
+                    <span>WhatsApp</span>
+                  </button>
+                </div>
               </div>
 
               {/* JSON Text Viewer */}
@@ -1034,7 +1086,7 @@ export const SheetComposerView: React.FC = () => {
             <div className="p-3 bg-slate-850 border-t border-slate-800 flex justify-end">
               <button
                 onClick={() => setIsExportModalOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold rounded-xl text-xs"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold rounded-xl text-xs cursor-pointer"
               >
                 Chiudi
               </button>
@@ -1050,11 +1102,11 @@ export const SheetComposerView: React.FC = () => {
             <div className="flex items-center justify-between px-5 py-3.5 bg-slate-850 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Upload className="w-4 h-4 text-indigo-400" />
-                <h3 className="font-bold text-white text-sm">Importa Spartito da JSON</h3>
+                <h3 className="font-bold text-white text-sm">Importa Spartito (XML / JSON)</h3>
               </div>
               <button
                 onClick={() => setIsImportModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+                className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1062,13 +1114,14 @@ export const SheetComposerView: React.FC = () => {
 
             <div className="p-5 space-y-4 overflow-y-auto text-xs">
               <p className="text-slate-300">
-                Incolla qui sotto il codice JSON di uno spartito esportato da Maestro Studio o seleziona un file dal dispositivo.
+                Seleziona un file <strong>XML / MusicXML</strong> o <strong>JSON</strong> dal dispositivo oppure incolla direttamente il testo qui sotto.
               </p>
 
               <div>
                 <input
+                  id="sheetFileInputNative"
                   type="file"
-                  accept=".json,application/json"
+                  accept="*/*"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
@@ -1079,18 +1132,27 @@ export const SheetComposerView: React.FC = () => {
                       reader.readAsText(file);
                     }
                   }}
-                  className="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-amber-400 hover:file:bg-slate-700 cursor-pointer"
+                  className="hidden"
                 />
+
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('sheetFileInputNative')?.click()}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer text-xs"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>📂 Scegli File XML / JSON dal Dispositivo</span>
+                </button>
               </div>
 
               <div>
                 <label className="text-[10px] text-slate-400 font-bold uppercase block mb-1.5">
-                  Testo JSON dello spartito
+                  Testo XML / JSON dello spartito
                 </label>
                 <textarea
                   value={importJsonText}
                   onChange={(e) => setImportJsonText(e.target.value)}
-                  placeholder="Incolla qui il JSON..."
+                  placeholder="Incolla qui il codice XML o JSON..."
                   rows={6}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-white outline-none focus:border-indigo-500"
                 />
