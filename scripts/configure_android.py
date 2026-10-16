@@ -229,39 +229,7 @@ public class MainActivity extends BridgeActivity {
             // Register JavascriptInterface for instant direct file saves
             webView.addJavascriptInterface(new AndroidFileSaver(), "AndroidFileSaver");
 
-            // 1. WebChromeClient for Mic permissions AND File Chooser (<input type="file">)
-            webView.setWebChromeClient(new WebChromeClient() {
-                @Override
-                public void onPermissionRequest(final PermissionRequest request) {
-                    runOnUiThread(() -> {
-                        try {
-                            request.grant(request.getResources());
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    });
-                }
-
-                @Override
-                public boolean onShowFileChooser(android.webkit.WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
-                    if (MainActivity.this.filePathCallback != null) {
-                        MainActivity.this.filePathCallback.onReceiveValue(null);
-                    }
-                    MainActivity.this.filePathCallback = filePathCallback;
-
-                    Intent intent = fileChooserParams.createIntent();
-                    try {
-                        startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE);
-                    } catch (Exception e) {
-                        MainActivity.this.filePathCallback = null;
-                        Toast.makeText(getApplicationContext(), "Impossibile aprire la selezione file", Toast.LENGTH_SHORT).show();
-                        return false;
-                    }
-                    return true;
-                }
-            });
-
-            // 2. Handle WebView file download triggers (JSON & MIDI data/blob URLs)
+            // 1. Handle WebView file download triggers (JSON & MIDI data/blob URLs)
             webView.setDownloadListener(new DownloadListener() {
                 @Override
                 public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {

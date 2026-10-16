@@ -504,26 +504,30 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
 
+    let rafId: number | null = null;
     const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0) {
-          const dpr = window.devicePixelRatio || 1;
-          const targetW = Math.floor(width * dpr);
-          const targetH = Math.floor(height * dpr);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect;
+          if (width > 0 && height > 0) {
+            const dpr = window.devicePixelRatio || 1;
+            const targetW = Math.floor(width * dpr);
+            const targetH = Math.floor(height * dpr);
 
-          // ONLY re-allocate buffer if pixel dimensions changed to prevent canvas flicker
-          if (canvas.width !== targetW || canvas.height !== targetH) {
-            canvas.width = targetW;
-            canvas.height = targetH;
-          }
+            // ONLY re-allocate buffer if pixel dimensions changed to prevent canvas flicker
+            if (canvas.width !== targetW || canvas.height !== targetH) {
+              canvas.width = targetW;
+              canvas.height = targetH;
+            }
 
-          canvasDimsRef.current = { width, height };
-          if (updateKeyGeometriesRef.current) {
-            updateKeyGeometriesRef.current(width, height);
+            canvasDimsRef.current = { width, height };
+            if (updateKeyGeometriesRef.current) {
+              updateKeyGeometriesRef.current(width, height);
+            }
           }
         }
-      }
+      });
     });
 
     resizeObserver.observe(container);

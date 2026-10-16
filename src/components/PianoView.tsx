@@ -280,20 +280,313 @@ export const PianoView: React.FC<PianoViewProps> = ({
       setKeyVisual(note, false);
     });
     currentlyPressedNotesRef.current.clear();
-    // Instant 0ms memory Map iteration (0 layout thrashing, 0 document.querySelectorAll)
     keyNodesMapRef.current.forEach((el) => el.classList.remove('key-pressed-active'));
   }, []);
+
+  // Masterclass & Multi-user Real-time WebSocket state
+  const wsRef = useRef<WebSocket | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3200);
+  }, []);
+
+  // Masterclass Teacher-Student Timed Phrase Interface
+  interface MasterclassNoteItem {
+    note: string;
+    delayMs: number;
+  }
+
+  // Masterclass Teacher-Student Phrase State
+  const [recordedMasterclassNotes, setRecordedMasterclassNotes] = useState<MasterclassNoteItem[]>([]);
+  const [teacherAssignedPhrase, setTeacherAssignedPhrase] = useState<MasterclassNoteItem[]>([]);
+  const [studentMatchedIndex, setStudentMatchedIndex] = useState<number>(0);
+  const [isSimulatingStudentMode, setIsSimulatingStudentMode] = useState<boolean>(false);
+  const lastMasterclassNoteTimeRef = useRef<number>(0);
+
+  const [studentProgress, setStudentProgress] = useState<{
+    studentName: string;
+    currentIndex: number;
+    totalNotes: number;
+    completed: boolean;
+  } | null>(null);
+
+  const teacherAssignedPhraseRef = useRef<MasterclassNoteItem[]>(teacherAssignedPhrase);
+  teacherAssignedPhraseRef.current = teacherAssignedPhrase;
+
+  const studentMatchedIndexRef = useRef<number>(studentMatchedIndex);
+  studentMatchedIndexRef.current = studentMatchedIndex;
+
+  const createMasterclassWaterfallSong = useCallback((phraseItems: MasterclassNoteItem[], title = 'Frase del Maestro'): InteractiveSong => {
+    let currentTime = 0.5;
+    const songNotes = phraseItems.map((item, idx) => {
+      if (idx > 0) {
+        currentTime += Math.max(0.25, (item.delayMs || 350) / 1000);
+      }
+      return {
+        note: item.note,
+        time: currentTime,
+        duration: 0.5,
+      };
+    });
+
+    return {
+      id: `masterclass_${Date.now()}`,
+      title,
+      author: 'Maestro',
+      bpm: 120,
+      difficulty: 'medio',
+      notes: songNotes,
+    };
+  }, []);
+
+  // Real-time WebSocket listener for Masterclass & Multiplayer Room
+  useEffect(() => {
+    if (!socialSession || !socialSession.roomId) return;
+
+    const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = typeof window !== 'undefined' ? window.location.host : 'localhost:3000';
+    const wsUrl = `${protocol}//${host}/ws`;
+
+    try {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        ws.send(
+          JSON.stringify({
+            type: 'room:join',
+            roomId: socialSession.roomId,
+            username,
+            role: socialSession.userRole,
+            mode: socialSession.mode,
+          })
+        );
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+
+          // LIVE AUDIO & VISUAL PRESS FROM REMOTE PEER
+          if (msg.type === 'piano:key_event' && msg.note) {
+            audioEngine.playNote(msg.note, '8n', instrument);
+            setKeyVisual(msg.note, true);
+            setTimeout(() => setKeyVisual(msg.note, false), 220);
+          }
+
+          // TEACHER PHRASE ASSIGNED TO STUDENT
+          else if (msg.type === 'piano:teacher_phrase') {
+            let receivedPhrase: MasterclassNoteItem[] = [];
+            if (Array.isArray(msg.phraseData) && msg.phraseData.length > 0) {
+              receivedPhrase = msg.phraseData;
+            } else if (Array.isArray(msg.notes) && msg.notes.length > 0) {
+              receivedPhrase = msg.notes.map((n: string, i: number) => ({
+                note: n,
+                delayMs: i === 0 ? 0 : 350,
+              }));
+            }
+
+            if (receivedPhrase.length > 0) {
+              setTeacherAssignedPhrase(receivedPhrase);
+              setStudentMatchedIndex(0);
+              studentMatchedIndexRef.current = 0;
+
+              if (msg.openWaterfall) {
+                const song = createMasterclassWaterfallSong(receivedPhrase, `Frase del Maestro (${receivedPhrase.length} note)`);
+                setActiveSong(song);
+                setShowWaterfall(true);
+                showToast(`🎮 Il Maestro ti ha inviato una frase di ${receivedPhrase.length} note in versione Caduta Arcade!`);
+              } else {
+                showToast(`🎼 Il Maestro ${msg.sender || ''} ti ha inviato una frase di ${receivedPhrase.length} note!`);
+              }
+            }
+          }
+
+          // STUDENT PROGRESS UPDATED
+          else if (msg.type === 'piano:phrase_progress') {
+            setStudentProgress({
+              studentName: msg.sender || 'Allievo',
+              currentIndex: msg.currentIndex,
+              totalNotes: msg.totalNotes,
+              completed: msg.completed,
+            });
+            if (msg.completed) {
+              showToast(`🎉 L'allievo ${msg.sender || ''} ha completato la frase con successo!`);
+            }
+          }
+        } catch (e) {}
+      };
+
+      return () => {
+        ws.close();
+        wsRef.current = null;
+      };
+    } catch (e) {}
+  }, [socialSession, username, instrument, showToast, createMasterclassWaterfallSong]);
+
+  const handleSendTeacherPhrase = (openWaterfall: boolean = false) => {
+    if (recordedMasterclassNotes.length === 0) return;
+
+    const simpleNotes = recordedMasterclassNotes.map((item) => item.note);
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'piano:teacher_phrase',
+          roomId: socialSession?.roomId,
+          notes: simpleNotes,
+          phraseData: recordedMasterclassNotes,
+          openWaterfall,
+        })
+      );
+    }
+
+    setTeacherAssignedPhrase(recordedMasterclassNotes);
+    setStudentMatchedIndex(0);
+    studentMatchedIndexRef.current = 0;
+
+    if (openWaterfall) {
+      const song = createMasterclassWaterfallSong(recordedMasterclassNotes, `Frase del Maestro (${recordedMasterclassNotes.length} note)`);
+      setActiveSong(song);
+      setShowWaterfall(true);
+      showToast(`🎮 Frase di ${recordedMasterclassNotes.length} note inviata all'allievo in versione Caduta Arcade!`);
+    } else {
+      showToast(`Frase di ${recordedMasterclassNotes.length} note (con ritmo) inviata all'allievo!`);
+    }
+  };
+
+  const handleOpenLocalPhraseWaterfall = (phraseItems: MasterclassNoteItem[]) => {
+    if (!phraseItems || phraseItems.length === 0) return;
+    const song = createMasterclassWaterfallSong(phraseItems, `Frase del Maestro (${phraseItems.length} note)`);
+    setActiveSong(song);
+    setShowWaterfall(true);
+    showToast(`🎮 Aperta modalità Caduta Arcade! Le note scendono dall'alto.`);
+  };
+
+  const handlePlayMasterclassPhrase = (phraseItems: MasterclassNoteItem[]) => {
+    if (!phraseItems || phraseItems.length === 0) return;
+    showToast('🎵 Riproduzione frase musicale con ritmo...');
+
+    let cumulativeTime = 0;
+    phraseItems.forEach((item, idx) => {
+      cumulativeTime += idx === 0 ? 0 : Math.max(120, item.delayMs || 350);
+      setTimeout(() => {
+        audioEngine.playNote(item.note, '8n', instrument);
+        setKeyVisual(item.note, true);
+        setTimeout(() => setKeyVisual(item.note, false), 220);
+      }, cumulativeTime);
+    });
+  };
+
+  const handleSimulateVirtualStudentReplay = () => {
+    if (recordedMasterclassNotes.length === 0) return;
+    showToast('🤖 Allievo Virtuale in ascolto... replica della frase in corso!');
+
+    let cumulativeTime = 0;
+    recordedMasterclassNotes.forEach((item, idx) => {
+      cumulativeTime += idx === 0 ? 0 : Math.max(120, item.delayMs || 350);
+      setTimeout(() => {
+        audioEngine.playNote(item.note, '8n', instrument);
+        setKeyVisual(item.note, true);
+        setTimeout(() => setKeyVisual(item.note, false), 220);
+
+        const current = idx + 1;
+        const isDone = current === recordedMasterclassNotes.length;
+        setStudentProgress({
+          studentName: 'Allievo Virtuale (Bot)',
+          currentIndex: current,
+          totalNotes: recordedMasterclassNotes.length,
+          completed: isDone,
+        });
+
+        if (isDone) {
+          setTimeout(() => {
+            showToast("🎉 L'Allievo Virtuale ha eseguito tutte le note con successo!");
+          }, 300);
+        }
+      }, cumulativeTime);
+    });
+  };
+
+  const handleRemoveMasterclassNoteAt = (index: number) => {
+    setRecordedMasterclassNotes((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveLastMasterclassNote = () => {
+    setRecordedMasterclassNotes((prev) => prev.slice(0, -1));
+  };
 
   const triggerNoteHit = useCallback((baseNote: string) => {
     const note = getTransposedNote(baseNote);
     audioEngine.playNote(note, '8n', instrument);
     window.dispatchEvent(new CustomEvent('piano:noteplayed', { detail: { note } }));
 
+    notesCountRef.current = (notesCountRef.current || 0) + 1;
+
+    // Send note event over WebSocket if connected in a room
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'piano:key_event',
+          roomId: socialSession?.roomId,
+          note,
+          eventType: 'down',
+          channel: 'melody',
+        })
+      );
+    }
+
+    const effectiveRole = isSimulatingStudentMode ? 'student' : socialSession?.userRole;
+
+    // Masterclass: If user is Maestro (and not simulating student), record note into current phrase (up to 100 notes!)
+    if (socialSession?.mode === 'masterclass' && effectiveRole === 'maestro') {
+      const now = Date.now();
+      setRecordedMasterclassNotes((prev) => {
+        if (prev.length >= 100) return prev; // Extended limit to 100 notes!
+        const delayMs = prev.length === 0 ? 0 : Math.min(4000, Math.max(80, now - lastMasterclassNoteTimeRef.current));
+        lastMasterclassNoteTimeRef.current = now;
+        return [...prev, { note, delayMs }];
+      });
+    }
+
+    // Masterclass: If user is Allievo (or Maestro simulating student), check match against teacherAssignedPhrase
+    if (socialSession?.mode === 'masterclass' && (effectiveRole === 'student' || teacherAssignedPhraseRef.current.length > 0)) {
+      const targetPhrase = teacherAssignedPhraseRef.current;
+      if (targetPhrase.length > 0) {
+        const expectedItem = targetPhrase[studentMatchedIndexRef.current];
+        const expectedNote = typeof expectedItem === 'string' ? expectedItem : expectedItem?.note;
+
+        if (note === expectedNote) {
+          const nextIdx = studentMatchedIndexRef.current + 1;
+          setStudentMatchedIndex(nextIdx);
+          studentMatchedIndexRef.current = nextIdx;
+
+          const isDone = nextIdx >= targetPhrase.length;
+          if (isDone) {
+            showToast('🎉 Perfetto! Hai replicato tutte le note con successo!');
+          }
+
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(
+              JSON.stringify({
+                type: 'piano:phrase_progress',
+                roomId: socialSession?.roomId,
+                currentIndex: nextIdx,
+                totalNotes: targetPhrase.length,
+                completed: isDone,
+              })
+            );
+          }
+        }
+      }
+    }
+
     if (isRecording) {
       const now = (Date.now() - recordStartTime) / 1000;
       recordedNotesRef.current.push({ note, time: now, duration: 0.5 });
     }
-  }, [instrument, isRecording, recordStartTime, getTransposedNote]);
+  }, [instrument, isRecording, recordStartTime, getTransposedNote, socialSession, isSimulatingStudentMode, showToast]);
 
   const handleCanvasNoteDown = useCallback((baseNote: string) => {
     triggerNoteHit(baseNote);
@@ -1015,6 +1308,213 @@ export const PianoView: React.FC<PianoViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Toast Notification Banner */}
+      {toastMessage && (
+        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 border border-amber-300 animate-in fade-in slide-in-from-top-3 text-xs sm:text-sm pointer-events-none">
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* MASTERCLASS CONSOLE BAR (Maestro e Allievo) */}
+      {socialSession?.mode === 'masterclass' && (() => {
+        const effectiveRole = isSimulatingStudentMode ? 'student' : socialSession.userRole;
+        return (
+          <div className="bg-slate-900/95 border-b border-amber-500/30 px-2 sm:px-3 py-1.5 flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0 z-20 overflow-x-auto scrollbar-none text-[10px] sm:text-xs">
+            {/* TEACHER (MAESTRO) VIEW */}
+            {effectiveRole === 'maestro' ? (
+              <div className="flex items-center justify-between w-full gap-2 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto max-w-full py-0.5">
+                  <span className="font-black text-amber-400 uppercase text-[9px] sm:text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 whitespace-nowrap">
+                    👑 Maestro Console
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-bold hidden md:inline">Frase:</span>
+                  {recordedMasterclassNotes.length === 0 ? (
+                    <span className="text-slate-500 italic text-[10px]">Suona fino a 100 note sul piano...</span>
+                  ) : (
+                    <div className="flex items-center gap-1 font-mono font-bold text-amber-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 overflow-x-auto max-w-[280px] sm:max-w-[420px] scrollbar-none">
+                      {recordedMasterclassNotes.map((item, idx) => (
+                        <span
+                          key={idx}
+                          className="group relative inline-flex items-center gap-0.5 bg-amber-500/20 hover:bg-amber-500/30 px-1.5 py-0.5 rounded text-amber-200 border border-amber-500/30 text-[10px] font-mono font-bold transition-all whitespace-nowrap"
+                        >
+                          <span>{item.note}</span>
+                          <button
+                            onClick={() => handleRemoveMasterclassNoteAt(idx)}
+                            title="Cancella questa nota"
+                            className="text-amber-400 hover:text-red-400 font-bold ml-0.5 px-0.5 rounded cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
+                  {recordedMasterclassNotes.length > 0 && (
+                    <>
+                      <button
+                        onClick={handleRemoveLastMasterclassNote}
+                        className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded font-bold text-[10px] cursor-pointer"
+                        title="Cancella l'ultima nota inserita"
+                      >
+                        ⌫ Elimina Ultima
+                      </button>
+
+                      <button
+                        onClick={() => setRecordedMasterclassNotes([])}
+                        className="px-2 py-0.5 bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800/50 rounded font-bold text-[10px] cursor-pointer"
+                        title="Cancella tutte le note registrate"
+                      >
+                        🗑️ Svuota
+                      </button>
+
+                      <button
+                        onClick={() => handlePlayMasterclassPhrase(recordedMasterclassNotes)}
+                        className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded font-bold text-[10px] cursor-pointer flex items-center gap-1"
+                        title="Ascolta la frase con il tempo e ritmo esatti"
+                      >
+                        🔊 Ascolta Ritmo
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => handleSendTeacherPhrase(false)}
+                    disabled={recordedMasterclassNotes.length === 0}
+                    className="px-2 py-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-extrabold rounded-lg shadow flex items-center gap-1 text-[10px] cursor-pointer whitespace-nowrap"
+                    title="Invia la frase all'allievo in modalità testo/note standard"
+                  >
+                    <span>📤 INVIA FRASE ({recordedMasterclassNotes.length})</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleSendTeacherPhrase(true)}
+                    disabled={recordedMasterclassNotes.length === 0}
+                    className="px-2.5 py-1 bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-500 hover:brightness-110 disabled:opacity-40 text-white font-black rounded-lg shadow-lg flex items-center gap-1 text-[10px] cursor-pointer whitespace-nowrap animate-pulse"
+                    title="Invia all'allievo la frase da eseguire in cascata visiva tipo Synthesia/Arcade!"
+                  >
+                    <span>🎮 INVIA CON CADUTA ARCADE</span>
+                  </button>
+
+                  {recordedMasterclassNotes.length > 0 && (
+                    <button
+                      onClick={() => handleOpenLocalPhraseWaterfall(recordedMasterclassNotes)}
+                      className="px-2 py-1 bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-500/40 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                      title="Testa la tua frase suonata nella grafica a caduta dall'alto"
+                    >
+                      <span>🎮 Prova Caduta</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleSimulateVirtualStudentReplay}
+                    disabled={recordedMasterclassNotes.length === 0}
+                    className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-bold rounded-lg text-[10px] flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                    title="Simula il suono e la riesecuzione delle note da parte del Bot allievo"
+                  >
+                    <span>🤖 Simula Bot</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsSimulatingStudentMode(true)}
+                    className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                    title="Mettiti nei panni dell'allievo per testare la sfida e suonare le note"
+                  >
+                    <span>👁️ Simula Vista Allievo</span>
+                  </button>
+
+                  {studentProgress && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-950 border border-emerald-500/40 rounded text-emerald-400 font-mono font-bold text-[10px] whitespace-nowrap">
+                      <span>{studentProgress.studentName}: {studentProgress.currentIndex}/{studentProgress.totalNotes}</span>
+                      {studentProgress.completed && <span>✓ OK!</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* STUDENT (ALLIEVO) VIEW OR SIMULATION MODE */
+              <div className="flex items-center justify-between w-full gap-2 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="font-black text-emerald-400 uppercase text-[9px] sm:text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 whitespace-nowrap">
+                    {isSimulatingStudentMode ? '🎭 SIMULAZIONE ALLIEVO' : '🎯 SFIDA MAESTRO'}
+                  </span>
+                  {teacherAssignedPhrase.length === 0 ? (
+                    <span className="text-slate-400 font-bold text-[10px]">
+                      {isSimulatingStudentMode
+                        ? 'Crea prima una frase come Maestro, o inviala all\'allievo per simularla!'
+                        : 'In attesa della frase musicale dal Maestro...'}
+                    </span>
+                  ) : (
+                    <span className="text-slate-300 font-bold text-[10px] hidden xs:inline">
+                      Suona le {teacherAssignedPhrase.length} note con il tempo giusto!
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+                  {teacherAssignedPhrase.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => handlePlayMasterclassPhrase(teacherAssignedPhrase)}
+                        className="px-2 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded font-bold text-[10px] cursor-pointer flex items-center gap-1"
+                        title="Ascolta la frase inviata dal Maestro"
+                      >
+                        🔊 Ascolta Frase
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenLocalPhraseWaterfall(teacherAssignedPhrase)}
+                        className="px-2 py-0.5 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold text-[10px] cursor-pointer flex items-center gap-1 shadow"
+                        title="Mostra la frase inviata dal Maestro nella grafica a caduta dall'alto"
+                      >
+                        🎮 Apri Caduta Arcade
+                      </button>
+
+                      <div className="flex items-center gap-1 font-mono font-bold bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800 text-[10px] sm:text-xs overflow-x-auto max-w-[280px]">
+                        {teacherAssignedPhrase.map((item, idx) => {
+                          const noteName = typeof item === 'string' ? item : item.note;
+                          const isDone = idx < studentMatchedIndex;
+                          const isCurrent = idx === studentMatchedIndex;
+                          return (
+                            <span
+                              key={idx}
+                              className={`px-1.5 py-0.5 rounded ${
+                                isDone
+                                  ? 'bg-emerald-500 text-slate-950 font-black'
+                                  : isCurrent
+                                  ? 'bg-amber-400 text-slate-950 font-black animate-pulse'
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {noteName}
+                            </span>
+                          );
+                        })}
+                      </div>
+
+                      <span className="font-black text-amber-300 font-mono text-[11px] whitespace-nowrap">
+                        {studentMatchedIndex} / {teacherAssignedPhrase.length}
+                      </span>
+                    </>
+                  )}
+
+                  {isSimulatingStudentMode && (
+                    <button
+                      onClick={() => setIsSimulatingStudentMode(false)}
+                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] cursor-pointer whitespace-nowrap shadow"
+                    >
+                      ⬅️ Torna a Console Maestro
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* SYNTHESIA FALLING NOTES WATERFALL */}
       {showWaterfall && activeSong ? (

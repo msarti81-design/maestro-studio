@@ -526,6 +526,25 @@ Return a JSON object containing:
           });
         }
 
+        // 8. Masterclass Teacher Phrase & Student Progress
+        else if (type === "piano:teacher_phrase") {
+          broadcastToRoom(room, currentClient.id, {
+            type: "piano:teacher_phrase",
+            sender: currentClient.username,
+            notes: msg.notes || [],
+          });
+        }
+
+        else if (type === "piano:phrase_progress") {
+          broadcastToRoom(room, currentClient.id, {
+            type: "piano:phrase_progress",
+            sender: currentClient.username,
+            currentIndex: msg.currentIndex || 0,
+            totalNotes: msg.totalNotes || 0,
+            completed: msg.completed || false,
+          });
+        }
+
       } catch (err) {
         console.warn("WebSocket message error:", err);
       }

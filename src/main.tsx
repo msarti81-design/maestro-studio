@@ -3,6 +3,33 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+// Global error suppression for harmless browser ResizeObserver loop notices
+if (typeof window !== 'undefined') {
+  const isResizeObserverError = (msg?: string) => {
+    return (
+      msg &&
+      (msg.includes('ResizeObserver loop') ||
+       msg.includes('undelivered notifications'))
+    );
+  };
+
+  window.addEventListener('error', (e: ErrorEvent) => {
+    if (isResizeObserverError(e.message)) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      return true;
+    }
+  }, true);
+
+  window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
+    const reasonMsg = e.reason?.message || (typeof e.reason === 'string' ? e.reason : '');
+    if (isResizeObserverError(reasonMsg)) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+  }, true);
+}
+
 interface Props {
   children: ReactNode;
 }

@@ -266,10 +266,14 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
     window.addEventListener('resize', handleResize);
 
+    let resizeObserverRafId: number | null = null;
     let resizeObserver: ResizeObserver | null = null;
     if (containerRef.current && typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
-        resizeCanvas();
+        if (resizeObserverRafId !== null) cancelAnimationFrame(resizeObserverRafId);
+        resizeObserverRafId = requestAnimationFrame(() => {
+          resizeCanvas();
+        });
       });
       resizeObserver.observe(containerRef.current);
     }

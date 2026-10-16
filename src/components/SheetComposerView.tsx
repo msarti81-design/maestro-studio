@@ -27,6 +27,7 @@ import {
 import { formatNoteLabel } from '../utils/noteFormatting';
 import { getSavedSheetSongs, saveCustomSheetSong, deleteCustomSheetSong } from '../utils/songStorage';
 import { downloadJson, downloadMidi, createMidiBlob } from '../utils/midiExport';
+import { parseMidiFile } from '../utils/midiParser';
 import { LightweightSheetKeyboard } from './LightweightSheetKeyboard';
 import { ALL_PIANO_KEYS, ALL_WHITE_KEYS } from '../data/pianoKeys';
 
@@ -414,6 +415,58 @@ export const SheetComposerView: React.FC = () => {
       window.location.href = waUrl;
     }
     showToast('Apertura WhatsApp...');
+  };
+
+  const handleFileSelected = (file: File) => {
+    setImportError(null);
+    const fileName = file.name.toLowerCase();
+
+    if (fileName.endsWith('.mid') || fileName.endsWith('.midi') || file.type.includes('midi')) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const arrayBuffer = evt.target?.result as ArrayBuffer;
+          if (!arrayBuffer) throw new Error('File MIDI vuoto o danneggiato');
+
+          const parsed = parseMidiFile(arrayBuffer, file.name);
+          const melody: NoteEvent[] = parsed.notes.map((n, idx) => ({
+            note: n.note,
+            duration: n.duration > 0.8 ? '2n' : n.duration < 0.3 ? '8n' : '4n',
+            time: idx,
+          }));
+
+          const newId = `midi_${Date.now()}`;
+          const importedSong: SheetSong = {
+            id: newId,
+            title: parsed.title,
+            description: `Spartito importato da file MIDI (${parsed.notes.length} note)`,
+            key: 'DO Magg (C)',
+            bpm: parsed.bpm || 120,
+            timeSignature: '4/4',
+            chords: ['C', 'G', 'Am', 'F'],
+            melody,
+            bassline: [],
+          };
+
+          saveCustomSheetSong(importedSong);
+          setSongs((prevSongs) => [importedSong, ...prevSongs]);
+          setSelectedSongId(newId);
+          setIsImportModalOpen(false);
+          setImportJsonText('');
+          setHasUnsavedChanges(false);
+          showToast(`Spartito MIDI "${importedSong.title}" (${melody.length} note) importato con successo!`);
+        } catch (err: any) {
+          setImportError(err.message || 'Errore nella lettura del file MIDI. Verifica il file.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        setImportJsonText(String(evt.target?.result || ''));
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleImportSubmit = () => {
@@ -1101,8 +1154,8 @@ export const SheetComposerView: React.FC = () => {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-5 py-3.5 bg-slate-850 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <Upload className="w-4 h-4 text-indigo-400" />
-                <h3 className="font-bold text-white text-sm">Importa Spartito (XML / JSON)</h3>
+                <Upload className="w-4 h-4 text-amber-400" />
+                <h3 className="font-bold text-white text-sm">Importa Spartito (MIDI / XML / JSON)</h3>
               </div>
               <button
                 onClick={() => setIsImportModalOpen(false)}
@@ -1114,22 +1167,18 @@ export const SheetComposerView: React.FC = () => {
 
             <div className="p-5 space-y-4 overflow-y-auto text-xs">
               <p className="text-slate-300">
-                Seleziona un file <strong>XML / MusicXML</strong> o <strong>JSON</strong> dal dispositivo oppure incolla direttamente il testo qui sotto.
+                Seleziona un file <strong>MIDI (.mid)</strong>, <strong>XML / MusicXML</strong> o <strong>JSON</strong> dal tuo dispositivo oppure incolla direttamente il testo dello spartito qui sotto.
               </p>
 
               <div>
                 <input
                   id="sheetFileInputNative"
                   type="file"
-                  accept="*/*"
+                  accept=".mid,.midi,.json,.xml,.musicxml,audio/midi,audio/x-midi,text/xml,application/json,*/*"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (evt) => {
-                        setImportJsonText(String(evt.target?.result || ''));
-                      };
-                      reader.readAsText(file);
+                      handleFileSelected(file);
                     }
                   }}
                   className="hidden"
@@ -1138,10 +1187,10 @@ export const SheetComposerView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => document.getElementById('sheetFileInputNative')?.click()}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer text-xs"
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-indigo-600 hover:from-amber-400 hover:to-indigo-500 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer text-xs sm:text-sm"
                 >
-                  <Upload className="w-4 h-4" />
-                  <span>📂 Scegli File XML / JSON dal Dispositivo</span>
+                  <Upload className="w-4 h-4 text-slate-950 stroke-[2.5]" />
+                  <span>📂 Scegli File MIDI (.mid), XML o JSON</span>
                 </button>
               </div>
 

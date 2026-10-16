@@ -12,26 +12,38 @@ const TRANSFER_CODE_KEY = 'maestro_transfer_code';
 
 export function getDeviceId(): string {
   if (typeof window === 'undefined') return 'dev_server';
-  let devId = localStorage.getItem(DEVICE_ID_KEY);
-  if (!devId) {
-    devId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    localStorage.setItem(DEVICE_ID_KEY, devId);
+  try {
+    let devId = localStorage.getItem(DEVICE_ID_KEY);
+    if (!devId) {
+      devId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem(DEVICE_ID_KEY, devId);
+    }
+    return devId;
+  } catch (e) {
+    return `dev_${Date.now()}`;
   }
-  return devId;
 }
 
 export function getStoredUsername(): string {
   if (typeof window === 'undefined') return 'Maestro';
-  const saved = localStorage.getItem(USERNAME_KEY);
-  if (saved && saved.trim()) return saved.trim();
-  const defaultName = `Pianista_${Math.floor(100 + Math.random() * 900)}`;
-  localStorage.setItem(USERNAME_KEY, defaultName);
-  return defaultName;
+  try {
+    const saved = localStorage.getItem(USERNAME_KEY);
+    if (saved && saved.trim()) return saved.trim();
+    const defaultName = `Pianista_${Math.floor(100 + Math.random() * 900)}`;
+    localStorage.setItem(USERNAME_KEY, defaultName);
+    return defaultName;
+  } catch (e) {
+    return 'Maestro';
+  }
 }
 
 export function getStoredTransferCode(): string {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem(TRANSFER_CODE_KEY) || '';
+  try {
+    return localStorage.getItem(TRANSFER_CODE_KEY) || '';
+  } catch (e) {
+    return '';
+  }
 }
 
 export async function verifyAndLockUsername(username: string): Promise<DeviceUserIdentity> {
