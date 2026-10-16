@@ -64,3 +64,25 @@ export interface MusicalPostcard {
   bpm: number;
   createdAt: string;
 }
+
+export interface SocialSessionResults {
+  mode: SocialRoomMode;
+  roomId: string;
+  songTitle?: string;
+  score: number;
+  comboMax: number;
+  accuracy: number;
+  notesPlayed: number;
+  winner?: string;
+  penalties?: number;
+  durationSeconds: number;
+}
+
+export interface ActiveSocialSession {
+  mode: SocialRoomMode;
+  roomId: string;
+  userRole: 'maestro' | 'allievo' | 'spettatore' | 'giocatore';
+  song?: SheetSong;
+  status: 'configuring' | 'active' | 'completed';
+  lastResults?: SocialSessionResults;
+}

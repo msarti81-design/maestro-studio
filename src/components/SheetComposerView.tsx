@@ -26,8 +26,7 @@ import {
 import { formatNoteLabel } from '../utils/noteFormatting';
 import { getSavedSheetSongs, saveCustomSheetSong, deleteCustomSheetSong } from '../utils/songStorage';
 import { downloadJson, downloadMidi, createMidiBlob } from '../utils/midiExport';
-import { MiniMapKeyboard } from './MiniMapKeyboard';
-import { CanvasPiano } from './CanvasPiano';
+import { LightweightSheetKeyboard } from './LightweightSheetKeyboard';
 import { ALL_PIANO_KEYS, ALL_WHITE_KEYS } from '../data/pianoKeys';
 
 // Base keys generator for dynamic octave range
@@ -126,6 +125,9 @@ export const SheetComposerView: React.FC = () => {
     }
   });
 
+  // Selected Note Duration for Lightweight Keyboard
+  const [selectedDuration, setSelectedDuration] = useState<string>('4n');
+
   // Track unsaved modifications
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(true);
@@ -184,17 +186,18 @@ export const SheetComposerView: React.FC = () => {
     audioEngine.playNote(note, duration, inst);
   };
 
-  const handlePianoKeyClick = (note: string) => {
+  const handlePianoKeyClick = (note: string, durationOverride?: string) => {
     audioEngine.init().catch(() => {});
-    playSingleNote(note, '4n', targetChannel === 'melody' ? 'piano' : 'bass');
+    const duration = durationOverride || selectedDuration || '4n';
+    playSingleNote(note, duration, targetChannel === 'melody' ? 'piano' : 'bass');
 
     if (targetChannel === 'melody') {
       const lastTime = currentSong.melody.length > 0 ? currentSong.melody[currentSong.melody.length - 1].time + 1 : 0;
-      const newNote: NoteEvent = { note, duration: '4n', time: lastTime };
+      const newNote: NoteEvent = { note, duration, time: lastTime };
       updateCurrentSong(s => ({ ...s, melody: [...s.melody, newNote] }));
     } else {
       const lastTime = currentSong.bassline.length > 0 ? currentSong.bassline[currentSong.bassline.length - 1].time + 1 : 0;
-      const newNote: NoteEvent = { note, duration: '2n', time: lastTime };
+      const newNote: NoteEvent = { note, duration: durationOverride || '2n', time: lastTime };
       updateCurrentSong(s => ({ ...s, bassline: [...s.bassline, newNote] }));
     }
   };
@@ -698,106 +701,21 @@ export const SheetComposerView: React.FC = () => {
         </div>
       </div>
 
-      {/* 88-KEY MINI-MAP & REALISTIC CANVAS PIANO (Simile a quella principale del piano con tasti neri e minimap) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl space-y-0">
-        {/* Header Bar of Keyboard Section */}
-        <div className="p-3 bg-slate-850 border-b border-slate-800 flex items-center justify-between text-xs flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Music className="w-4 h-4 text-amber-400" />
-            <span className="font-black text-white text-xs sm:text-sm">
-              Tastiera Interattiva da Concerto
-            </span>
-            <span className="text-[10px] text-slate-400 hidden sm:inline">
-              (Tocca i tasti per comporre note • Usa la minimap sopra per spostarti)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Keyboard Layout Size Pills: 14, 21, 28 */}
-            <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-lg border border-slate-700">
-              {(['compact', 'balanced', 'extended'] as const).map((layout) => (
-                <button
-                  key={layout}
-                  onClick={() => setKeyboardLayout(layout)}
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded capitalize transition-all ${
-                    keyboardLayout === layout
-                      ? 'bg-amber-500 text-slate-950 font-black shadow'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                  title={`Tasti a schermo: ${layout === 'compact' ? '14 (Grandi)' : layout === 'balanced' ? '21 (Standard)' : '28 (Tutti)'}`}
-                >
-                  {layout === 'compact' ? '14 Tasti' : layout === 'balanced' ? '21 Tasti' : '28 Tasti'}
-                </button>
-              ))}
-            </div>
-
-            {/* Notation selector (DO RE MI vs C D E) */}
-            <button
-              onClick={() => {
-                const next = noteNotation === 'latin' ? 'letter' : 'latin';
-                setNoteNotation(next);
-                try { localStorage.setItem('maestro_note_notation', next); } catch (e) {}
-              }}
-              className="px-2 py-1 bg-slate-800 hover:bg-slate-750 text-[10px] font-bold text-amber-300 rounded-lg border border-slate-700 transition-colors"
-              title="Cambia formato note (Latino / Anglosassone)"
-            >
-              {noteNotation === 'latin' ? 'DO RE MI' : 'C D E'}
-            </button>
-          </div>
-        </div>
-
-        {/* 88-KEY MINI-MAP KEYBOARD (Tastiera molto piccola sopra per fare gli spostamenti!) */}
-        <div className="w-full bg-slate-950 border-b border-slate-800/80 px-2 py-1 flex items-center justify-between gap-1.5 sm:gap-2 shrink-0">
-          <button
-            onClick={() => setStartWhiteKeyIdx((prev) => Math.max(0, prev - 7))}
-            disabled={clampedStartWhiteIdx === 0}
-            className="p-1 h-8 w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors"
-            title="Sposta indietro di 1 Ottava"
-          >
-            <ChevronLeft className="w-3.5 h-3.5 text-amber-400" />
-          </button>
-
-          <div className="flex-1 min-w-0 h-9 sm:h-10">
-            <MiniMapKeyboard
-              allWhiteKeys={ALL_WHITE_KEYS}
-              allPianoKeys={ALL_PIANO_KEYS}
-              startWhiteKeyIdx={clampedStartWhiteIdx}
-              windowSize={windowSize}
-              maxStartWhiteIdx={maxStartWhiteIdx}
-              onSelectStartWhiteIdx={setStartWhiteKeyIdx}
-              currentlyPressedNotesRef={currentlyPressedNotesRef}
-              showWaterfall={false}
-            />
-          </div>
-
-          <button
-            onClick={() => setStartWhiteKeyIdx((prev) => Math.min(maxStartWhiteIdx, prev + 7))}
-            disabled={clampedStartWhiteIdx >= maxStartWhiteIdx}
-            className="p-1 h-8 w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors"
-            title="Sposta avanti di 1 Ottava"
-          >
-            <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
-          </button>
-        </div>
-
-        {/* Golden Accent Line */}
-        <div className="w-full h-1 bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
-
-        {/* REALISTIC CANVAS PIANO (Identico a quello principale del pianoforte con tasti neri perfetti) */}
-        <div className="w-full bg-slate-950">
-          <CanvasPiano
-            keys={GAMEPLAY_KEYS}
-            getTransposedNote={(n) => n}
-            currentlyPressedNotesRef={currentlyPressedNotesRef}
-            onNoteDown={handleCanvasNoteDown}
-            onNoteUp={handleCanvasNoteUp}
-            sustain={false}
-            showWaterfall={false}
-            noteNotation={noteNotation}
-            className="w-full h-44 sm:h-52 relative select-none touch-none shrink-0"
-          />
-        </div>
-      </div>
+      {/* DEDICATED LIGHTWEIGHT KEYBOARD FOR INSTANT FAST NOTE COMPOSITION */}
+      <LightweightSheetKeyboard
+        onNoteClick={(note, dur) => handlePianoKeyClick(note, dur)}
+        targetChannel={targetChannel}
+        noteNotation={noteNotation}
+        selectedDuration={selectedDuration}
+        onDurationChange={setSelectedDuration}
+        onNotationToggle={() => {
+          const next = noteNotation === 'latin' ? 'letter' : 'latin';
+          setNoteNotation(next);
+          try {
+            localStorage.setItem('maestro_note_notation', next);
+          } catch (e) {}
+        }}
+      />
 
       {/* MELODY NOTES SEQUENCE (Pianoforte) */}
       <div className="bg-slate-900 border border-slate-800 p-3 sm:p-5 rounded-2xl space-y-3">

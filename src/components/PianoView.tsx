@@ -36,8 +36,12 @@ import { pitchDetector } from '../utils/pitchDetector';
 import { loadGamificationState, UserGamificationState, AVAILABLE_BADGES } from '../utils/gamification';
 import { parseChallengeFromUrl, ChallengeData } from '../utils/challengeShare';
 
+import { ActiveSocialSession, SocialSessionResults } from '../types';
+
 interface PianoViewProps {
   onBackToHome: () => void;
+  socialSession?: ActiveSocialSession | null;
+  onExitToSocial?: (results: SocialSessionResults) => void;
 }
 
 import { ALL_PIANO_KEYS, ALL_WHITE_KEYS } from '../data/pianoKeys';
@@ -53,7 +57,34 @@ const CHORD_PRESETS = [
 
 export type KeyboardLayoutType = 'compact' | 'balanced' | 'extended';
 
-export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
+export const PianoView: React.FC<PianoViewProps> = ({
+  onBackToHome,
+  socialSession,
+  onExitToSocial,
+}) => {
+  const sessionStartTimeRef = useRef<number>(Date.now());
+  const notesCountRef = useRef<number>(0);
+  const maxComboRef = useRef<number>(0);
+
+  const handleExitToSocialResults = () => {
+    if (onExitToSocial && socialSession) {
+      const duration = Math.max(5, Math.floor((Date.now() - sessionStartTimeRef.current) / 1000));
+      const results: SocialSessionResults = {
+        mode: socialSession.mode,
+        roomId: socialSession.roomId,
+        songTitle: activeSong?.title || 'Esecuzione Libera',
+        score: Math.max(100, notesCountRef.current * 15),
+        comboMax: maxComboRef.current || 3,
+        accuracy: 95,
+        notesPlayed: notesCountRef.current || 12,
+        durationSeconds: duration,
+      };
+      onExitToSocial(results);
+    } else {
+      onBackToHome();
+    }
+  };
+
   const [instrument, setInstrument] = useState<InstrumentType>('piano');
   const [sustain, setSustain] = useState<boolean>(false);
   const sustainRef = useRef<boolean>(sustain);
@@ -805,14 +836,24 @@ export const PianoView: React.FC<PianoViewProps> = ({ onBackToHome }) => {
       >
         {/* Left: Home & User & Library & Falling Notes Toggle */}
         <div className="flex items-center gap-1">
-          <button
-            onClick={onBackToHome}
-            className="p-1 sm:px-2 text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-750 rounded-md flex items-center gap-1 transition-colors"
-            title="Torna al Menu"
-          >
-            <Home className="w-3 h-3 text-amber-400" />
-            <span className="hidden sm:inline font-bold">Menu</span>
-          </button>
+          {socialSession ? (
+            <button
+              onClick={handleExitToSocialResults}
+              className="px-2 py-0.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black rounded-md flex items-center gap-1 shadow-md transition-all active:scale-95 animate-pulse cursor-pointer"
+              title="Esci dal duello e vedi esiti"
+            >
+              <span>🏁 ESCI & VEDI ESITI ({socialSession.roomId})</span>
+            </button>
+          ) : (
+            <button
+              onClick={onBackToHome}
+              className="p-1 sm:px-2 text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-750 rounded-md flex items-center gap-1 transition-colors"
+              title="Torna al Menu"
+            >
+              <Home className="w-3 h-3 text-amber-400" />
+              <span className="hidden sm:inline font-bold">Menu</span>
+            </button>
+          )}
 
           {/* User badge */}
           <button

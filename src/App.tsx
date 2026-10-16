@@ -11,7 +11,11 @@ import { PianoView } from './components/PianoView';
 import { SheetComposerView } from './components/SheetComposerView';
 import { JamBandView } from './components/JamBandView';
 import { SocialView } from './components/SocialView';
+import { DeviceIdentityModal } from './components/DeviceIdentityModal';
+import { getStoredUsername, verifyAndLockUsername } from './utils/deviceIdentity';
 import { audioEngine } from './utils/audioEngine';
+
+import { ActiveSocialSession, SocialSessionResults } from './types';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewMode | 'home'>(() => {
@@ -37,8 +41,24 @@ export default function App() {
     }
     return 'home';
   });
+
   const [volume, setVolume] = useState<number>(0);
   const [isAudioActive, setIsAudioActive] = useState<boolean>(false);
+  const [activeSocialSession, setActiveSocialSession] = useState<ActiveSocialSession | null>(null);
+  const [lastSessionResults, setLastSessionResults] = useState<SocialSessionResults | null>(null);
+
+  // Global Device Identity & Security State
+  const [username, setUsername] = useState<string>(() => getStoredUsername());
+  const [isIdentityModalOpen, setIsIdentityModalOpen] = useState<boolean>(false);
+
+  // Auto-verify and lock username on device mount
+  React.useEffect(() => {
+    verifyAndLockUsername(username).then((id) => {
+      if (id.isVerified) {
+        setUsername(id.username);
+      }
+    });
+  }, []);
 
   const handleSelectView = (view: ViewMode | 'home') => {
     setCurrentView(view);
@@ -54,6 +74,17 @@ export default function App() {
         window.location.hash = view;
       }
     }
+  };
+
+  const handleLaunchSocialChallenge = (session: ActiveSocialSession) => {
+    setActiveSocialSession(session);
+    setCurrentView('piano');
+  };
+
+  const handleExitSocialChallenge = (results: SocialSessionResults) => {
+    setLastSessionResults(results);
+    setActiveSocialSession(null);
+    setCurrentView('social');
   };
 
   const handleInitAudio = async () => {
@@ -80,6 +111,8 @@ export default function App() {
           onVolumeChange={handleVolumeChange}
           isAudioActive={isAudioActive}
           onInitAudio={handleInitAudio}
+          username={username}
+          onOpenIdentityModal={() => setIsIdentityModalOpen(true)}
         />
       )}
 
@@ -88,12 +121,32 @@ export default function App() {
           <HomeView onSelectView={(v) => handleSelectView(v)} onInitAudio={handleInitAudio} />
         )}
         {currentView === 'piano' && (
-          <PianoView onBackToHome={() => handleSelectView('home')} />
+          <PianoView
+            onBackToHome={() => handleSelectView('home')}
+            socialSession={activeSocialSession}
+            onExitToSocial={handleExitSocialChallenge}
+          />
         )}
         {currentView === 'sheet' && <SheetComposerView />}
         {currentView === 'jam' && <JamBandView />}
-        {currentView === 'social' && <SocialView />}
+        {currentView === 'social' && (
+          <SocialView
+            onLaunchPianoChallenge={handleLaunchSocialChallenge}
+            lastResults={lastSessionResults}
+            onClearResults={() => setLastSessionResults(null)}
+          />
+        )}
       </main>
+
+      <DeviceIdentityModal
+        isOpen={isIdentityModalOpen}
+        onClose={() => setIsIdentityModalOpen(false)}
+        onIdentityUpdated={(newIdentity) => {
+          if (newIdentity && newIdentity.username) {
+            setUsername(newIdentity.username);
+          }
+        }}
+      />
     </div>
   );
 }

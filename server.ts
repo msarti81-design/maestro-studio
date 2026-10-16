@@ -71,10 +71,10 @@ async function startServer() {
     next();
   });
 
-  // Storage Paths for Community Songs & Musical Postcards (Audio-Lettere)
   const dataDir = path.join(__dirname, "data");
   const communitySongsFile = path.join(dataDir, "community_songs.json");
   const postcardsFile = path.join(dataDir, "musical_postcards.json");
+  const usersFile = path.join(dataDir, "users.json");
 
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -85,6 +85,111 @@ async function startServer() {
   if (!fs.existsSync(postcardsFile)) {
     fs.writeFileSync(postcardsFile, JSON.stringify([], null, 2));
   }
+  if (!fs.existsSync(usersFile)) {
+    fs.writeFileSync(usersFile, JSON.stringify([], null, 2));
+  }
+
+  // --- API ROUTE: DEVICE USER IDENTITY & USERNAME LOCKING ---
+  app.post("/api/user/register-or-verify", (req, res) => {
+    try {
+      const { username, deviceId } = req.body;
+      if (!username || !deviceId) {
+        return res.status(400).json({ success: false, error: "Nome utente e ID dispositivo obbligatori" });
+      }
+
+      const cleanName = String(username).trim();
+      const nameKey = cleanName.toLowerCase();
+
+      let users: any[] = [];
+      if (fs.existsSync(usersFile)) {
+        users = JSON.parse(fs.readFileSync(usersFile, "utf-8") || "[]");
+      }
+
+      const existingUser = users.find((u: any) => u.usernameKey === nameKey || u.username.toLowerCase() === nameKey);
+
+      if (existingUser) {
+        if (existingUser.deviceId === deviceId) {
+          return res.json({
+            success: true,
+            verified: true,
+            username: existingUser.username,
+            transferCode: existingUser.transferCode,
+            isOwner: true,
+          });
+        } else {
+          return res.status(403).json({
+            success: false,
+            error: "⛔ Questo nome utente appartiene a un altro dispositivo! Se è il tuo account, usa il Codice di Trasferimento per importarlo.",
+            requiresTransferCode: true,
+          });
+        }
+      } else {
+        const transferCode = `PASS-${Math.floor(100000 + Math.random() * 900000)}`;
+        const newUser = {
+          username: cleanName,
+          usernameKey: nameKey,
+          deviceId,
+          transferCode,
+          createdAt: new Date().toISOString(),
+        };
+        users.push(newUser);
+        fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+
+        return res.json({
+          success: true,
+          verified: true,
+          username: cleanName,
+          transferCode,
+          isOwner: true,
+        });
+      }
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message || "Errore di registrazione dell'utente" });
+    }
+  });
+
+  app.post("/api/user/transfer-profile", (req, res) => {
+    try {
+      const { username, transferCode, newDeviceId } = req.body;
+      if (!username || !transferCode || !newDeviceId) {
+        return res.status(400).json({ success: false, error: "Parametri mancanti per il trasferimento" });
+      }
+
+      const nameKey = String(username).trim().toLowerCase();
+      const codeKey = String(transferCode).trim().toUpperCase();
+
+      let users: any[] = [];
+      if (fs.existsSync(usersFile)) {
+        users = JSON.parse(fs.readFileSync(usersFile, "utf-8") || "[]");
+      }
+
+      const userIdx = users.findIndex(
+        (u: any) =>
+          (u.usernameKey === nameKey || u.username.toLowerCase() === nameKey) &&
+          u.transferCode.toUpperCase() === codeKey
+      );
+
+      if (userIdx >= 0) {
+        users[userIdx].deviceId = newDeviceId;
+        users[userIdx].lastTransferredAt = new Date().toISOString();
+        fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+
+        return res.json({
+          success: true,
+          message: "✓ Account trasferito con successo su questo dispositivo!",
+          username: users[userIdx].username,
+          transferCode: users[userIdx].transferCode,
+        });
+      } else {
+        return res.status(401).json({
+          success: false,
+          error: "❌ Nome utente o Codice di Trasferimento errato! Impossibile trasferire l'account.",
+        });
+      }
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message || "Errore di trasferimento dell'account" });
+    }
+  });
 
   // --- API ROUTE: COMMUNITY SONGS ---
   app.get("/api/community-songs", (req, res) => {

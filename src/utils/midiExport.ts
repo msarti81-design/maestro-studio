@@ -222,7 +222,7 @@ export function generateInteractiveSongMidiFile(song: InteractiveSong): Uint8Arr
  */
 export function createMidiBlob(song: SheetSong): Blob {
   const bytes = generateMidiFile(song);
-  return new Blob([bytes], { type: 'audio/midi' });
+  return new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/midi' });
 }
 
 /**
@@ -230,7 +230,7 @@ export function createMidiBlob(song: SheetSong): Blob {
  */
 export function createInteractiveSongMidiBlob(song: InteractiveSong): Blob {
   const bytes = generateInteractiveSongMidiFile(song);
-  return new Blob([bytes], { type: 'audio/midi' });
+  return new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/midi' });
 }
 
 /**

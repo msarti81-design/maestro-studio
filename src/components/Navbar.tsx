@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewMode } from '../types';
-import { Piano, BookOpen, Layers, Volume2, VolumeX, Home, Music, Users } from 'lucide-react';
+import { Piano, BookOpen, Layers, Volume2, VolumeX, Home, Music, Users, ShieldCheck, Key, User } from 'lucide-react';
 
 interface NavbarProps {
   currentView: ViewMode | 'home';
@@ -9,6 +9,8 @@ interface NavbarProps {
   onVolumeChange: (vol: number) => void;
   isAudioActive: boolean;
   onInitAudio: () => void;
+  username: string;
+  onOpenIdentityModal: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -18,6 +20,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onVolumeChange,
   isAudioActive,
   onInitAudio,
+  username,
+  onOpenIdentityModal,
 }) => {
   return (
     <header className="relative w-full bg-slate-950/95 backdrop-blur-md border-b border-amber-500/20 text-slate-100 select-none z-30 shrink-0">
@@ -153,8 +157,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </nav>
 
-        {/* AUDIO & CONSOLE STATUS */}
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        {/* USER IDENTITY DEVICE LOCK BADGE */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button
+            onClick={onOpenIdentityModal}
+            className="flex items-center gap-1 px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-xl text-[10px] sm:text-xs font-black transition-all shadow-sm active:scale-95 cursor-pointer"
+            title="Account protetto su questo dispositivo. Clicca per vedere il Codice di Trasferimento o cambiare dispositivo."
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="truncate max-w-[80px] sm:max-w-[110px]">{username || 'Pianista'}</span>
+            <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1 rounded uppercase">🔒</span>
+          </button>
+
           {/* Quick Volume Slider */}
           <div className="hidden xs:flex items-center gap-1 sm:gap-1.5 bg-slate-900/90 px-2 py-1 rounded-xl border border-slate-800">
             {volume <= -25 ? (
