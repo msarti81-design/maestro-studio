@@ -15,6 +15,7 @@ import {
   Play,
   Activity,
   Headphones,
+  Users,
 } from 'lucide-react';
 import { audioEngine } from '../utils/audioEngine';
 import { loadGamificationState } from '../utils/gamification';
@@ -137,8 +138,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onSelectView, onInitAudio })
         </div>
       </div>
 
-      {/* THREE REVOLUTIONIZED STUDIO MODULE CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 my-4">
+      {/* FOUR REVOLUTIONIZED STUDIO MODULE CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-4">
         {/* CARD 1: PIANOFORTE & SPARTITI */}
         <div
           onClick={() => handleOpenMode('piano')}
@@ -312,6 +313,58 @@ export const HomeView: React.FC<HomeViewProps> = ({ onSelectView, onInitAudio })
           <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-emerald-400 font-black text-xs group-hover:text-emerald-300">
             <span>Avvia Jam</span>
             <div className="w-7 h-7 rounded-xl bg-emerald-500/20 group-hover:bg-emerald-500 group-hover:text-slate-950 flex items-center justify-center transition-all">
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </div>
+        </div>
+
+        {/* CARD 4: SOCIAL, MASTERCLASS & DUELLI */}
+        <div
+          onClick={() => handleOpenMode('social')}
+          onMouseEnter={() => {
+            setActiveTabPreview('social');
+            audioEngine.playNote('B4', '8n', 'piano');
+          }}
+          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-purple-500/30 hover:border-purple-400 p-5 rounded-3xl cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20 hover:-translate-y-1 flex flex-col justify-between overflow-hidden"
+        >
+          {/* Top Tag & Acoustic Accent */}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/30 px-2.5 py-0.5 rounded-full">
+              MASTERCLASS • DUELLI • QUIZ
+            </span>
+            <div className="w-2 h-2 rounded-full bg-purple-400 group-hover:animate-ping" />
+          </div>
+
+          {/* Visual Social Motif */}
+          <div className="my-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-400 flex items-center justify-center text-white shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform">
+                <Users className="w-6 h-6 stroke-[2.2]" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-white group-hover:text-purple-300 transition-colors">
+                  Social & Challenge
+                </h3>
+                <span className="text-xs text-purple-400/90 font-medium">Multiplayer & Lezioni</span>
+              </div>
+            </div>
+
+            {/* Interactive Social Badge Illustration */}
+            <div className="h-10 w-full bg-slate-950 rounded-xl p-2 flex items-center justify-around border border-slate-800 shadow-inner">
+              <span className="text-xs">🎓 Masterclass</span>
+              <span className="text-xs">⚡ Battle</span>
+              <span className="text-xs">📻 PianoBar</span>
+            </div>
+
+            <p className="text-slate-400 text-xs leading-relaxed">
+              Lezioni <strong className="text-purple-300 font-bold">Maestro-Allievo</strong>, staffetta musicali, duelli estilo Guitar Hero, quiz indovina canzone e cartoline musicali.
+            </p>
+          </div>
+
+          {/* Action button */}
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-purple-400 font-black text-xs group-hover:text-purple-300">
+            <span>Entra nel Social</span>
+            <div className="w-7 h-7 rounded-xl bg-purple-500/20 group-hover:bg-purple-500 group-hover:text-white flex items-center justify-center transition-all">
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </div>
           </div>

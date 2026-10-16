@@ -1,4 +1,6 @@
 import express from "express";
+import http from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
@@ -19,10 +21,35 @@ const ai = new GoogleGenAI({
   },
 });
 
+interface RoomClient {
+  ws: WebSocket;
+  id: string;
+  username: string;
+  role: string;
+  roomId: string;
+  score: number;
+}
+
+interface RoomState {
+  id: string;
+  mode: string;
+  host: string;
+  clients: Map<string, RoomClient>;
+  relayTurnIndex: number;
+  songQueue: { title: string; requester: string }[];
+  currentSongTitle?: string;
+  currentSongNotes?: any[];
+}
+
+const activeRooms = new Map<string, RoomState>();
+
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+  const httpServer = http.createServer(app);
+  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
   // Serve update scripts as raw plain text at top level before any middleware
   app.use((req, res, next) => {
@@ -44,16 +71,22 @@ async function startServer() {
     next();
   });
 
-  // Community Songs Storage Path
+  // Storage Paths for Community Songs & Musical Postcards (Audio-Lettere)
   const dataDir = path.join(__dirname, "data");
   const communitySongsFile = path.join(dataDir, "community_songs.json");
+  const postcardsFile = path.join(dataDir, "musical_postcards.json");
+
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
   if (!fs.existsSync(communitySongsFile)) {
     fs.writeFileSync(communitySongsFile, JSON.stringify([], null, 2));
   }
+  if (!fs.existsSync(postcardsFile)) {
+    fs.writeFileSync(postcardsFile, JSON.stringify([], null, 2));
+  }
 
+  // --- API ROUTE: COMMUNITY SONGS ---
   app.get("/api/community-songs", (req, res) => {
     try {
       if (fs.existsSync(communitySongsFile)) {
@@ -102,7 +135,66 @@ async function startServer() {
     }
   });
 
-  // Guaranteed native file download endpoint for mobile browsers / WebViews
+  // --- API ROUTE: MUSICAL POSTCARDS (Audio-Lettere) ---
+  app.get("/api/postcards", (req, res) => {
+    try {
+      const recipient = String(req.query.recipient || "").trim().toLowerCase();
+      if (fs.existsSync(postcardsFile)) {
+        const raw = fs.readFileSync(postcardsFile, "utf-8");
+        const list = JSON.parse(raw || "[]");
+        if (recipient) {
+          const filtered = list.filter((p: any) => p.recipient && p.recipient.toLowerCase() === recipient);
+          return res.json(filtered);
+        }
+        return res.json(list);
+      }
+      res.json([]);
+    } catch (e: any) {
+      res.json([]);
+    }
+  });
+
+  app.post("/api/postcards", (req, res) => {
+    try {
+      const card = req.body;
+      if (!card || !card.title || !card.melody) {
+        return res.status(400).json({ error: "Titolo e melodia obbligatori" });
+      }
+
+      let list = [];
+      if (fs.existsSync(postcardsFile)) {
+        const raw = fs.readFileSync(postcardsFile, "utf-8");
+        list = JSON.parse(raw || "[]");
+      }
+
+      const newCard = {
+        id: `card_${Date.now()}`,
+        sender: card.sender || "Un Amico",
+        recipient: card.recipient || "Tutti",
+        title: card.title,
+        message: card.message || "Ti ho inviato una cartolina musicale!",
+        melody: card.melody,
+        bpm: card.bpm || 100,
+        createdAt: new Date().toISOString()
+      };
+
+      list.unshift(newCard);
+      fs.writeFileSync(postcardsFile, JSON.stringify(list, null, 2));
+
+      // Broadcast to WebSocket clients if listening for postcards
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({ type: "postcard:new", postcard: newCard }));
+        }
+      });
+
+      res.json({ success: true, postcard: newCard });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to send postcard" });
+    }
+  });
+
+  // --- API ROUTE: NATIVE DOWNLOAD EXPORT ---
   app.post("/api/download-export", (req, res) => {
     try {
       const { filename, content, mimeType, isBase64 } = req.body;
@@ -125,7 +217,7 @@ async function startServer() {
     }
   });
 
-  // API endpoint for AI Music Composer & Arranger
+  // --- API ROUTE: AI MUSIC COMPOSER ---
   app.post("/api/gemini/compose", async (req, res) => {
     try {
       const { prompt, style, key } = req.body;
@@ -139,7 +231,7 @@ Return a JSON object containing:
 3. key (string)
 4. bpm (number, between 60 and 160)
 5. chords (array of strings representing chords per measure, e.g. ["C", "Am", "F", "G"])
-6. melody (array of objects with { note: string (e.g. "C4"), duration: string ("4n" or "8n"), time: number (beat offset or step index 0-15) })
+6. melody (array of objects with { note: string (e.g. "C4"), duration: string ("4n" or "8n"), time: number })
 7. bassline (array of objects with { note: string (e.g. "C2"), duration: string ("4n"), time: number })`,
         config: {
           responseMimeType: "application/json",
@@ -192,9 +284,192 @@ Return a JSON object containing:
     }
   });
 
+  // --- WEBSOCKET REAL-TIME MULTIPLAYER SERVER ---
+  wss.on("connection", (ws) => {
+    let currentClient: RoomClient | null = null;
 
+    ws.on("message", (messageRaw) => {
+      try {
+        const msg = JSON.parse(messageRaw.toString());
+        const { type, roomId, username, mode, role } = msg;
 
-  // Direct endpoint for raw script files (guaranteed text/plain, bypasses HTML SPA)
+        if (type === "room:join") {
+          const rId = roomId || "lobby";
+          if (!activeRooms.has(rId)) {
+            activeRooms.set(rId, {
+              id: rId,
+              mode: mode || "pianobar",
+              host: username || "Host",
+              clients: new Map(),
+              relayTurnIndex: 0,
+              songQueue: [],
+            });
+          }
+
+          const room = activeRooms.get(rId)!;
+          const clientId = `user_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          currentClient = {
+            ws,
+            id: clientId,
+            username: username || "Maestro",
+            role: role || "player",
+            roomId: rId,
+            score: 0,
+          };
+
+          room.clients.set(clientId, currentClient);
+
+          // Broadcast user joined & room status to everyone in the room
+          broadcastRoomState(room);
+          return;
+        }
+
+        if (!currentClient) return;
+        const room = activeRooms.get(currentClient.roomId);
+        if (!room) return;
+
+        // 1. Masterclass & Piano Key Press Broadcast (Real-time live piano)
+        if (type === "piano:key_event") {
+          broadcastToRoom(room, currentClient.id, {
+            type: "piano:key_event",
+            sender: currentClient.username,
+            senderId: currentClient.id,
+            note: msg.note,
+            eventType: msg.eventType, // 'down' | 'up'
+            channel: msg.channel || "melody", // 'melody' | 'bassline'
+            role: currentClient.role,
+          });
+        }
+
+        // 2. Staffetta Musicale (Turn-based relay measure advance)
+        else if (type === "piano:relay_advance") {
+          const clientList = Array.from(room.clients.values());
+          room.relayTurnIndex = (room.relayTurnIndex + 1) % Math.max(1, clientList.length);
+          const activeUser = clientList[room.relayTurnIndex];
+          broadcastToRoom(room, "", {
+            type: "piano:relay_state",
+            activeUser: activeUser ? activeUser.username : currentClient.username,
+            activeUserId: activeUser ? activeUser.id : currentClient.id,
+            measure: msg.measure || 1,
+            success: msg.success ?? true,
+          });
+        }
+
+        // 3. Duelli Musicali / Piano Battle (Real-time score & combos)
+        else if (type === "piano:battle_score") {
+          currentClient.score = msg.score || 0;
+          broadcastToRoom(room, "", {
+            type: "piano:battle_scores",
+            scores: Array.from(room.clients.values()).map((c) => ({
+              id: c.id,
+              username: c.username,
+              score: c.score,
+              combo: msg.combo || 0,
+            })),
+          });
+        }
+
+        // 4. Indovina la Canzone (Name That Tune)
+        else if (type === "piano:guess_submit") {
+          const correctTitle = (room.currentSongTitle || "").toLowerCase().trim();
+          const guess = (msg.guess || "").toLowerCase().trim();
+          const isCorrect = correctTitle.length > 0 && (guess.includes(correctTitle) || correctTitle.includes(guess));
+
+          if (isCorrect) {
+            currentClient.score += 100;
+          }
+
+          broadcastToRoom(room, "", {
+            type: "piano:guess_result",
+            guesser: currentClient.username,
+            guess: msg.guess,
+            isCorrect,
+            winner: isCorrect ? currentClient.username : null,
+            score: currentClient.score,
+          });
+        }
+
+        // 5. Piano Bar & Virtual Audience Floating Reactions (👏 🎹 🔥 🌟 ❤️ 🎵)
+        else if (type === "piano:reaction") {
+          broadcastToRoom(room, "", {
+            type: "piano:reaction",
+            emoji: msg.emoji || "👏",
+            sender: currentClient.username,
+          });
+        }
+
+        // 6. Piano Bar Song Queue Requests
+        else if (type === "piano:queue_add") {
+          if (msg.songTitle) {
+            room.songQueue.push({ title: msg.songTitle, requester: currentClient.username });
+            broadcastToRoom(room, "", {
+              type: "piano:queue_updated",
+              queue: room.songQueue,
+            });
+          }
+        }
+
+        // 7. Set active song for room
+        else if (type === "piano:set_song") {
+          room.currentSongTitle = msg.songTitle;
+          room.currentSongNotes = msg.songNotes;
+          broadcastToRoom(room, "", {
+            type: "piano:song_changed",
+            songTitle: msg.songTitle,
+            songNotes: msg.songNotes,
+            bpm: msg.bpm || 100,
+          });
+        }
+
+      } catch (err) {
+        console.warn("WebSocket message error:", err);
+      }
+    });
+
+    ws.on("close", () => {
+      if (currentClient) {
+        const room = activeRooms.get(currentClient.roomId);
+        if (room) {
+          room.clients.delete(currentClient.id);
+          if (room.clients.size === 0) {
+            activeRooms.delete(room.id);
+          } else {
+            broadcastRoomState(room);
+          }
+        }
+      }
+    });
+  });
+
+  function broadcastRoomState(room: RoomState) {
+    const members = Array.from(room.clients.values()).map((c) => ({
+      id: c.id,
+      username: c.username,
+      role: c.role,
+      score: c.score,
+    }));
+
+    broadcastToRoom(room, "", {
+      type: "room:state",
+      roomId: room.id,
+      mode: room.mode,
+      host: room.host,
+      members,
+      queue: room.songQueue,
+      currentSongTitle: room.currentSongTitle,
+    });
+  }
+
+  function broadcastToRoom(room: RoomState, excludeClientId: string, payload: any) {
+    const jsonStr = JSON.stringify(payload);
+    room.clients.forEach((client, id) => {
+      if (id !== excludeClientId && client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(jsonStr);
+      }
+    });
+  }
+
+  // Direct endpoint for raw script files
   app.get(["/update.sh", "/deploy.sh", "/Song/update.sh", "/song/update.sh"], (req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.status(200).sendFile(path.join(__dirname, "update.sh"));
@@ -208,15 +483,13 @@ Return a JSON object containing:
   const distPath = path.join(__dirname, "dist");
   const isProd = process.env.NODE_ENV === "production" || fs.existsSync(distPath);
   if (isProd) {
-    // Redirect subpaths without trailing slash to enforce trailing slash for relative asset resolution
-    app.get(["/song", "/Song", "/piano", "/sheet", "/jam", "/ai"], (req, res, next) => {
+    app.get(["/song", "/Song", "/piano", "/sheet", "/jam", "/ai", "/social"], (req, res, next) => {
       if (!req.originalUrl.endsWith("/")) {
         return res.redirect(301, req.originalUrl + "/");
       }
       next();
     });
 
-    // Serve static compiled assets directly
     app.use("/assets", express.static(path.join(distPath, "assets")));
     app.use("/Song/assets", express.static(path.join(distPath, "assets")));
     app.use("/song/assets", express.static(path.join(distPath, "assets")));
@@ -224,14 +497,13 @@ Return a JSON object containing:
     app.use("/song", express.static(distPath));
     app.use(express.static(distPath));
 
-    app.get(["/song", "/song/*", "/Song", "/Song/*", "/piano", "/piano/*", "/sheet", "/sheet/*", "/jam", "/jam/*", "/ai", "/ai/*"], (req, res, next) => {
+    app.get(["/song", "/song/*", "/Song", "/Song/*", "/piano", "/piano/*", "/sheet", "/sheet/*", "/jam", "/jam/*", "/ai", "/ai/*", "/social", "/social/*"], (req, res, next) => {
       if (path.extname(req.path)) {
         return next();
       }
       res.sendFile(path.join(distPath, "index.html"));
     });
 
-    // SPA fallback: handle all paths EXCEPT raw update scripts
     app.get("*", (req, res) => {
       if (req.path.endsWith(".sh") || req.path.endsWith(".py")) {
         const file = path.join(__dirname, path.basename(req.path));
@@ -243,7 +515,6 @@ Return a JSON object containing:
       res.sendFile(path.join(distPath, "index.html"));
     });
   } else {
-    // Development mode with Vite middlewares - bypass Vite for .sh and .py scripts
     const vite = await createViteServer({
       server: { middlewareMode: true, allowedHosts: true },
       appType: "custom",
@@ -280,8 +551,8 @@ Return a JSON object containing:
   }
 
   const PORT = Number(process.env.PORT) || 3000;
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server & WebSockets running on http://localhost:${PORT}`);
   });
 }
 

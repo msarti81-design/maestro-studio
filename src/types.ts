@@ -1,4 +1,4 @@
-export type ViewMode = 'piano' | 'sheet' | 'jam';
+export type ViewMode = 'piano' | 'sheet' | 'jam' | 'social';
 export type NoteNotationFormat = 'latin' | 'letter' | 'german' | 'numeric' | 'none';
 export type SoundProfile = 'concert' | 'studio' | 'bright' | 'cathedral';
 
@@ -45,3 +45,22 @@ export interface InteractiveSong {
   createdAt?: string;
 }
 
+export type SocialRoomMode = 
+  | 'masterclass' // Maestro e Allievo in-app
+  | 'relay'       // Staffetta Musicale (Pass the Melody)
+  | 'duet'        // Pianoforte a Quattro Mani (Hand division: Right melody, Left bass)
+  | 'battle'      // Duelli Musicali / Piano Battle
+  | 'guess'       // Indovina la Canzone (Name That Tune)
+  | 'pianobar'    // Piano Bar & Sala d'Ascolto Virtuale
+  | 'postcards';  // Cartoline e Cartoline Musicali (Audio-Lettere)
+
+export interface MusicalPostcard {
+  id: string;
+  sender: string;
+  recipient: string;
+  title: string;
+  message: string;
+  melody: NoteEvent[];
+  bpm: number;
+  createdAt: string;
+}

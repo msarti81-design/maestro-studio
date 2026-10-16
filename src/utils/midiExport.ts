@@ -250,6 +250,8 @@ export function createMidiBase64(song: SheetSong): string {
  * Bulletproof, zero-fail direct file download helper for modern browsers & mobile
  */
 export function downloadBlobFile(filename: string, blob: Blob): boolean {
+  const isAndroidWebView = typeof navigator !== 'undefined' && (/wv|Android/i.test(navigator.userAgent) || typeof (window as any).Capacitor !== 'undefined' || typeof (window as any).AndroidFileSaver !== 'undefined');
+
   // 1. Android Capacitor Native App FileSaver Bridge (Instant Direct Save to Downloads Folder)
   if (typeof window !== 'undefined' && (window as any).AndroidFileSaver?.saveFileToDownloads) {
     try {
@@ -267,63 +269,67 @@ export function downloadBlobFile(filename: string, blob: Blob): boolean {
     }
   }
 
-  // 2. Try Web Share API with File object (Perfect for Mobile Web & iOS)
-  try {
-    if (typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
-      const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
-      if (navigator.canShare({ files: [file] })) {
-        navigator.share({
-          files: [file],
-          title: filename,
-          text: `File ${filename} da Maestro Studio`,
-        }).catch((err) => {
-          console.warn('Share dismissed or failed, using direct download', err);
-          triggerDirectDownload(filename, blob);
-        });
-        return true;
+  // 2. Try Web Share API with File object ONLY on iOS/Safari or desktop web (Skip Android WebViews where navigator.share is broken or causes silent hanging)
+  if (!isAndroidWebView) {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
+        const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+        if (navigator.canShare({ files: [file] })) {
+          navigator.share({
+            files: [file],
+            title: filename,
+            text: `File ${filename} da Maestro Studio`,
+          }).catch((err) => {
+            console.warn('Share dismissed or failed, using direct download', err);
+            triggerDirectDownload(filename, blob);
+          });
+          return true;
+        }
       }
+    } catch (e) {
+      console.warn('Web share check error:', e);
     }
-  } catch (e) {
-    console.warn('Web share check error:', e);
   }
 
   return triggerDirectDownload(filename, blob);
 }
 
 function triggerDirectDownload(filename: string, blob: Blob): boolean {
+  // Convert blob to Data URL so that Android WebViews receive the full Base64 payload in DownloadListener
   try {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.setAttribute('download', filename);
-    link.target = '_blank';
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    setTimeout(() => {
-      if (document.body.contains(link)) document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }, 2000);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = filename;
+      link.setAttribute('download', filename);
+      link.target = '_blank';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) document.body.removeChild(link);
+      }, 1500);
+    };
+    reader.readAsDataURL(blob);
     return true;
   } catch (err) {
-    console.warn('URL.createObjectURL failed, falling back to FileReader data URL', err);
+    console.warn('FileReader failed, using blob object URL', err);
     try {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const link = document.createElement('a');
-        link.href = reader.result as string;
-        link.download = filename;
-        link.setAttribute('download', filename);
-        link.target = '_blank';
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-          if (document.body.contains(link)) document.body.removeChild(link);
-        }, 1500);
-      };
-      reader.readAsDataURL(blob);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.setAttribute('download', filename);
+      link.target = '_blank';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 2000);
       return true;
     } catch (e2) {
       console.error('All download methods failed:', e2);

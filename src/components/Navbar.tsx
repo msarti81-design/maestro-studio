@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewMode } from '../types';
-import { Piano, BookOpen, Layers, Volume2, VolumeX, Home, Music } from 'lucide-react';
+import { Piano, BookOpen, Layers, Volume2, VolumeX, Home, Music, Users } from 'lucide-react';
 
 interface NavbarProps {
   currentView: ViewMode | 'home';
@@ -130,6 +130,26 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Layers className="w-3.5 h-3.5 shrink-0" />
             <span>Jam</span>
+          </button>
+
+          {/* SOCIAL & CHALLENGES */}
+          <button
+            onClick={() => {
+              onInitAudio();
+              onSelectView('social');
+            }}
+            className={`px-2 sm:px-2.5 py-1 rounded-lg flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-bold transition-all ${
+              currentView === 'social'
+                ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+            }`}
+            title="Masterclass, Duelli, Quiz e Piano Bar Virtuale"
+          >
+            <Users className="w-3.5 h-3.5 shrink-0" />
+            <span>Social</span>
+            <span className="hidden lg:inline text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 rounded">
+              NEW
+            </span>
           </button>
         </nav>
 

@@ -745,6 +745,82 @@ class AudioEngine {
       }
     } catch (e) {}
   }
+
+  // Synthesize Realistic Applause sound effect for Piano Bar / Social mode
+  playApplauseSound() {
+    this.init().catch(() => {});
+    if (!this.audioCtx) return;
+    try {
+      const now = this.audioCtx.currentTime;
+      const duration = 2.5;
+      const sampleRate = this.audioCtx.sampleRate;
+      const buffer = this.audioCtx.createBuffer(2, sampleRate * duration, sampleRate);
+      const left = buffer.getChannelData(0);
+      const right = buffer.getChannelData(1);
+
+      // Pink noise + clapping pulse synthesis
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < buffer.length; i++) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        const pink = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+        b6 = white * 0.115926;
+
+        const t = i / sampleRate;
+        const envelope = Math.sin((t / duration) * Math.PI);
+        const clapDensity = Math.sin(t * 18) * 0.3 + 0.7;
+        
+        left[i] = pink * 0.12 * envelope * clapDensity;
+        right[i] = pink * 0.12 * envelope * (1 - clapDensity * 0.5);
+      }
+
+      const src = this.audioCtx.createBufferSource();
+      src.buffer = buffer;
+      const filter = this.audioCtx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1400, now);
+      filter.Q.setValueAtTime(0.8, now);
+
+      src.connect(filter);
+      filter.connect(this.audioCtx.destination);
+      src.start(now);
+    } catch (e) {}
+  }
+
+  // Synthesize Victory Chime for Duels and Quiz
+  playChimeSound() {
+    this.init().catch(() => {});
+    const notes = ['E5', 'G#5', 'B5', 'E6'];
+    notes.forEach((note, idx) => {
+      setTimeout(() => {
+        this.playNote(note, '4n', 'piano');
+      }, idx * 70);
+    });
+  }
+
+  // Synthesize Penalty Buzzer for wrong note in Relay / Battle
+  playBuzzerSound() {
+    this.init().catch(() => {});
+    if (!this.audioCtx) return;
+    try {
+      const now = this.audioCtx.currentTime;
+      const osc = this.audioCtx.createOscillator();
+      const gain = this.audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(110, now); // Low A2 buzz
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc.connect(gain);
+      gain.connect(this.audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.35);
+    } catch (e) {}
+  }
 }
 
 export const audioEngine = new AudioEngine();

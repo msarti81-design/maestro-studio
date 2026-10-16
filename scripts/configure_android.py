@@ -172,11 +172,13 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void saveFileToDownloads(String fileName, String base64Data, String mimeType) {
             try {
+                if (fileName == null || fileName.isEmpty()) fileName = "spartito_export.mid";
                 byte[] fileData = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT);
+                
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     android.content.ContentValues values = new android.content.ContentValues();
                     values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName);
-                    values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType);
+                    values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType != null ? mimeType : "application/octet-stream");
                     values.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
 
                     android.net.Uri uri = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
@@ -198,8 +200,9 @@ public class MainActivity extends BridgeActivity {
                     android.media.MediaScannerConnection.scanFile(getApplicationContext(), new String[]{file.getAbsolutePath()}, null, null);
                 }
 
+                final String finalName = fileName;
                 runOnUiThread(() -> {
-                    Toast.makeText(getApplicationContext(), "✓ File " + fileName + " salvato in Download!", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getApplicationContext(), "✓ File \"" + finalName + "\" salvato in Download!", Toast.LENGTH_LONG).show();
                 });
             } catch (Exception e) {
                 e.printStackTrace();
@@ -212,11 +215,16 @@ public class MainActivity extends BridgeActivity {
 
     private void setupWebViewDownloadAndAudioHandler() {
         if (bridge != null && bridge.getWebView() != null) {
-            // Register JavascriptInterface for instant direct file saves to Downloads folder
-            bridge.getWebView().addJavascriptInterface(new AndroidFileSaver(), "AndroidFileSaver");
+            android.webkit.WebView webView = bridge.getWebView();
+            webView.getSettings().setJavaScriptEnabled(true);
+            webView.getSettings().setAllowFileAccess(true);
+            webView.getSettings().setDomStorageEnabled(true);
+            
+            // Register JavascriptInterface for instant direct file saves
+            webView.addJavascriptInterface(new AndroidFileSaver(), "AndroidFileSaver");
 
             // 1. Grant WebView permission for microphone input automatically
-            bridge.getWebView().setWebChromeClient(new WebChromeClient() {
+            webView.setWebChromeClient(new WebChromeClient() {
                 @Override
                 public void onPermissionRequest(final PermissionRequest request) {
                     runOnUiThread(() -> {
@@ -229,16 +237,54 @@ public class MainActivity extends BridgeActivity {
                 }
             });
 
-            // 2. Handle WebView file download triggers (JSON & MIDI)
-            bridge.getWebView().setDownloadListener(new DownloadListener() {
+            // 2. Handle WebView file download triggers (JSON & MIDI data/blob URLs)
+            webView.setDownloadListener(new DownloadListener() {
                 @Override
                 public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
                     try {
+                        String fileName = "spartito_export";
+                        if (contentDisposition != null && contentDisposition.contains("filename=")) {
+                            fileName = contentDisposition.substring(contentDisposition.indexOf("filename=") + 9)
+                                .replace("\"", "").replace(";", "").trim();
+                        } else if (url.contains(".mid") || (mimetype != null && mimetype.contains("midi"))) {
+                            fileName = "spartito_maestro.mid";
+                        } else if (url.contains(".json") || (mimetype != null && mimetype.contains("json"))) {
+                            fileName = "spartito_maestro.json";
+                        }
+
+                        if (url != null && url.startsWith("data:")) {
+                            int commaIdx = url.indexOf(",");
+                            if (commaIdx != -1) {
+                                String base64Data = url.substring(commaIdx + 1);
+                                new AndroidFileSaver().saveFileToDownloads(fileName, base64Data, mimetype != null ? mimetype : "application/octet-stream");
+                                return;
+                            }
+                        }
+
+                        if (url != null && url.startsWith("blob:")) {
+                            // Extract blob content via JavaScript bridge
+                            String js = "(function() { " +
+                                "fetch('" + url + "').then(r => r.blob()).then(b => { " +
+                                "  var reader = new FileReader(); " +
+                                "  reader.onload = function() { " +
+                                "    if (window.AndroidFileSaver) { " +
+                                "      window.AndroidFileSaver.saveFileToDownloads('" + fileName + "', reader.result.split(',')[1], b.type || 'application/octet-stream'); " +
+                                "    } " +
+                                "  }; " +
+                                "  reader.readAsDataURL(b); " +
+                                "}); " +
+                                "})();";
+                            webView.post(() -> webView.evaluateJavascript(js, null));
+                            return;
+                        }
+
+                        // Fallback for http/https standard links
                         Intent intent = new Intent(Intent.ACTION_VIEW);
                         intent.setData(Uri.parse(url));
                         startActivity(intent);
                     } catch (Exception e) {
-                        Toast.makeText(getApplicationContext(), "Download avviato", Toast.LENGTH_SHORT).show();
+                        e.printStackTrace();
+                        Toast.makeText(getApplicationContext(), "Errore download file", Toast.LENGTH_SHORT).show();
                     }
                 }
             });

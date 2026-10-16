@@ -10,6 +10,7 @@ import { HomeView } from './components/HomeView';
 import { PianoView } from './components/PianoView';
 import { SheetComposerView } from './components/SheetComposerView';
 import { JamBandView } from './components/JamBandView';
+import { SocialView } from './components/SocialView';
 import { audioEngine } from './utils/audioEngine';
 
 export default function App() {
@@ -19,15 +20,17 @@ export default function App() {
       if (path.includes('piano') || path.includes('song')) return 'piano';
       if (path.includes('sheet')) return 'sheet';
       if (path.includes('jam')) return 'jam';
+      if (path.includes('social') || path.includes('challenge')) return 'social';
 
       const hash = window.location.hash.toLowerCase();
       if (hash === '#piano' || hash === '#song') return 'piano';
       if (hash === '#sheet') return 'sheet';
       if (hash === '#jam') return 'jam';
+      if (hash === '#social' || hash === '#challenge') return 'social';
 
       try {
         const saved = localStorage.getItem('maestro_last_view');
-        if (saved === 'piano' || saved === 'sheet' || saved === 'jam') {
+        if (saved === 'piano' || saved === 'sheet' || saved === 'jam' || saved === 'social') {
           return saved;
         }
       } catch (e) {}
@@ -89,6 +92,7 @@ export default function App() {
         )}
         {currentView === 'sheet' && <SheetComposerView />}
         {currentView === 'jam' && <JamBandView />}
+        {currentView === 'social' && <SocialView />}
       </main>
     </div>
   );
