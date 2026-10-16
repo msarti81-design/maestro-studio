@@ -261,27 +261,7 @@ public class MainActivity extends BridgeActivity {
                 }
             });
 
-            // 2. WebViewClient for WhatsApp URL interception
-            webView.setWebViewClient(new WebViewClient() {
-                @Override
-                public boolean shouldOverrideUrlLoading(android.webkit.WebView view, WebResourceRequest request) {
-                    String url = request.getUrl().toString();
-                    if (url != null && (url.contains("whatsapp.com") || url.contains("wa.me") || url.startsWith("whatsapp:"))) {
-                        try {
-                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
-                            return true;
-                        } catch (Exception e) {
-                            Toast.makeText(getApplicationContext(), "WhatsApp non installato", Toast.LENGTH_SHORT).show();
-                            return true;
-                        }
-                    }
-                    return super.shouldOverrideUrlLoading(view, request);
-                }
-            });
-
-            // 3. Handle WebView file download triggers (JSON & MIDI data/blob URLs)
+            // 2. Handle WebView file download triggers (JSON & MIDI data/blob URLs)
             webView.setDownloadListener(new DownloadListener() {
                 @Override
                 public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {

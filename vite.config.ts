@@ -12,6 +12,9 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      target: 'es2020',
+    },
     server: {
       allowedHosts: true as true,
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

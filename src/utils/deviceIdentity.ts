@@ -45,6 +45,10 @@ export async function verifyAndLockUsername(username: string): Promise<DeviceUse
       body: JSON.stringify({ username: cleanName, deviceId }),
     });
 
+    if (!res.ok || !res.headers.get('content-type')?.includes('json')) {
+      throw new Error('Offline or non-JSON response');
+    }
+
     const data = await res.json();
     if (data.success) {
       if (typeof window !== 'undefined') {
@@ -97,6 +101,10 @@ export async function transferAccountWithCode(
         newDeviceId,
       }),
     });
+
+    if (!res.ok || !res.headers.get('content-type')?.includes('json')) {
+      throw new Error('Offline or non-JSON response');
+    }
 
     const data = await res.json();
     if (data.success) {
