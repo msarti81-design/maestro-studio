@@ -115,7 +115,7 @@ def configure_main_activity():
         print("MainActivity.java not found, skipping MainActivity customization")
         return
 
-    template = """package {package_name};
+    template = r"""package {package_name};
 
 import android.os.Build;
 import android.os.Bundle;
@@ -202,7 +202,7 @@ public class MainActivity extends BridgeActivity {
 
                 final String finalName = fileName;
                 runOnUiThread(() -> {
-                    Toast.makeText(getApplicationContext(), "✓ File \"" + finalName + "\" salvato in Download!", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getApplicationContext(), "✓ File " + finalName + " salvato in Download!", Toast.LENGTH_LONG).show();
                 });
             } catch (Exception e) {
                 e.printStackTrace();
