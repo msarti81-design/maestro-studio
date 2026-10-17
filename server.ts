@@ -21,13 +21,22 @@ const ai = new GoogleGenAI({
   },
 });
 
+interface RoomEvent {
+  id: string;
+  type: string;
+  sender: string;
+  timestamp: number;
+  data: any;
+}
+
 interface RoomClient {
-  ws: WebSocket;
+  ws?: WebSocket | null;
   id: string;
   username: string;
   role: string;
   roomId: string;
   score: number;
+  lastActive: number;
 }
 
 interface RoomState {
@@ -39,6 +48,9 @@ interface RoomState {
   songQueue: { title: string; requester: string }[];
   currentSongTitle?: string;
   currentSongNotes?: any[];
+  events: RoomEvent[];
+  lastTeacherPhrase?: any;
+  lastStudentProgress?: any;
 }
 
 const activeRooms = new Map<string, RoomState>();
@@ -408,11 +420,12 @@ Return a JSON object containing:
               clients: new Map(),
               relayTurnIndex: 0,
               songQueue: [],
+              events: [],
             });
           }
 
           const room = activeRooms.get(rId)!;
-          const clientId = `user_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          const clientId = (msg.clientId && String(msg.clientId).trim()) || `user_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
           currentClient = {
             ws,
             id: clientId,
@@ -420,9 +433,20 @@ Return a JSON object containing:
             role: role || "player",
             roomId: rId,
             score: 0,
+            lastActive: Date.now(),
           };
 
           room.clients.set(clientId, currentClient);
+
+          // Send welcome message directly to this client so it knows its own ID and room
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: "room:welcome",
+              clientId,
+              roomId: rId,
+              role: currentClient.role,
+            }));
+          }
 
           // Broadcast user joined & room status to everyone in the room
           broadcastRoomState(room);
@@ -430,6 +454,7 @@ Return a JSON object containing:
         }
 
         if (!currentClient) return;
+        currentClient.lastActive = Date.now();
         const room = activeRooms.get(currentClient.roomId);
         if (!room) return;
 
@@ -587,18 +612,180 @@ Return a JSON object containing:
       if (currentClient) {
         const room = activeRooms.get(currentClient.roomId);
         if (room) {
-          room.clients.delete(currentClient.id);
-          if (room.clients.size === 0) {
-            activeRooms.delete(room.id);
-          } else {
-            broadcastRoomState(room);
-          }
+          currentClient.ws = null;
+          // Grace period of 4 seconds so navigation (e.g. SocialView -> PianoView) doesn't cause student to drop
+          setTimeout(() => {
+            if (currentClient && !currentClient.ws) {
+              room.clients.delete(currentClient.id);
+              broadcastRoomState(room);
+            }
+          }, 4000);
         }
       }
     });
   });
 
+  // --- HTTP PRESENCE & REAL-TIME SYNC API (UNBREAKABLE FALLBACK FOR WEBSOCKET) ---
+  app.post("/api/room/join", (req, res) => {
+    try {
+      const { roomId, username, role, mode, clientId } = req.body;
+      const rId = (roomId ? String(roomId).trim().toUpperCase() : "LOBBY");
+      const cleanUser = String(username || "Utente").trim();
+      const cleanRole = String(role || "allievo").trim();
+
+      if (!activeRooms.has(rId)) {
+        activeRooms.set(rId, {
+          id: rId,
+          mode: mode || "masterclass",
+          host: cleanUser,
+          clients: new Map(),
+          relayTurnIndex: 0,
+          songQueue: [],
+          events: [],
+        });
+      }
+
+      const room = activeRooms.get(rId)!;
+      const cId = clientId || `user_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+      const client = room.clients.get(cId) || {
+        id: cId,
+        username: cleanUser,
+        role: cleanRole,
+        roomId: rId,
+        score: 0,
+        lastActive: Date.now(),
+      };
+      client.username = cleanUser;
+      client.role = cleanRole;
+      client.lastActive = Date.now();
+      room.clients.set(cId, client);
+
+      broadcastRoomState(room);
+
+      const members = Array.from(room.clients.values()).map((c) => ({
+        id: c.id,
+        username: c.username,
+        role: c.role,
+        score: c.score,
+      }));
+
+      res.json({
+        success: true,
+        roomId: rId,
+        clientId: cId,
+        members,
+        lastTeacherPhrase: room.lastTeacherPhrase || null,
+        lastStudentProgress: room.lastStudentProgress || null,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to join room" });
+    }
+  });
+
+  app.get("/api/room/:roomId/state", (req, res) => {
+    try {
+      const rId = String(req.params.roomId || "").trim().toUpperCase();
+      const room = activeRooms.get(rId);
+      if (!room) {
+        return res.json({ success: true, roomId: rId, members: [], exists: false });
+      }
+
+      cleanStaleClients(room);
+      const members = Array.from(room.clients.values()).map((c) => ({
+        id: c.id,
+        username: c.username,
+        role: c.role,
+        score: c.score,
+      }));
+
+      res.json({
+        success: true,
+        roomId: rId,
+        exists: true,
+        mode: room.mode,
+        host: room.host,
+        members,
+        lastTeacherPhrase: room.lastTeacherPhrase || null,
+        lastStudentProgress: room.lastStudentProgress || null,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to get room state" });
+    }
+  });
+
+  app.post("/api/room/:roomId/event", (req, res) => {
+    try {
+      const rId = String(req.params.roomId || "").trim().toUpperCase();
+      const { type, sender, data } = req.body;
+      const room = activeRooms.get(rId);
+      if (!room) {
+        return res.status(404).json({ error: "Room not found" });
+      }
+
+      const eventItem: RoomEvent = {
+        id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        type,
+        sender: sender || "Anonymous",
+        timestamp: Date.now(),
+        data: data || req.body,
+      };
+
+      if (!room.events) room.events = [];
+      room.events.push(eventItem);
+      if (room.events.length > 60) room.events.shift();
+
+      if (type === "piano:teacher_phrase") {
+        room.lastTeacherPhrase = data || req.body;
+      } else if (type === "piano:phrase_progress") {
+        room.lastStudentProgress = data || req.body;
+      }
+
+      // Also broadcast to WebSocket clients
+      broadcastToRoom(room, "", {
+        type,
+        sender,
+        ...(data || req.body),
+      });
+
+      res.json({ success: true, eventId: eventItem.id });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to send event" });
+    }
+  });
+
+  app.get("/api/room/:roomId/events", (req, res) => {
+    try {
+      const rId = String(req.params.roomId || "").trim().toUpperCase();
+      const since = Number(req.query.since || 0);
+      const room = activeRooms.get(rId);
+      if (!room) {
+        return res.json({ events: [] });
+      }
+
+      const events = (room.events || []).filter((e) => e.timestamp > since);
+      res.json({
+        events,
+        lastTeacherPhrase: room.lastTeacherPhrase || null,
+        lastStudentProgress: room.lastStudentProgress || null,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to get events" });
+    }
+  });
+
+  function cleanStaleClients(room: RoomState) {
+    const now = Date.now();
+    for (const [id, client] of room.clients.entries()) {
+      const isWsDead = !client.ws || client.ws.readyState !== WebSocket.OPEN;
+      if (isWsDead && (now - (client.lastActive || 0) > 25000)) {
+        room.clients.delete(id);
+      }
+    }
+  }
+
   function broadcastRoomState(room: RoomState) {
+    cleanStaleClients(room);
     const members = Array.from(room.clients.values()).map((c) => ({
       id: c.id,
       username: c.username,
@@ -614,13 +801,15 @@ Return a JSON object containing:
       members,
       queue: room.songQueue,
       currentSongTitle: room.currentSongTitle,
+      lastTeacherPhrase: room.lastTeacherPhrase || null,
+      lastStudentProgress: room.lastStudentProgress || null,
     });
   }
 
   function broadcastToRoom(room: RoomState, excludeClientId: string, payload: any) {
     const jsonStr = JSON.stringify(payload);
     room.clients.forEach((client, id) => {
-      if (id !== excludeClientId && client.ws.readyState === WebSocket.OPEN) {
+      if (id !== excludeClientId && client.ws && client.ws.readyState === WebSocket.OPEN) {
         client.ws.send(jsonStr);
       }
     });

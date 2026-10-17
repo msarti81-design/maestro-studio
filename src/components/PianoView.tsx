@@ -37,6 +37,7 @@ import { loadGamificationState, UserGamificationState, AVAILABLE_BADGES } from '
 import { parseChallengeFromUrl, ChallengeData } from '../utils/challengeShare';
 
 import { ActiveSocialSession, SocialSessionResults } from '../types';
+import { normalizeRoomCode } from './SocialView';
 
 interface PianoViewProps {
   onBackToHome: () => void;
@@ -353,11 +354,121 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const lastEventTimestampRef = useRef<number>(Date.now() - 3000);
 
-  // Real-time WebSocket listener for Masterclass & Multiplayer Room
+  // Reusable Handlers for Incoming Masterclass Events (from WebSocket or HTTP Fallback)
+  const applyIncomingTeacherPhrase = useCallback((msg: any) => {
+    let receivedPhrase: MasterclassNoteItem[] = [];
+    if (Array.isArray(msg.phraseData) && msg.phraseData.length > 0) {
+      receivedPhrase = msg.phraseData;
+    } else if (Array.isArray(msg.notes) && msg.notes.length > 0) {
+      receivedPhrase = msg.notes.map((n: string, i: number) => ({
+        note: n,
+        delayMs: i === 0 ? 0 : 350,
+      }));
+    }
+
+    if (receivedPhrase.length > 0) {
+      setTeacherAssignedPhrase(receivedPhrase);
+      teacherAssignedPhraseRef.current = receivedPhrase;
+      setStudentMatchedIndex(0);
+      studentMatchedIndexRef.current = 0;
+
+      if (msg.openWaterfall) {
+        const mode = msg.displayMode === 'learn' ? 'learn' : 'arcade';
+        setMasterclassPlayMode(mode);
+        const song = createMasterclassWaterfallSong(receivedPhrase, `Frase del Maestro (${receivedPhrase.length} note)`);
+        setActiveSong(song);
+        setShowWaterfall(true);
+        showToast(`🎮 Il Maestro ti ha inviato una frase di ${receivedPhrase.length} note (Caduta ${mode === 'learn' ? 'Impara' : 'Arcade'})!`);
+      } else {
+        showToast(`🎼 Il Maestro ${msg.sender || ''} ti ha inviato una frase di ${receivedPhrase.length} note!`);
+      }
+    }
+  }, [createMasterclassWaterfallSong, showToast]);
+
+  const applyIncomingPhraseProgress = useCallback((msg: any) => {
+    setStudentProgress({
+      studentName: msg.sender || 'Allievo',
+      currentIndex: msg.currentIndex,
+      totalNotes: msg.totalNotes,
+      completed: msg.completed,
+    });
+    if (msg.completed) {
+      showToast(`🎉 L'allievo ${msg.sender || ''} ha completato la frase con successo!`);
+    }
+  }, [showToast]);
+
+  // Real-time Dual-Channel Connection (WebSocket + HTTP Polling Fallback)
   useEffect(() => {
     if (!socialSession || !socialSession.roomId) return;
 
+    let isMounted = true;
+    const cleanRoomId = normalizeRoomCode(socialSession.roomId, socialSession.mode);
+    const clientSessionId = typeof window !== 'undefined' ? sessionStorage.getItem('maestro_cli_session_id') || `cli_${Date.now()}` : `cli_${Date.now()}`;
+
+    // 1. Initial HTTP Registration
+    fetch('/api/room/join', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roomId: cleanRoomId,
+        username,
+        role: socialSession.userRole,
+        mode: socialSession.mode,
+        clientId: clientSessionId,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (isMounted && Array.isArray(data.members)) {
+          setConnectedPeersCount(data.members.length);
+        }
+        if (isMounted && data.lastTeacherPhrase && (!teacherAssignedPhraseRef.current || teacherAssignedPhraseRef.current.length === 0)) {
+          applyIncomingTeacherPhrase(data.lastTeacherPhrase);
+        }
+      })
+      .catch(() => {});
+
+    // 2. HTTP Polling Fallback for Events & Presence (Every 1.5 seconds)
+    const pollInterval = setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const res = await fetch(`/api/room/${encodeURIComponent(cleanRoomId)}/events?since=${lastEventTimestampRef.current}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.events)) {
+            for (const evt of data.events) {
+              lastEventTimestampRef.current = Math.max(lastEventTimestampRef.current, evt.timestamp);
+              if (evt.sender === username) continue; // Don't echo self
+
+              if (evt.type === 'piano:teacher_phrase') {
+                applyIncomingTeacherPhrase(evt.data || evt);
+              } else if (evt.type === 'piano:phrase_progress') {
+                applyIncomingPhraseProgress(evt.data || evt);
+              } else if (evt.type === 'piano:key_event' && evt.data?.note) {
+                // If WS is not open, play note via HTTP event
+                if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+                  audioEngine.playNote(evt.data.note, '8n', instrument);
+                  setKeyVisual(evt.data.note, true);
+                  setTimeout(() => setKeyVisual(evt.data.note, false), 220);
+                }
+              }
+            }
+          }
+        }
+
+        const stateRes = await fetch(`/api/room/${encodeURIComponent(cleanRoomId)}/state`);
+        if (stateRes.ok) {
+          const stateData = await stateRes.json();
+          if (isMounted && Array.isArray(stateData.members)) {
+            setConnectedPeersCount(stateData.members.length);
+          }
+        }
+      } catch (e) {}
+    }, 1500);
+
+    // 3. WebSocket Real-Time Connection
     const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = typeof window !== 'undefined' ? window.location.host : 'localhost:3000';
     const wsUrl = `${protocol}//${host}/ws`;
@@ -370,10 +481,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
         ws.send(
           JSON.stringify({
             type: 'room:join',
-            roomId: socialSession.roomId.trim().toUpperCase(),
+            roomId: cleanRoomId,
             username,
             role: socialSession.userRole,
             mode: socialSession.mode,
+            clientId: clientSessionId,
           })
         );
       };
@@ -396,46 +508,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
           // TEACHER PHRASE ASSIGNED TO STUDENT
           else if (msg.type === 'piano:teacher_phrase') {
-            let receivedPhrase: MasterclassNoteItem[] = [];
-            if (Array.isArray(msg.phraseData) && msg.phraseData.length > 0) {
-              receivedPhrase = msg.phraseData;
-            } else if (Array.isArray(msg.notes) && msg.notes.length > 0) {
-              receivedPhrase = msg.notes.map((n: string, i: number) => ({
-                note: n,
-                delayMs: i === 0 ? 0 : 350,
-              }));
-            }
-
-            if (receivedPhrase.length > 0) {
-              setTeacherAssignedPhrase(receivedPhrase);
-              teacherAssignedPhraseRef.current = receivedPhrase;
-              setStudentMatchedIndex(0);
-              studentMatchedIndexRef.current = 0;
-
-              if (msg.openWaterfall) {
-                const mode = msg.displayMode === 'learn' ? 'learn' : 'arcade';
-                setMasterclassPlayMode(mode);
-                const song = createMasterclassWaterfallSong(receivedPhrase, `Frase del Maestro (${receivedPhrase.length} note)`);
-                setActiveSong(song);
-                setShowWaterfall(true);
-                showToast(`🎮 Il Maestro ti ha inviato una frase di ${receivedPhrase.length} note (Caduta ${mode === 'learn' ? 'Impara' : 'Arcade'})!`);
-              } else {
-                showToast(`🎼 Il Maestro ${msg.sender || ''} ti ha inviato una frase di ${receivedPhrase.length} note!`);
-              }
-            }
+            applyIncomingTeacherPhrase(msg);
           }
 
           // STUDENT PROGRESS UPDATED
           else if (msg.type === 'piano:phrase_progress') {
-            setStudentProgress({
-              studentName: msg.sender || 'Allievo',
-              currentIndex: msg.currentIndex,
-              totalNotes: msg.totalNotes,
-              completed: msg.completed,
-            });
-            if (msg.completed) {
-              showToast(`🎉 L'allievo ${msg.sender || ''} ha completato la frase con successo!`);
-            }
+            applyIncomingPhraseProgress(msg);
           }
 
           // LIVE VOICE WEBRTC SIGNALING
@@ -457,7 +535,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
               };
               pc.onicecandidate = (evt) => {
                 if (evt.candidate && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({ type: 'webrtc:candidate', roomId: socialSession.roomId, candidate: evt.candidate }));
+                  wsRef.current.send(JSON.stringify({ type: 'webrtc:candidate', roomId: cleanRoomId, candidate: evt.candidate }));
                 }
               };
             }
@@ -465,7 +543,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({ type: 'webrtc:answer', roomId: socialSession.roomId, sdp: pc.localDescription }));
+              wsRef.current.send(JSON.stringify({ type: 'webrtc:answer', roomId: cleanRoomId, sdp: pc.localDescription }));
             }
           }
           else if (msg.type === 'webrtc:answer' && msg.sdp) {
@@ -502,6 +580,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
       };
 
       return () => {
+        isMounted = false;
+        clearInterval(pollInterval);
         ws.close();
         wsRef.current = null;
         if (localVoiceStreamRef.current) {
@@ -518,7 +598,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         }
       };
     } catch (e) {}
-  }, [socialSession, username, instrument, showToast, createMasterclassWaterfallSong]);
+  }, [socialSession, username, instrument, showToast, createMasterclassWaterfallSong, applyIncomingTeacherPhrase, applyIncomingPhraseProgress]);
 
   // Voice Call Helpers
   const stopVoiceCall = useCallback(() => {
@@ -676,19 +756,36 @@ export const PianoView: React.FC<PianoViewProps> = ({
     if (recordedMasterclassNotes.length === 0) return;
 
     const simpleNotes = recordedMasterclassNotes.map((item) => item.note);
+    const cleanRoomId = normalizeRoomCode(socialSession?.roomId || '', socialSession?.mode || 'masterclass');
 
+    // 1. Send via WebSocket
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           type: 'piano:teacher_phrase',
-          roomId: socialSession?.roomId,
+          roomId: cleanRoomId,
           notes: simpleNotes,
           phraseData: recordedMasterclassNotes,
           openWaterfall,
           displayMode,
+          sender: username,
         })
       );
     }
+
+    // 2. Send via HTTP event fallback
+    fetch(`/api/room/${encodeURIComponent(cleanRoomId)}/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'piano:teacher_phrase',
+        sender: username,
+        notes: simpleNotes,
+        phraseData: recordedMasterclassNotes,
+        openWaterfall,
+        displayMode,
+      }),
+    }).catch(() => {});
 
     setTeacherAssignedPhrase(recordedMasterclassNotes);
     setStudentMatchedIndex(0);
@@ -774,12 +871,14 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
     notesCountRef.current = (notesCountRef.current || 0) + 1;
 
+    const cleanRoomId = normalizeRoomCode(socialSession?.roomId || '', socialSession?.mode || 'masterclass');
+
     // Send note event over WebSocket if connected in a room
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           type: 'piano:key_event',
-          roomId: socialSession?.roomId,
+          roomId: cleanRoomId,
           note,
           eventType: 'down',
           channel: 'melody',
@@ -818,17 +917,32 @@ export const PianoView: React.FC<PianoViewProps> = ({
             showToast('🎉 Perfetto! Hai replicato tutte le note con successo!');
           }
 
+          // WebSocket progress
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(
               JSON.stringify({
                 type: 'piano:phrase_progress',
-                roomId: socialSession?.roomId,
+                roomId: cleanRoomId,
                 currentIndex: nextIdx,
                 totalNotes: targetPhrase.length,
                 completed: isDone,
+                sender: username,
               })
             );
           }
+
+          // HTTP fallback progress
+          fetch(`/api/room/${encodeURIComponent(cleanRoomId)}/event`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'piano:phrase_progress',
+              sender: username,
+              currentIndex: nextIdx,
+              totalNotes: targetPhrase.length,
+              completed: isDone,
+            }),
+          }).catch(() => {});
         }
       }
     }
@@ -1580,6 +1694,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   <span className="font-black text-amber-400 uppercase text-[9px] sm:text-[10px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 whitespace-nowrap">
                     👑 Maestro Console
                   </span>
+                  <span className="font-mono text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 text-[9px] sm:text-[10px] font-bold flex items-center gap-1 whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>{socialSession.roomId} ({connectedPeersCount} {connectedPeersCount === 1 ? 'connesso' : 'connessi'})</span>
+                  </span>
                   <span className="text-[10px] text-slate-400 font-bold hidden md:inline">Frase:</span>
                   {recordedMasterclassNotes.length === 0 ? (
                     <span className="text-slate-500 italic text-[10px]">Suona fino a 100 note sul piano...</span>
@@ -1743,6 +1861,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="font-black text-emerald-400 uppercase text-[9px] sm:text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 whitespace-nowrap">
                     {isSimulatingStudentMode ? '🎭 SIMULAZIONE ALLIEVO' : '🎯 SFIDA MAESTRO'}
+                  </span>
+                  <span className="font-mono text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 text-[9px] sm:text-[10px] font-bold flex items-center gap-1 whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>{socialSession.roomId} ({connectedPeersCount} {connectedPeersCount === 1 ? 'connesso' : 'connessi'})</span>
                   </span>
                   {teacherAssignedPhrase.length === 0 ? (
                     <span className="text-slate-400 font-bold text-[10px]">

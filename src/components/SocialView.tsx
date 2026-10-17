@@ -176,12 +176,59 @@ function generateRandomRoomCode(mode: SocialRoomMode): string {
   }
 }
 
+export function normalizeRoomCode(rawCode: string, defaultMode: SocialRoomMode = 'masterclass'): string {
+  if (!rawCode) return '';
+  let clean = rawCode.trim().toUpperCase().replace(/^#/, '').replace(/\s+/g, '-');
+  if (!clean) return '';
+
+  // If user typed pure digits (e.g. "542" or "101")
+  if (/^\d+$/.test(clean)) {
+    switch (defaultMode) {
+      case 'masterclass':
+        return `MASTERCLASS-${clean}`;
+      case 'battle':
+        return `BATTLE-${clean}`;
+      case 'duet':
+        return `DUETTO-${clean}`;
+      case 'pianobar':
+        return `PIANOBAR-${clean}`;
+      case 'relay':
+        return `STAFFETTA-${clean}`;
+      case 'guess':
+        return `QUIZ-${clean}`;
+      case 'postcards':
+        return `POSTCARD-${clean}`;
+      default:
+        return `MASTERCLASS-${clean}`;
+    }
+  }
+
+  // If user typed e.g. "AULA-542" or "AULA 542"
+  if (/^AULA-?\d+$/.test(clean)) {
+    return clean.replace(/^AULA-?/, 'MASTERCLASS-');
+  }
+
+  return clean;
+}
+
 export const SocialView: React.FC<SocialViewProps> = ({
   onLaunchPianoChallenge,
   lastResults,
   onClearResults,
   incomingInvite,
 }) => {
+  // Persistent unique client session ID so maestro and student are always distinguished even with same username
+  const clientSessionIdRef = useRef<string>(
+    typeof window !== 'undefined'
+      ? sessionStorage.getItem('maestro_cli_session_id') ||
+        (() => {
+          const n = 'cli_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+          try { sessionStorage.setItem('maestro_cli_session_id', n); } catch (e) {}
+          return n;
+        })()
+      : 'cli_' + Date.now()
+  );
+
   // Read any initial URL parameters
   const getInitialInvite = () => {
     if (incomingInvite) return incomingInvite;
@@ -212,7 +259,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
       }
 
       if (room && room.trim()) {
-        const cleanRoom = room.trim().toUpperCase();
+        const cleanRoom = normalizeRoomCode(room, mode);
         return {
           mode,
           roomId: cleanRoom,
@@ -302,21 +349,41 @@ export const SocialView: React.FC<SocialViewProps> = ({
   const [copiedState, setCopiedState] = useState<string | null>(null);
 
   // Active connected room in view
-  const currentRoomCode =
+  // Keep incomingInvite in sync if URL params change after mount
+  useEffect(() => {
+    if (incomingInvite) {
+      if (incomingInvite.mode) setActiveTab(incomingInvite.mode);
+      if (incomingInvite.mode === 'masterclass') {
+        const targetRole = incomingInvite.userRole === 'allievo' ? 'allievo' : 'maestro';
+        setMasterclassRole(targetRole);
+        const norm = normalizeRoomCode(incomingInvite.roomId, 'masterclass');
+        setJoinInputs((prev) => ({ ...prev, masterclass: norm }));
+      } else {
+        const norm = normalizeRoomCode(incomingInvite.roomId, incomingInvite.mode);
+        setJoinInputs((prev) => ({ ...prev, [incomingInvite.mode]: norm }));
+        if (incomingInvite.userRole) {
+          setSelectedRoles((prev) => ({ ...prev, [incomingInvite.mode]: incomingInvite.userRole as string }));
+        }
+      }
+    }
+  }, [incomingInvite]);
+
+  // Active connected room in view (with auto-normalization e.g. 542 -> MASTERCLASS-542)
+  const rawTargetCode =
     activeTab === 'masterclass'
       ? masterclassRole === 'maestro'
         ? hostedRoomCodes.masterclass
         : joinInputs.masterclass.trim()
-        ? joinInputs.masterclass.trim().toUpperCase()
-        : 'AULA-1'
-      : joinInputs[activeTab].trim()
-      ? joinInputs[activeTab].trim().toUpperCase()
-      : hostedRoomCodes[activeTab];
+      : joinInputs[activeTab].trim() || hostedRoomCodes[activeTab];
+
+  const currentRoomCode =
+    normalizeRoomCode(rawTargetCode, activeTab) ||
+    (activeTab === 'masterclass' ? (masterclassRole === 'maestro' ? hostedRoomCodes.masterclass : 'AULA-1') : hostedRoomCodes[activeTab]);
 
   const currentRole =
     activeTab === 'masterclass' ? masterclassRole : selectedRoles[activeTab];
 
-  // WebSocket Live Lobby Presence
+  // WebSocket & HTTP Live Lobby Presence
   const [connectedMembers, setConnectedMembers] = useState<
     { id: string; username: string; role: string; score: number }[]
   >([]);
@@ -343,10 +410,58 @@ export const SocialView: React.FC<SocialViewProps> = ({
     },
   ]);
 
-  // Connect WebSocket to currently active room and role
+  // Connect WebSocket & HTTP Polling Heartbeat to currently active room and role
   useEffect(() => {
-    connectRoomWebSocket(currentRoomCode, globalName, currentRole, activeTab);
+    if (!currentRoomCode || currentRoomCode.length < 3) return;
+
+    let isMounted = true;
+    const clientSessionId = clientSessionIdRef.current;
+
+    // 1. Initial HTTP Join & Heartbeat
+    const syncHttp = async () => {
+      try {
+        const joinRes = await fetch('/api/room/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomId: currentRoomCode,
+            username: globalName,
+            role: currentRole,
+            mode: activeTab,
+            clientId: clientSessionId,
+          }),
+        });
+        if (joinRes.ok) {
+          const data = await joinRes.json();
+          if (isMounted && Array.isArray(data.members)) {
+            setConnectedMembers(data.members);
+          }
+        }
+      } catch (e) {}
+    };
+
+    syncHttp();
+
+    // 2. Poll room state every 1.5 seconds (bulletproof fallback across networks and proxies)
+    const pollInterval = setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const res = await fetch(`/api/room/${encodeURIComponent(currentRoomCode)}/state`);
+        if (res.ok) {
+          const stateData = await res.json();
+          if (isMounted && Array.isArray(stateData.members)) {
+            setConnectedMembers(stateData.members);
+          }
+        }
+      } catch (e) {}
+    }, 1500);
+
+    // 3. WebSocket Real-Time Connection
+    connectRoomWebSocket(currentRoomCode, globalName, currentRole, activeTab, clientSessionId);
+
     return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
       if (socketRef.current) {
         socketRef.current.close();
         socketRef.current = null;
@@ -354,7 +469,13 @@ export const SocialView: React.FC<SocialViewProps> = ({
     };
   }, [currentRoomCode, currentRole, activeTab, globalName]);
 
-  const connectRoomWebSocket = (rId: string, name: string, role: string, mode: SocialRoomMode) => {
+  const connectRoomWebSocket = (
+    rId: string,
+    name: string,
+    role: string,
+    mode: SocialRoomMode,
+    cliId: string
+  ) => {
     if (socketRef.current) {
       socketRef.current.close();
       socketRef.current = null;
@@ -376,6 +497,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
             username: name,
             role,
             mode,
+            clientId: cliId,
           })
         );
       };
@@ -383,8 +505,8 @@ export const SocialView: React.FC<SocialViewProps> = ({
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          if (msg.type === 'room:state') {
-            setConnectedMembers(msg.members || []);
+          if (msg.type === 'room:state' && Array.isArray(msg.members)) {
+            setConnectedMembers(msg.members);
           } else if (msg.type === 'postcard:new' && msg.postcard) {
             setPostcardsInbox((prev) => [msg.postcard, ...prev]);
           }
@@ -410,7 +532,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
     const origin = window.location.origin;
     const path = window.location.pathname;
     const base = `${origin}${path}`.replace(/\/+$/, '');
-    const cleanRoom = room.trim().toUpperCase();
+    const cleanRoom = normalizeRoomCode(room, mode);
     const query = `room=${encodeURIComponent(cleanRoom)}&mode=${encodeURIComponent(mode)}&role=${encodeURIComponent(role)}`;
     return `${base}/?${query}#social?${query}`;
   };
@@ -478,7 +600,8 @@ export const SocialView: React.FC<SocialViewProps> = ({
 
   // Launch Piano Session
   const handleLaunchSession = (customRoom?: string, customRole?: string) => {
-    const targetRoom = (customRoom || currentRoomCode).trim().toUpperCase();
+    const rawTarget = customRoom || currentRoomCode;
+    const targetRoom = normalizeRoomCode(rawTarget, activeTab);
     const targetRole = customRole || currentRole;
 
     const session: ActiveSocialSession = {
@@ -502,14 +625,35 @@ export const SocialView: React.FC<SocialViewProps> = ({
   };
 
   // Check if Masterclass Maestro has a match (at least one other user has connected to this room)
+  const clientSessionId = clientSessionIdRef.current;
   const isMasterclass = activeTab === 'masterclass';
   const isMaestro = isMasterclass && masterclassRole === 'maestro';
   const isAllievo = isMasterclass && masterclassRole === 'allievo';
 
-  const otherConnectedMember = connectedMembers.find(
-    (m) => m.username.trim().toLowerCase() !== globalName.trim().toLowerCase()
-  );
-  const hasStudentMatch = Boolean(otherConnectedMember);
+  // Find other members connected to this room
+  const otherConnectedMember = connectedMembers.find((m) => {
+    if (m.id && m.id === clientSessionId) return false;
+    if (m.role && (m.role.toLowerCase() === 'allievo' || m.role.toLowerCase() === 'studente')) return true;
+    if (m.username && m.username.trim().toLowerCase() !== globalName.trim().toLowerCase()) return true;
+    return true;
+  }) || (connectedMembers.length >= 2 ? connectedMembers.find((m) => m.id !== clientSessionId) || connectedMembers[1] : null);
+
+  const hasStudentMatch = Boolean(otherConnectedMember) || connectedMembers.length >= 2;
+
+  // Sound chime when student match is found for Maestro
+  const hadMatchRef = useRef(false);
+  useEffect(() => {
+    if (isMaestro && hasStudentMatch && !hadMatchRef.current) {
+      hadMatchRef.current = true;
+      try {
+        audioEngine.playNote('C5', '8n', 'piano');
+        setTimeout(() => audioEngine.playNote('E5', '8n', 'piano'), 150);
+        setTimeout(() => audioEngine.playNote('G5', '4n', 'piano'), 300);
+      } catch (e) {}
+    } else if (!hasStudentMatch) {
+      hadMatchRef.current = false;
+    }
+  }, [hasStudentMatch, isMaestro]);
 
   const availableRoles = MODE_ROLES[activeTab] || [];
 
@@ -734,6 +878,9 @@ export const SocialView: React.FC<SocialViewProps> = ({
                     <div className="text-2xl font-black font-mono text-amber-400 tracking-wider">
                       {hostedRoomCodes.masterclass}
                     </div>
+                    <span className="text-[10px] text-slate-400">
+                      L'allievo può digitare anche solo il numero: <strong className="text-amber-300">{hostedRoomCodes.masterclass.replace('MASTERCLASS-', '')}</strong>
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -762,53 +909,45 @@ export const SocialView: React.FC<SocialViewProps> = ({
                 </div>
 
                 {/* Stato del Match dell'Allievo */}
-                <div className="bg-slate-900/60 border border-slate-800 p-3.5 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-300 uppercase flex items-center gap-2">
-                      <Users className="w-4 h-4 text-amber-400" />
-                      <span>Stato Connessione Allievo:</span>
-                    </span>
-
-                    {hasStudentMatch ? (
-                      <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>MATCH TROVATO: ALLIEVO COLLEGATO!</span>
+                <div className="space-y-2">
+                  {hasStudentMatch ? (
+                    <div className="bg-emerald-950/80 border-2 border-emerald-400 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-pulse">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">🎉</span>
+                        <div>
+                          <div className="text-emerald-300 font-black text-sm uppercase tracking-wide">
+                            MATCH TROVATO: ALLIEVO COLLEGATO!
+                          </div>
+                          <div className="text-slate-200 text-xs font-semibold">
+                            👨‍🎓 {otherConnectedMember?.username || 'L\'allievo'} è entrato nell'aula {hostedRoomCodes.masterclass}!
+                          </div>
+                        </div>
+                      </div>
+                      <span className="px-3 py-1 bg-emerald-500 text-slate-950 font-black text-xs rounded-full uppercase shadow text-center shrink-0">
+                        Pronto al Pianoforte 🟢
                       </span>
-                    ) : (
-                      <span className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full flex items-center gap-1.5">
-                        <AlertCircle className="w-4 h-4 animate-spin" />
-                        <span>In attesa che l'allievo entri nella stanza...</span>
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-                    <div>
-                      {hasStudentMatch ? (
-                        <span className="text-emerald-300 font-bold">
-                          👨‍🎓 {otherConnectedMember?.username || 'Allievo'} è entrato nell'aula {hostedRoomCodes.masterclass}!
-                        </span>
-                      ) : (
-                        <span>
-                          Il Maestro non pu&ograve; entrare al pianoforte finch&eacute; l'Allievo non entra nell'aula.
-                        </span>
-                      )}
                     </div>
-
-                    {!hasStudentMatch && (
+                  ) : (
+                    <div className="bg-slate-900/80 border border-amber-500/30 p-3.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-400 animate-spin shrink-0" />
+                        <span className="text-xs text-amber-200">
+                          In attesa che l'allievo inserisca il codice <strong>{hostedRoomCodes.masterclass}</strong> (o solo <strong>{hostedRoomCodes.masterclass.replace('MASTERCLASS-', '')}</strong>)...
+                        </span>
+                      </div>
                       <button
                         onClick={() => {
-                          setConnectedMembers([
-                            { id: 'usr_me', username: globalName, role: 'maestro', score: 0 },
-                            { id: 'bot_student', username: 'Allievo Simualto 🤖', role: 'allievo', score: 0 },
+                          setConnectedMembers((prev) => [
+                            { id: clientSessionId, username: globalName, role: 'maestro', score: 0 },
+                            { id: 'sim_allievo_' + Date.now(), username: 'Allievo di Prova 👨‍🎓', role: 'allievo', score: 0 },
                           ]);
                         }}
-                        className="text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/30 font-bold cursor-pointer transition-all shrink-0"
+                        className="text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/30 font-bold cursor-pointer transition-all shrink-0 self-start sm:self-center"
                       >
-                        🤖 Simula Allievo (Test)
+                        🤖 Simula Allievo per Testare
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Opzioni Didattiche */}
@@ -856,7 +995,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
                 </div>
 
                 {/* Pulsante Avvio Maestro: BLOCCATO FINCHÉ NON C'È IL MATCH CON L'ALLIEVO */}
-                <div className="pt-2">
+                <div className="pt-2 space-y-1.5">
                   <button
                     onClick={() => handleLaunchSession(hostedRoomCodes.masterclass, 'maestro')}
                     disabled={!hasStudentMatch}
@@ -878,73 +1017,94 @@ export const SocialView: React.FC<SocialViewProps> = ({
                       </>
                     )}
                   </button>
+
+                  {!hasStudentMatch && (
+                    <div className="text-center pt-0.5">
+                      <button
+                        onClick={() => handleLaunchSession(hostedRoomCodes.masterclass, 'maestro')}
+                        className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+                        title="Entra nella stanza per riscaldarti al pianoforte"
+                      >
+                        Entra subito al pianoforte da solo (puoi suonare mentre aspetti l'allievo) 🎹
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
             {/* 2B. VISTA ALLIEVO: INSERISCE IL CODICE AULA COMUNICATO DAL MAESTRO */}
-            {isAllievo && (
-              <div className="bg-slate-950 p-5 rounded-2xl border-2 border-emerald-500/50 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap className="w-5 h-5 text-emerald-400" />
-                    <div>
-                      <h3 className="text-sm sm:text-base font-black text-white">
-                        Ingresso Allievo alla Masterclass
-                      </h3>
-                      <p className="text-slate-400 text-xs">
-                        Inserisci il codice stanza che ti ha detto il Maestro o che hai ricevuto nel link.
-                      </p>
+            {isAllievo && (() => {
+              const normalizedInputRoom = normalizeRoomCode(joinInputs.masterclass, 'masterclass');
+              return (
+                <div className="bg-slate-950 p-5 rounded-2xl border-2 border-emerald-500/50 space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3">
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="w-5 h-5 text-emerald-400" />
+                      <div>
+                        <h3 className="text-sm sm:text-base font-black text-white">
+                          Ingresso Allievo alla Masterclass
+                        </h3>
+                        <p className="text-slate-400 text-xs">
+                          Inserisci il codice aula del Maestro (es. <strong>{hostedRoomCodes.masterclass.replace('MASTERCLASS-', '')}</strong> o <strong>{hostedRoomCodes.masterclass}</strong>).
+                        </p>
+                      </div>
                     </div>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full font-black uppercase">
+                      👨‍🎓 Allievo
+                    </span>
                   </div>
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full font-black uppercase">
-                    👨‍🎓 Allievo
-                  </span>
-                </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs text-slate-300 font-bold uppercase block">
-                    Codice Aula del Maestro da Inserire:
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={joinInputs.masterclass}
-                      onChange={(e) => {
-                        const val = e.target.value.toUpperCase();
-                        setJoinInputs((prev) => ({ ...prev, masterclass: val }));
-                      }}
-                      placeholder="Es. MASTERCLASS-101"
-                      className="flex-1 bg-slate-900 border-2 border-emerald-500/50 text-emerald-300 font-mono font-black text-sm sm:text-base rounded-xl px-4 py-3 outline-none focus:border-emerald-400 uppercase tracking-widest placeholder:normal-case placeholder:font-sans placeholder:text-slate-600"
-                    />
-                    {joinInputs.masterclass && (
-                      <button
-                        onClick={() => setJoinInputs((prev) => ({ ...prev, masterclass: '' }))}
-                        className="text-slate-400 hover:text-white text-xs px-3 py-3 bg-slate-900 rounded-xl border border-slate-800"
-                        title="Cancella"
-                      >
-                        ✕
-                      </button>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-300 font-bold uppercase block">
+                      Codice Aula del Maestro da Inserire:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={joinInputs.masterclass}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase();
+                          setJoinInputs((prev) => ({ ...prev, masterclass: val }));
+                        }}
+                        placeholder={`Es. ${hostedRoomCodes.masterclass.replace('MASTERCLASS-', '')} oppure ${hostedRoomCodes.masterclass}`}
+                        className="flex-1 bg-slate-900 border-2 border-emerald-500/50 text-emerald-300 font-mono font-black text-sm sm:text-base rounded-xl px-4 py-3 outline-none focus:border-emerald-400 uppercase tracking-widest placeholder:normal-case placeholder:font-sans placeholder:text-slate-600"
+                      />
+                      {joinInputs.masterclass && (
+                        <button
+                          onClick={() => setJoinInputs((prev) => ({ ...prev, masterclass: '' }))}
+                          className="text-slate-400 hover:text-white text-xs px-3 py-3 bg-slate-900 rounded-xl border border-slate-800"
+                          title="Cancella"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    {joinInputs.masterclass.trim() && (
+                      <div className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5">
+                        <span>✓ Aula riconosciuta:</span>
+                        <span className="font-mono bg-emerald-500/20 px-2 py-0.5 rounded text-white">{normalizedInputRoom}</span>
+                      </div>
                     )}
+                    <p className="text-[11px] text-slate-400">
+                      Non appena premi il pulsante verde, il Maestro vedrà il match in tempo reale e la lezione avrà inizio!
+                    </p>
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    Non appena inserisci il codice ed entri, il Maestro vedr&agrave; il match e la lezione avr&agrave; inizio!
-                  </p>
-                </div>
 
-                {/* Pulsante Entra Allievo */}
-                <div className="pt-2">
-                  <button
-                    onClick={() => handleLaunchSession(joinInputs.masterclass, 'allievo')}
-                    disabled={!joinInputs.masterclass.trim()}
-                    className="w-full py-4 px-6 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-40 active:scale-95 text-slate-950 font-black text-sm sm:text-base rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>🚀 ENTRA NELL'AULA DEL MAESTRO ({joinInputs.masterclass.trim() || 'INSERISCI CODICE'})</span>
-                    <ArrowRight className="w-5 h-5" />
-                  </button>
+                  {/* Pulsante Entra Allievo */}
+                  <div className="pt-2">
+                    <button
+                      onClick={() => handleLaunchSession(normalizedInputRoom, 'allievo')}
+                      disabled={!joinInputs.masterclass.trim()}
+                      className="w-full py-4 px-6 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-40 active:scale-95 text-slate-950 font-black text-sm sm:text-base rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>🚀 ENTRA NELL'AULA DEL MAESTRO ({normalizedInputRoom || 'INSERISCI CODICE'})</span>
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         ) : (
           /* ============================================================== */
