@@ -10,6 +10,7 @@ import {
 import { PRESET_SONGS } from '../data/songs';
 import { audioEngine } from '../utils/audioEngine';
 import { getUsername, setUsername as saveGlobalUsername } from '../utils/songStorage';
+import { getAppWebSocketUrl, getAppApiUrl } from '../utils/networkHelper';
 import {
   Users,
   GraduationCap,
@@ -420,7 +421,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
     // 1. Initial HTTP Join & Heartbeat
     const syncHttp = async () => {
       try {
-        const joinRes = await fetch('/api/room/join', {
+        const joinRes = await fetch(getAppApiUrl('/api/room/join'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -446,7 +447,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
     const pollInterval = setInterval(async () => {
       if (!isMounted) return;
       try {
-        const res = await fetch(`/api/room/${encodeURIComponent(currentRoomCode)}/state`);
+        const res = await fetch(getAppApiUrl(`/api/room/${encodeURIComponent(currentRoomCode)}/state`));
         if (res.ok) {
           const stateData = await res.json();
           if (isMounted && Array.isArray(stateData.members)) {
@@ -481,9 +482,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
       socketRef.current = null;
     }
 
-    const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = typeof window !== 'undefined' ? window.location.host : 'localhost:3000';
-    const wsUrl = `${protocol}//${host}/ws`;
+    const wsUrl = getAppWebSocketUrl();
 
     try {
       const ws = new WebSocket(wsUrl);

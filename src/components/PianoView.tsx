@@ -38,6 +38,7 @@ import { parseChallengeFromUrl, ChallengeData } from '../utils/challengeShare';
 
 import { ActiveSocialSession, SocialSessionResults } from '../types';
 import { normalizeRoomCode } from './SocialView';
+import { getAppWebSocketUrl, getAppApiUrl } from '../utils/networkHelper';
 
 interface PianoViewProps {
   onBackToHome: () => void;
@@ -408,7 +409,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     const clientSessionId = typeof window !== 'undefined' ? sessionStorage.getItem('maestro_cli_session_id') || `cli_${Date.now()}` : `cli_${Date.now()}`;
 
     // 1. Initial HTTP Registration
-    fetch('/api/room/join', {
+    fetch(getAppApiUrl('/api/room/join'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -434,7 +435,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     const pollInterval = setInterval(async () => {
       if (!isMounted) return;
       try {
-        const res = await fetch(`/api/room/${encodeURIComponent(cleanRoomId)}/events?since=${lastEventTimestampRef.current}`);
+        const res = await fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/events?since=${lastEventTimestampRef.current}`));
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data.events)) {
@@ -458,7 +459,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
           }
         }
 
-        const stateRes = await fetch(`/api/room/${encodeURIComponent(cleanRoomId)}/state`);
+        const stateRes = await fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/state`));
         if (stateRes.ok) {
           const stateData = await stateRes.json();
           if (isMounted && Array.isArray(stateData.members)) {
@@ -469,9 +470,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }, 1500);
 
     // 3. WebSocket Real-Time Connection
-    const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = typeof window !== 'undefined' ? window.location.host : 'localhost:3000';
-    const wsUrl = `${protocol}//${host}/ws`;
+    const wsUrl = getAppWebSocketUrl();
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -774,7 +773,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
 
     // 2. Send via HTTP event fallback
-    fetch(`/api/room/${encodeURIComponent(cleanRoomId)}/event`, {
+    fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -932,7 +931,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
           }
 
           // HTTP fallback progress
-          fetch(`/api/room/${encodeURIComponent(cleanRoomId)}/event`, {
+          fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

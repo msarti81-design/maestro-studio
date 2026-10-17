@@ -639,7 +639,7 @@ Return a JSON object containing:
   });
 
   // --- HTTP PRESENCE & REAL-TIME SYNC API (UNBREAKABLE FALLBACK FOR WEBSOCKET) ---
-  app.post("/api/room/join", (req, res) => {
+  app.post(["/api/room/join", "/Song/api/room/join", "/song/api/room/join"], (req, res) => {
     try {
       const { roomId, username, role, mode, clientId } = req.body;
       const rId = (roomId ? String(roomId).trim().toUpperCase() : "LOBBY");
@@ -696,7 +696,7 @@ Return a JSON object containing:
     }
   });
 
-  app.get("/api/room/:roomId/state", (req, res) => {
+  app.get(["/api/room/:roomId/state", "/Song/api/room/:roomId/state", "/song/api/room/:roomId/state"], (req, res) => {
     try {
       const rId = String(req.params.roomId || "").trim().toUpperCase();
       const room = activeRooms.get(rId);
@@ -727,7 +727,7 @@ Return a JSON object containing:
     }
   });
 
-  app.post("/api/room/:roomId/event", (req, res) => {
+  app.post(["/api/room/:roomId/event", "/Song/api/room/:roomId/event", "/song/api/room/:roomId/event"], (req, res) => {
     try {
       const rId = String(req.params.roomId || "").trim().toUpperCase();
       const { type, sender, data } = req.body;
@@ -767,7 +767,7 @@ Return a JSON object containing:
     }
   });
 
-  app.get("/api/room/:roomId/events", (req, res) => {
+  app.get(["/api/room/:roomId/events", "/Song/api/room/:roomId/events", "/song/api/room/:roomId/events"], (req, res) => {
     try {
       const rId = String(req.params.roomId || "").trim().toUpperCase();
       const since = Number(req.query.since || 0);
