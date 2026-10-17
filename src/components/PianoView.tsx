@@ -342,6 +342,17 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   const [masterclassPlayMode, setMasterclassPlayMode] = useState<'arcade' | 'learn'>('arcade');
 
+  // Voice Audio Communication State (Maestro ↔ Allievo Live Voice Audio)
+  const [isVoiceActive, setIsVoiceActive] = useState<boolean>(false);
+  const [isMicMuted, setIsMicMuted] = useState<boolean>(false);
+  const [peerVoiceActive, setPeerVoiceActive] = useState<boolean>(false);
+  const [peerMicMuted, setPeerMicMuted] = useState<boolean>(false);
+
+  const localVoiceStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+
   // Real-time WebSocket listener for Masterclass & Multiplayer Room
   useEffect(() => {
     if (!socialSession || !socialSession.roomId) return;
@@ -366,7 +377,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         );
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         try {
           const msg = JSON.parse(event.data);
 
@@ -419,15 +430,240 @@ export const PianoView: React.FC<PianoViewProps> = ({
               showToast(`🎉 L'allievo ${msg.sender || ''} ha completato la frase con successo!`);
             }
           }
+
+          // LIVE VOICE WEBRTC SIGNALING
+          else if (msg.type === 'webrtc:offer' && msg.sdp) {
+            let pc = peerConnectionRef.current;
+            if (!pc) {
+              pc = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+              });
+              peerConnectionRef.current = pc;
+              if (localVoiceStreamRef.current) {
+                localVoiceStreamRef.current.getTracks().forEach((t) => pc!.addTrack(t, localVoiceStreamRef.current!));
+              }
+              pc.ontrack = (evt) => {
+                if (remoteAudioRef.current && evt.streams[0]) {
+                  remoteAudioRef.current.srcObject = evt.streams[0];
+                  remoteAudioRef.current.play().catch(() => {});
+                }
+              };
+              pc.onicecandidate = (evt) => {
+                if (evt.candidate && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(JSON.stringify({ type: 'webrtc:candidate', roomId: socialSession.roomId, candidate: evt.candidate }));
+                }
+              };
+            }
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ type: 'webrtc:answer', roomId: socialSession.roomId, sdp: pc.localDescription }));
+            }
+          }
+          else if (msg.type === 'webrtc:answer' && msg.sdp) {
+            if (peerConnectionRef.current) {
+              await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+            }
+          }
+          else if (msg.type === 'webrtc:candidate' && msg.candidate) {
+            if (peerConnectionRef.current) {
+              try {
+                await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(msg.candidate));
+              } catch (iceErr) {}
+            }
+          }
+
+          // FALLBACK LIVE AUDIO CHUNK PLAYBACK
+          else if (msg.type === 'piano:audio_chunk' && msg.audio) {
+            try {
+              const audioObj = new Audio(msg.audio);
+              audioObj.volume = 1.0;
+              audioObj.play().catch(() => {});
+            } catch (chunkErr) {}
+          }
+
+          // VOICE STATUS (MIC MUTED / ACTIVE)
+          else if (msg.type === 'piano:voice_status') {
+            setPeerVoiceActive(Boolean(msg.isActive));
+            setPeerMicMuted(Boolean(msg.isMuted));
+            if (msg.isActive) {
+              showToast(`🎙️ ${msg.sender || 'Interlocutore'} ha attivato il vivavoce audio!`);
+            }
+          }
         } catch (e) {}
       };
 
       return () => {
         ws.close();
         wsRef.current = null;
+        if (localVoiceStreamRef.current) {
+          localVoiceStreamRef.current.getTracks().forEach((t) => t.stop());
+          localVoiceStreamRef.current = null;
+        }
+        if (peerConnectionRef.current) {
+          peerConnectionRef.current.close();
+          peerConnectionRef.current = null;
+        }
+        if (mediaRecorderRef.current) {
+          try { mediaRecorderRef.current.stop(); } catch (e) {}
+          mediaRecorderRef.current = null;
+        }
       };
     } catch (e) {}
   }, [socialSession, username, instrument, showToast, createMasterclassWaterfallSong]);
+
+  // Voice Call Helpers
+  const stopVoiceCall = useCallback(() => {
+    if (localVoiceStreamRef.current) {
+      localVoiceStreamRef.current.getTracks().forEach((t) => t.stop());
+      localVoiceStreamRef.current = null;
+    }
+    if (mediaRecorderRef.current) {
+      try { mediaRecorderRef.current.stop(); } catch (e) {}
+      mediaRecorderRef.current = null;
+    }
+    if (peerConnectionRef.current) {
+      try { peerConnectionRef.current.close(); } catch (e) {}
+      peerConnectionRef.current = null;
+    }
+    setIsVoiceActive(false);
+    setIsMicMuted(false);
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'piano:voice_status',
+          roomId: socialSession?.roomId,
+          isActive: false,
+          isMuted: true,
+        })
+      );
+    }
+    showToast('🎙️ Vivavoce disattivato');
+  }, [socialSession, showToast]);
+
+  const startVoiceCall = useCallback(async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('⚠️ Microfono non supportato in questo browser');
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false,
+      });
+
+      localVoiceStreamRef.current = stream;
+      setIsVoiceActive(true);
+      setIsMicMuted(false);
+
+      // WebRTC PeerConnection setup
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      });
+      peerConnectionRef.current = pc;
+
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      pc.ontrack = (event) => {
+        if (remoteAudioRef.current && event.streams[0]) {
+          remoteAudioRef.current.srcObject = event.streams[0];
+          remoteAudioRef.current.play().catch(() => {});
+        }
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(
+            JSON.stringify({
+              type: 'webrtc:candidate',
+              roomId: socialSession?.roomId,
+              candidate: event.candidate,
+            })
+          );
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'webrtc:offer',
+            roomId: socialSession?.roomId,
+            sdp: pc.localDescription,
+          })
+        );
+
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'piano:voice_status',
+            roomId: socialSession?.roomId,
+            isActive: true,
+            isMuted: false,
+          })
+        );
+      }
+
+      // Audio Chunk fallback recorder (guarantees voice works cross-network)
+      if (typeof MediaRecorder !== 'undefined') {
+        try {
+          const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+          const rec = new MediaRecorder(stream, { mimeType: mime });
+          mediaRecorderRef.current = rec;
+          rec.ondataavailable = async (e) => {
+            if (e.data.size > 0 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const b64 = reader.result;
+                if (b64 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(
+                    JSON.stringify({
+                      type: 'piano:audio_chunk',
+                      roomId: socialSession?.roomId,
+                      audio: b64,
+                    })
+                  );
+                }
+              };
+              reader.readAsDataURL(e.data);
+            }
+          };
+          rec.start(350); // small 350ms bursts
+        } catch (recErr) {}
+      }
+
+      showToast('🎙️ Vivavoce Attivo! Parla liberamente con il microfono');
+    } catch (err: any) {
+      showToast(`⚠️ Permesso microfono negato o non disponibile`);
+    }
+  }, [socialSession, showToast]);
+
+  const toggleMicMute = useCallback(() => {
+    if (localVoiceStreamRef.current) {
+      const audioTrack = localVoiceStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        const newMuted = !audioTrack.enabled;
+        setIsMicMuted(newMuted);
+
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(
+            JSON.stringify({
+              type: 'piano:voice_status',
+              roomId: socialSession?.roomId,
+              isActive: isVoiceActive,
+              isMuted: newMuted,
+            })
+          );
+        }
+        showToast(newMuted ? '🔇 Microfono disattivato (Muto)' : '🎙️ Microfono attivo');
+      }
+    }
+  }, [isVoiceActive, socialSession, showToast]);
 
   const handleSendTeacherPhrase = (openWaterfall: boolean = false, displayMode: 'arcade' | 'learn' = 'arcade') => {
     if (recordedMasterclassNotes.length === 0) return;
@@ -1442,6 +1678,48 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     <span>👁️ Simula Vista Allievo</span>
                   </button>
 
+                  {/* VIVAVOCE VOCALE AUDIO CONTROLS (MAESTRO) */}
+                  <div className="flex items-center gap-1 bg-slate-950/90 border border-slate-800 rounded-lg p-0.5 shrink-0">
+                    {!isVoiceActive ? (
+                      <button
+                        onClick={startVoiceCall}
+                        className="px-2 py-0.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-95 text-white font-black rounded text-[10px] flex items-center gap-1 cursor-pointer shadow transition-all whitespace-nowrap"
+                        title="Attiva il vivavoce audio per parlare in diretta con il microfono all'allievo"
+                      >
+                        <span>🎙️ Attiva Voce</span>
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={toggleMicMute}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap ${
+                            isMicMuted
+                              ? 'bg-red-950 text-red-300 border border-red-700/60'
+                              : 'bg-emerald-500 text-slate-950 font-black shadow animate-pulse'
+                          }`}
+                          title={isMicMuted ? 'Riapri microfono' : 'Metti microfono in muto'}
+                        >
+                          <span>{isMicMuted ? '🔇 Muto' : '🎙️ Voce On'}</span>
+                        </button>
+
+                        <button
+                          onClick={stopVoiceCall}
+                          className="px-1.5 py-0.5 bg-slate-800 hover:bg-red-900/60 text-slate-300 hover:text-red-300 rounded text-[10px] cursor-pointer"
+                          title="Disattiva vivavoce"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+
+                    {peerVoiceActive && (
+                      <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded text-[9px] font-bold flex items-center gap-1 whitespace-nowrap animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                        <span>{peerMicMuted ? 'Allievo Muto' : 'Allievo in Voce'}</span>
+                      </span>
+                    )}
+                  </div>
+
                   {studentProgress && (
                     <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-950 border border-emerald-500/40 rounded text-emerald-400 font-mono font-bold text-[10px] whitespace-nowrap">
                       <span>{studentProgress.studentName}: {studentProgress.currentIndex}/{studentProgress.totalNotes}</span>
@@ -1471,6 +1749,48 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+                  {/* VIVAVOCE VOCALE AUDIO CONTROLS (STUDENT) */}
+                  <div className="flex items-center gap-1 bg-slate-950/90 border border-slate-800 rounded-lg p-0.5 shrink-0">
+                    {!isVoiceActive ? (
+                      <button
+                        onClick={startVoiceCall}
+                        className="px-2 py-0.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-95 text-white font-black rounded text-[10px] flex items-center gap-1 cursor-pointer shadow transition-all whitespace-nowrap"
+                        title="Attiva il vivavoce audio per parlare in diretta con il Maestro"
+                      >
+                        <span>🎙️ Parla col Maestro</span>
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={toggleMicMute}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap ${
+                            isMicMuted
+                              ? 'bg-red-950 text-red-300 border border-red-700/60'
+                              : 'bg-emerald-500 text-slate-950 font-black shadow animate-pulse'
+                          }`}
+                          title={isMicMuted ? 'Riapri microfono' : 'Metti microfono in muto'}
+                        >
+                          <span>{isMicMuted ? '🔇 Muto' : '🎙️ Voce On'}</span>
+                        </button>
+
+                        <button
+                          onClick={stopVoiceCall}
+                          className="px-1.5 py-0.5 bg-slate-800 hover:bg-red-900/60 text-slate-300 hover:text-red-300 rounded text-[10px] cursor-pointer"
+                          title="Disattiva vivavoce"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+
+                    {peerVoiceActive && (
+                      <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[9px] font-bold flex items-center gap-1 whitespace-nowrap animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        <span>{peerMicMuted ? 'Maestro Muto' : 'Maestro in Voce'}</span>
+                      </span>
+                    )}
+                  </div>
+
                   {teacherAssignedPhrase.length > 0 && (
                     <>
                       <button
@@ -1528,6 +1848,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 </div>
               </div>
             )}
+            {/* Hidden audio element for receiving peer voice stream */}
+            <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
           </div>
         );
       })()}

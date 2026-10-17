@@ -148,13 +148,15 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           hitNotesSetRef.current.add(waitingIdx);
           waitingNoteIndexRef.current = null;
           setWaitingTargetNote(null);
-          setScore((s) => s + 100);
-          if (!isMasterclassMode) recordNoteHitBonus(5);
-          setCombo((c) => {
-            const next = c + 1;
-            setMaxCombo((m) => Math.max(m, next));
-            return next;
-          });
+          if (!isMasterclassMode) {
+            setScore((s) => s + 100);
+            recordNoteHitBonus(5);
+            setCombo((c) => {
+              const next = c + 1;
+              setMaxCombo((m) => Math.max(m, next));
+              return next;
+            });
+          }
 
           // Resume playhead cleanly
           lastFrameTimeRef.current = null;
@@ -169,13 +171,15 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           const n = song.notes[i];
           if (Math.abs(n.time - curTime) <= 0.4 && (n.note === playedNote || getTransposedNote(n.note) === playedNote)) {
             hitNotesSetRef.current.add(i);
-            setScore((s) => s + 100);
-            if (!isMasterclassMode) recordNoteHitBonus(5);
-            setCombo((c) => {
-              const next = c + 1;
-              setMaxCombo((m) => Math.max(m, next));
-              return next;
-            });
+            if (!isMasterclassMode) {
+              setScore((s) => s + 100);
+              recordNoteHitBonus(5);
+              setCombo((c) => {
+                const next = c + 1;
+                setMaxCombo((m) => Math.max(m, next));
+                return next;
+              });
+            }
             break;
           }
         }
@@ -196,17 +200,19 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
       if (bestIdx !== -1) {
         hitNotesSetRef.current.add(bestIdx);
-        const pts = minDiff < 0.15 ? 100 : 50;
-        setScore((s) => s + pts);
-        if (!isMasterclassMode) recordNoteHitBonus(minDiff < 0.15 ? 10 : 5);
-        setCombo((c) => {
-          const next = c + 1;
-          setMaxCombo((m) => Math.max(m, next));
-          return next;
-        });
+        if (!isMasterclassMode) {
+          const pts = minDiff < 0.15 ? 100 : 50;
+          setScore((s) => s + pts);
+          recordNoteHitBonus(minDiff < 0.15 ? 10 : 5);
+          setCombo((c) => {
+            const next = c + 1;
+            setMaxCombo((m) => Math.max(m, next));
+            return next;
+          });
+        }
       }
     }
-  }, [song.notes, getTransposedNote]);
+  }, [song.notes, getTransposedNote, isMasterclassMode]);
 
   useEffect(() => {
     const handleEvent = (e: Event) => {
@@ -549,26 +555,32 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           </button>
         </div>
 
-        {/* Score & Combo */}
-        <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-lg px-2.5 py-1 backdrop-blur-md hidden sm:flex">
-          <div className="flex items-center gap-1 text-amber-400 font-bold">
-            <Zap className="w-3.5 h-3.5" />
-            <span>{score}</span>
+        {/* Score & Combo (or Masterclass Badge) */}
+        {isMasterclassMode ? (
+          <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-1 backdrop-blur-md hidden sm:flex text-amber-300 font-black text-[11px]">
+            <span>👑 Masterclass</span>
           </div>
-          {combo > 1 && (
-            <div className="text-[10px] text-cyan-400 font-extrabold uppercase animate-pulse">
-              {combo}x Combo!
+        ) : (
+          <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-lg px-2.5 py-1 backdrop-blur-md hidden sm:flex">
+            <div className="flex items-center gap-1 text-amber-400 font-bold">
+              <Zap className="w-3.5 h-3.5" />
+              <span>{score}</span>
             </div>
-          )}
-        </div>
+            {combo > 1 && (
+              <div className="text-[10px] text-cyan-400 font-extrabold uppercase animate-pulse">
+                {combo}x Combo!
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Target prompt in 'learn' mode - Semi-transparent glass effect so incoming notes remain 100% visible behind badge */}
       {waitingTargetNote && (
         <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center">
-          <div className="bg-slate-950/40 border border-amber-500/40 text-amber-300 font-extrabold px-3 py-0.5 rounded-full text-[11px] shadow-sm backdrop-blur-xs flex items-center gap-1.5 opacity-85">
+          <div className="bg-slate-950/20 border border-amber-400/30 text-amber-300 font-extrabold px-3 py-0.5 rounded-full text-[11px] backdrop-blur-none opacity-60 flex items-center gap-1.5">
             <span className="text-[10px] text-amber-300/80 uppercase">SUONA:</span>
-            <span className="text-xs bg-amber-500/30 text-amber-200 px-1.5 py-0.2 rounded font-mono font-black border border-amber-400/30">
+            <span className="text-xs bg-amber-500/20 text-amber-200 px-1.5 py-0.2 rounded font-mono font-black border border-amber-400/20">
               {waitingTargetNote}
             </span>
           </div>

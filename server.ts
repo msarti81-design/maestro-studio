@@ -532,6 +532,9 @@ Return a JSON object containing:
             type: "piano:teacher_phrase",
             sender: currentClient.username,
             notes: msg.notes || [],
+            phraseData: msg.phraseData || [],
+            openWaterfall: msg.openWaterfall ?? false,
+            displayMode: msg.displayMode || 'arcade',
           });
         }
 
@@ -542,6 +545,36 @@ Return a JSON object containing:
             currentIndex: msg.currentIndex || 0,
             totalNotes: msg.totalNotes || 0,
             completed: msg.completed || false,
+          });
+        }
+
+        // 9. WebRTC Voice Audio Signaling & Voice Audio Chunks (Maestro ↔ Allievo Voice Call)
+        else if (type === "webrtc:offer" || type === "webrtc:answer" || type === "webrtc:candidate") {
+          broadcastToRoom(room, currentClient.id, {
+            type,
+            sender: currentClient.username,
+            senderId: currentClient.id,
+            sdp: msg.sdp,
+            candidate: msg.candidate,
+          });
+        }
+
+        else if (type === "piano:audio_chunk") {
+          broadcastToRoom(room, currentClient.id, {
+            type: "piano:audio_chunk",
+            sender: currentClient.username,
+            senderId: currentClient.id,
+            audio: msg.audio,
+          });
+        }
+
+        else if (type === "piano:voice_status") {
+          broadcastToRoom(room, currentClient.id, {
+            type: "piano:voice_status",
+            sender: currentClient.username,
+            senderId: currentClient.id,
+            isMuted: msg.isMuted,
+            isActive: msg.isActive,
           });
         }
 
