@@ -27,7 +27,7 @@ function parseRoomInviteFromUrl(): ActiveSocialSession | null {
 
     let room = '';
     let mode: SocialRoomMode = 'masterclass';
-    let role: 'maestro' | 'allievo' = 'allievo';
+    let role: string = 'allievo';
 
     // 1. Search params (?room=MASTERCLASS-101&mode=masterclass&role=allievo)
     if (search) {
@@ -35,7 +35,7 @@ function parseRoomInviteFromUrl(): ActiveSocialSession | null {
       if (sp.has('room') || sp.has('roomId') || sp.has('aula')) {
         room = sp.get('room') || sp.get('roomId') || sp.get('aula') || '';
         if (sp.has('mode')) mode = (sp.get('mode') as SocialRoomMode) || 'masterclass';
-        if (sp.has('role')) role = (sp.get('role') as any) || 'allievo';
+        if (sp.has('role')) role = sp.get('role') || 'allievo';
       }
     }
 
@@ -47,7 +47,7 @@ function parseRoomInviteFromUrl(): ActiveSocialSession | null {
         if (hp.has('room') || hp.has('roomId') || hp.has('aula')) {
           room = hp.get('room') || hp.get('roomId') || hp.get('aula') || '';
           if (hp.has('mode')) mode = (hp.get('mode') as SocialRoomMode) || 'masterclass';
-          if (hp.has('role')) role = (hp.get('role') as any) || 'allievo';
+          if (hp.has('role')) role = hp.get('role') || 'allievo';
         }
       } else if (hash.startsWith('#room=')) {
         room = hash.substring(6);
@@ -79,12 +79,13 @@ function parseRoomInviteFromUrl(): ActiveSocialSession | null {
 }
 
 export default function App() {
-  const [activeSocialSession, setActiveSocialSession] = useState<ActiveSocialSession | null>(() => parseRoomInviteFromUrl());
+  const [pendingInvite, setPendingInvite] = useState<ActiveSocialSession | null>(() => parseRoomInviteFromUrl());
+  const [activeSocialSession, setActiveSocialSession] = useState<ActiveSocialSession | null>(null);
 
   const [currentView, setCurrentView] = useState<ViewMode | 'home'>(() => {
-    // If URL has an active room invitation, jump directly to piano room!
+    // If URL has an active room invitation, show the social room invite ready to enter!
     const invite = parseRoomInviteFromUrl();
-    if (invite) return 'piano';
+    if (invite) return 'social';
 
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
@@ -129,10 +130,8 @@ export default function App() {
     const checkUrlInvite = () => {
       const invite = parseRoomInviteFromUrl();
       if (invite) {
-        setActiveSocialSession(invite);
-        setCurrentView('piano');
-        audioEngine.init().catch(() => {});
-        setIsAudioActive(true);
+        setPendingInvite(invite);
+        setCurrentView('social');
       }
     };
 
@@ -218,6 +217,7 @@ export default function App() {
             onLaunchPianoChallenge={handleLaunchSocialChallenge}
             lastResults={lastSessionResults}
             onClearResults={() => setLastSessionResults(null)}
+            incomingInvite={pendingInvite}
           />
         )}
       </main>

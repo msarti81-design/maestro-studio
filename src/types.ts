@@ -78,10 +78,18 @@ export interface SocialSessionResults {
   durationSeconds: number;
 }
 
+export type SocialUserRole =
+  | 'maestro'
+  | 'allievo'
+  | 'sfidante'
+  | 'pubblico'
+  | 'giocatore'
+  | 'spettatore';
+
 export interface ActiveSocialSession {
   mode: SocialRoomMode;
   roomId: string;
-  userRole: 'maestro' | 'allievo' | 'spettatore' | 'giocatore';
+  userRole: SocialUserRole | string;
   song?: SheetSong;
   status: 'configuring' | 'active' | 'completed';
   lastResults?: SocialSessionResults;
