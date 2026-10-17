@@ -637,6 +637,12 @@ export const SocialView: React.FC<SocialViewProps> = ({
 
   const hasStudentMatch = Boolean(otherConnectedMember) || connectedMembers.length >= 2;
 
+  // For Allievo: check if Maestro is present in the room
+  const maestroMember = connectedMembers.find((m) => {
+    if (m.id && m.id === clientSessionId) return false;
+    return m.role && (m.role.toLowerCase() === 'maestro' || m.role.toLowerCase() === 'teacher');
+  }) || connectedMembers.find((m) => m.id !== clientSessionId && m.role && m.role.toLowerCase() !== 'allievo');
+
   // Sound chime when student match is found for Maestro
   const hadMatchRef = useRef(false);
   useEffect(() => {
