@@ -347,6 +347,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const [isMicMuted, setIsMicMuted] = useState<boolean>(false);
   const [peerVoiceActive, setPeerVoiceActive] = useState<boolean>(false);
   const [peerMicMuted, setPeerMicMuted] = useState<boolean>(false);
+  const [connectedPeersCount, setConnectedPeersCount] = useState<number>(1);
 
   const localVoiceStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
@@ -369,7 +370,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         ws.send(
           JSON.stringify({
             type: 'room:join',
-            roomId: socialSession.roomId,
+            roomId: socialSession.roomId.trim().toUpperCase(),
             username,
             role: socialSession.userRole,
             mode: socialSession.mode,
@@ -381,8 +382,13 @@ export const PianoView: React.FC<PianoViewProps> = ({
         try {
           const msg = JSON.parse(event.data);
 
+          // LIVE ROOM MEMBERS UPDATE
+          if (msg.type === 'room:state' && Array.isArray(msg.members)) {
+            setConnectedPeersCount(msg.members.length);
+          }
+
           // LIVE AUDIO & VISUAL PRESS FROM REMOTE PEER
-          if (msg.type === 'piano:key_event' && msg.note) {
+          else if (msg.type === 'piano:key_event' && msg.note) {
             audioEngine.playNote(msg.note, '8n', instrument);
             setKeyVisual(msg.note, true);
             setTimeout(() => setKeyVisual(msg.note, false), 220);
@@ -402,6 +408,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
             if (receivedPhrase.length > 0) {
               setTeacherAssignedPhrase(receivedPhrase);
+              teacherAssignedPhraseRef.current = receivedPhrase;
               setStudentMatchedIndex(0);
               studentMatchedIndexRef.current = 0;
 

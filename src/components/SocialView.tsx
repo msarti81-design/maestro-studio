@@ -56,16 +56,16 @@ interface RoleOption {
 const MODE_ROLES: Record<SocialRoomMode, RoleOption[]> = {
   masterclass: [
     {
-      value: 'allievo',
-      label: '👨‍🎓 Allievo (Studente)',
-      description: 'Riceve le frasi musicali dal Maestro e le replica a tempo o nota per nota',
-      badge: 'Studente',
-    },
-    {
       value: 'maestro',
       label: '👨‍🏫 Maestro (Insegnante)',
       description: 'Suona e invia frasi didattiche, controlla i progressi e parla in vivavoce',
       badge: 'Insegnante',
+    },
+    {
+      value: 'allievo',
+      label: '👨‍🎓 Allievo (Studente)',
+      description: 'Riceve le frasi musicali dal Maestro e le replica a tempo o nota per nota',
+      badge: 'Studente',
     },
   ],
   battle: [
@@ -234,7 +234,14 @@ export const SocialView: React.FC<SocialViewProps> = ({
   // Global Username
   const [globalName, setGlobalName] = useState<string>(() => getUsername());
 
-  // Per-mode state dictionary for hosted room codes
+  // Masterclass simplified role: 'maestro' | 'allievo'
+  const [masterclassRole, setMasterclassRole] = useState<'maestro' | 'allievo'>(() => {
+    if (initialInvite.current?.userRole === 'allievo') return 'allievo';
+    if (initialInvite.current?.userRole === 'maestro') return 'maestro';
+    return 'maestro';
+  });
+
+  // Per-mode state dictionary for auto-assigned hosted room codes
   const [hostedRoomCodes, setHostedRoomCodes] = useState<Record<SocialRoomMode, string>>(() => {
     const defaultCodes: Record<SocialRoomMode, string> = {
       masterclass: generateRandomRoomCode('masterclass'),
@@ -245,7 +252,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
       guess: generateRandomRoomCode('guess'),
       postcards: generateRandomRoomCode('postcards'),
     };
-    if (initialInvite.current) {
+    if (initialInvite.current && initialInvite.current.userRole === 'maestro') {
       defaultCodes[initialInvite.current.mode] = initialInvite.current.roomId;
     }
     return defaultCodes;
@@ -268,10 +275,10 @@ export const SocialView: React.FC<SocialViewProps> = ({
     return initInputs;
   });
 
-  // Per-mode selected role
+  // Per-mode selected role for non-masterclass modes
   const [selectedRoles, setSelectedRoles] = useState<Record<SocialRoomMode, string>>(() => {
     const defRoles: Record<SocialRoomMode, string> = {
-      masterclass: 'allievo',
+      masterclass: 'maestro',
       battle: 'sfidante',
       duet: 'sfidante_destra',
       pianobar: 'pubblico',
@@ -295,10 +302,19 @@ export const SocialView: React.FC<SocialViewProps> = ({
   const [copiedState, setCopiedState] = useState<string | null>(null);
 
   // Active connected room in view
-  const currentRoomCode = joinInputs[activeTab].trim()
-    ? joinInputs[activeTab].trim().toUpperCase()
-    : hostedRoomCodes[activeTab];
-  const currentRole = selectedRoles[activeTab];
+  const currentRoomCode =
+    activeTab === 'masterclass'
+      ? masterclassRole === 'maestro'
+        ? hostedRoomCodes.masterclass
+        : joinInputs.masterclass.trim()
+        ? joinInputs.masterclass.trim().toUpperCase()
+        : 'AULA-1'
+      : joinInputs[activeTab].trim()
+      ? joinInputs[activeTab].trim().toUpperCase()
+      : hostedRoomCodes[activeTab];
+
+  const currentRole =
+    activeTab === 'masterclass' ? masterclassRole : selectedRoles[activeTab];
 
   // WebSocket Live Lobby Presence
   const [connectedMembers, setConnectedMembers] = useState<
@@ -356,7 +372,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
         ws.send(
           JSON.stringify({
             type: 'room:join',
-            roomId: rId,
+            roomId: rId.trim().toUpperCase(),
             username: name,
             role,
             mode,
@@ -385,7 +401,6 @@ export const SocialView: React.FC<SocialViewProps> = ({
   const handleRegenerateHostedCode = (mode: SocialRoomMode) => {
     const newCode = generateRandomRoomCode(mode);
     setHostedRoomCodes((prev) => ({ ...prev, [mode]: newCode }));
-    // Clear manual join input so active room becomes the newly generated one
     setJoinInputs((prev) => ({ ...prev, [mode]: '' }));
   };
 
@@ -428,7 +443,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
     switch (mode) {
       case 'masterclass':
         title = '👨‍🏫 INVITO MASTERCLASS PIANOFORTE MAESTRO STUDIO';
-        subtitle = `Ciao! Ti invito alla lezione di pianoforte in rete.\n📍 Codice Aula da inserire: *${room}*\nRuolo: *Allievo / Studente*`;
+        subtitle = `Ciao! Ti invito alla lezione di pianoforte in rete.\n📍 Codice Aula: *${room}*\nRuolo: *Allievo (Studente)*`;
         break;
       case 'battle':
         title = '⚡ PIANO BATTLE 1v1 - DUELLO AL PIANOFORTE';
@@ -486,7 +501,16 @@ export const SocialView: React.FC<SocialViewProps> = ({
     });
   };
 
-  // Determine role title description in the UI
+  // Check if Masterclass Maestro has a match (at least one other user has connected to this room)
+  const isMasterclass = activeTab === 'masterclass';
+  const isMaestro = isMasterclass && masterclassRole === 'maestro';
+  const isAllievo = isMasterclass && masterclassRole === 'allievo';
+
+  const otherConnectedMember = connectedMembers.find(
+    (m) => m.username.trim().toLowerCase() !== globalName.trim().toLowerCase()
+  );
+  const hasStudentMatch = Boolean(otherConnectedMember);
+
   const availableRoles = MODE_ROLES[activeTab] || [];
 
   return (
@@ -503,7 +527,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
             <Sparkles className="w-5 h-5 text-amber-400" />
           </h1>
           <p className="text-slate-400 text-xs max-w-xl">
-            Seleziona la modalit&agrave;: troverai al suo interno il campo per inserire il codice stanza, i ruoli dedicati (Maestro/Allievo, Sfidanti o Pubblico) e la sala d'attesa.
+            In Masterclass il Maestro ottiene automaticamente la sua aula e attende il match con l'Allievo. L'Allievo inserisce il codice e si collega subito!
           </p>
         </div>
 
@@ -578,7 +602,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
       {/* MODE SELECTOR TABS */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 shadow-inner">
         {[
-          { id: 'masterclass', label: 'Masterclass', icon: GraduationCap, tag: 'Maestro / Allievo' },
+          { id: 'masterclass', label: 'Masterclass', icon: GraduationCap, tag: 'Maestro & Allievo' },
           { id: 'battle', label: 'Piano Battle', icon: Swords, tag: 'Duello Sfidanti' },
           { id: 'duet', label: 'Quattro Mani', icon: Layers, tag: 'Due Pianisti' },
           { id: 'pianobar', label: 'Piano Bar', icon: Radio, tag: 'Live & Pubblico' },
@@ -612,14 +636,14 @@ export const SocialView: React.FC<SocialViewProps> = ({
         })}
       </div>
 
-      {/* DEDICATED PANEL FOR THE SELECTED MODE (Everything relative to this mode is inside here!) */}
+      {/* DEDICATED PANEL FOR THE SELECTED MODE */}
       <div className="bg-slate-900/95 border border-slate-800 p-5 sm:p-7 rounded-3xl space-y-6 shadow-2xl">
-        {/* Mode Title & Description Banner */}
+        {/* Mode Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 font-black text-xs uppercase tracking-wider">
-                {activeTab === 'masterclass' && 'Didattica 1-a-1'}
+                {activeTab === 'masterclass' && 'Didattica Maestro & Allievo'}
                 {activeTab === 'battle' && 'Duello 1v1'}
                 {activeTab === 'duet' && 'Quattro Mani'}
                 {activeTab === 'pianobar' && 'Concerto Live'}
@@ -628,7 +652,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
                 {activeTab === 'postcards' && 'Dediche'}
               </span>
               <h2 className="text-xl font-black text-white flex items-center gap-2">
-                {activeTab === 'masterclass' && 'Masterclass Didattica: Maestro & Allievo'}
+                {activeTab === 'masterclass' && 'Masterclass: Lezione Interattiva'}
                 {activeTab === 'battle' && 'Piano Battle: Duello a Scorrimento tra Sfidanti'}
                 {activeTab === 'duet' && 'Pianoforte a Quattro Mani: Melodia & Basso'}
                 {activeTab === 'pianobar' && 'Piano Bar & Sala d\'Ascolto con Pubblico'}
@@ -638,8 +662,8 @@ export const SocialView: React.FC<SocialViewProps> = ({
               </h2>
             </div>
             <p className="text-slate-400 text-xs">
-              {activeTab === 'masterclass' && 'Il Maestro suona e assegna frasi all\'allievo con vivavoce audio bidirezionale in tempo reale.'}
-              {activeTab === 'battle' && 'Entrambi i giocatori sono sfidanti alla pari! Vince chi totalizza pi&ugrave; punti sul brano.'}
+              {activeTab === 'masterclass' && 'Il Maestro assegna frasi all\'allievo e parla in vivavoce. Il Maestro entra al pianoforte solo quando l\'Allievo si è collegato alla stanza!'}
+              {activeTab === 'battle' && 'Entrambi i giocatori sono sfidanti alla pari! Vince chi totalizza più punti sulle note a caduta.'}
               {activeTab === 'duet' && 'Due pianisti si dividono la tastiera: uno esegue la melodia con la mano destra, l\'altro il basso.'}
               {activeTab === 'pianobar' && 'Un pianista esegue al Gran Coda dal vivo mentre il pubblico connesso ascolta e manda applausi.'}
               {activeTab === 'relay' && 'I musicisti sfidanti si passano il testimone suonando battute consecutive della stessa canzone.'}
@@ -649,495 +673,417 @@ export const SocialView: React.FC<SocialViewProps> = ({
           </div>
         </div>
 
-        {/* 1. SEZIONE CODICE STANZA & PARTECIPAZIONE (PROPRIO QUI SOTTO LA SCELTA!) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Card A: Hai gi&agrave; un Codice Stanza? (Per l'Allievo, Sfidante o Pubblico) */}
-          <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border-2 border-emerald-500/40 space-y-3 shadow-lg">
-            <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
-              <div className="flex items-center gap-2 text-emerald-400 font-black text-xs sm:text-sm uppercase tracking-wide">
-                <span>🚪</span>
-                <span>Hai un Codice Stanza? Entra qui</span>
-              </div>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold uppercase">
-                {activeTab === 'masterclass' && 'Per l\'Allievo'}
-                {activeTab === 'battle' && 'Per lo Sfidante'}
-                {activeTab === 'pianobar' && 'Per il Pubblico'}
-                {(activeTab === 'duet' || activeTab === 'relay' || activeTab === 'guess') && 'Per il Partecipante'}
-              </span>
-            </div>
-
-            <p className="text-slate-400 text-[11px]">
-              Se ti hanno comunicato il codice stanza (o hai aperto un link), digitalo qui sotto per unirti subito:
-            </p>
-
-            <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                Codice Stanza da Inserire:
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={joinInputs[activeTab]}
-                  onChange={(e) => {
-                    const val = e.target.value.toUpperCase();
-                    setJoinInputs((prev) => ({ ...prev, [activeTab]: val }));
-                  }}
-                  placeholder={
-                    activeTab === 'masterclass'
-                      ? 'Es. MASTERCLASS-101'
-                      : activeTab === 'battle'
-                      ? 'Es. BATTLE-202'
-                      : activeTab === 'pianobar'
-                      ? 'Es. PIANOBAR-303'
-                      : 'Es. CODICE-STANZA'
-                  }
-                  className="flex-1 bg-slate-900 border border-emerald-500/50 text-emerald-300 font-mono font-black text-xs sm:text-sm rounded-xl px-3 py-2 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 uppercase tracking-wider placeholder:normal-case placeholder:font-sans placeholder:text-slate-600"
-                />
-                {joinInputs[activeTab] && (
-                  <button
-                    onClick={() => setJoinInputs((prev) => ({ ...prev, [activeTab]: '' }))}
-                    className="text-slate-400 hover:text-white text-xs px-2 py-2 bg-slate-900 rounded-xl border border-slate-800"
-                    title="Cancella codice inserito"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Ruolo per chi si unisce */}
-            <div className="space-y-1">
-              <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                Il Tuo Ruolo in questa Stanza:
-              </label>
-              <select
-                value={selectedRoles[activeTab]}
-                onChange={(e) => setSelectedRoles((prev) => ({ ...prev, [activeTab]: e.target.value }))}
-                className="w-full bg-slate-900 border border-emerald-500/40 text-emerald-300 font-bold text-xs rounded-xl px-3 py-2 outline-none"
+        {/* ============================================================== */}
+        {/* SPECIALIZED STREAMLINED MASTERCLASS WORKFLOW                   */}
+        {/* ============================================================== */}
+        {isMasterclass ? (
+          <div className="space-y-5">
+            {/* 1. SELETTORE RUOLO MASTERCLASS: MAESTRO o ALLIEVO */}
+            <div className="grid grid-cols-2 gap-3 bg-slate-950 p-2 rounded-2xl border border-slate-800">
+              <button
+                onClick={() => setMasterclassRole('maestro')}
+                className={`py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                  masterclassRole === 'maestro'
+                    ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-lg scale-[1.01]'
+                    : 'bg-slate-900 text-slate-400 hover:text-white'
+                }`}
               >
-                {availableRoles.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
+                <span>👨‍🏫</span>
+                <span>Sono il Maestro (Insegnante)</span>
+              </button>
+
+              <button
+                onClick={() => setMasterclassRole('allievo')}
+                className={`py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                  masterclassRole === 'allievo'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-lg scale-[1.01]'
+                    : 'bg-slate-900 text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>👨‍🎓</span>
+                <span>Sono l'Allievo (Studente)</span>
+              </button>
             </div>
 
-            <button
-              onClick={() => handleLaunchSession(joinInputs[activeTab], selectedRoles[activeTab])}
-              disabled={!joinInputs[activeTab].trim()}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:opacity-40 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span>🚀 ENTRA IN QUESTA STANZA</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Card B: Vuoi Creare e Ospitare tu la Stanza? (Per Maestro, Primo Sfidante, Pianista Esecutore) */}
-          <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <div className="flex items-center gap-2 text-amber-400 font-black text-xs sm:text-sm uppercase tracking-wide">
-                <span>👑</span>
-                <span>Crea e Ospita una Nuova Stanza</span>
-              </div>
-              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold uppercase">
-                {activeTab === 'masterclass' && 'Per il Maestro'}
-                {activeTab === 'battle' && 'Sfidante Host'}
-                {activeTab === 'pianobar' && 'Pianista Host'}
-                {(activeTab === 'duet' || activeTab === 'relay' || activeTab === 'guess') && 'Host Stanza'}
-              </span>
-            </div>
-
-            <p className="text-slate-400 text-[11px]">
-              Il tuo codice stanza generato per questa modalit&agrave;. Invialo all'allievo o all'altro sfidante:
-            </p>
-
-            <div className="space-y-1">
-              <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                Codice Stanza Assegnato:
-              </label>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 bg-slate-900 border border-slate-800 text-amber-400 font-mono font-black text-xs sm:text-sm rounded-xl px-3 py-2 flex items-center justify-between">
-                  <span>{hostedRoomCodes[activeTab]}</span>
-                  <span className="text-[9px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-bold uppercase">
-                    Attiva
+            {/* 2A. VISTA MAESTRO: ASSEGNAZIONE AUTOMATICA STANZA + BLOCCO ENTRATA FINO AL MATCH */}
+            {isMaestro && (
+              <div className="bg-slate-950 p-5 rounded-2xl border-2 border-amber-500/40 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-amber-500/20 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Crown className="w-5 h-5 text-amber-400" />
+                    <div>
+                      <h3 className="text-sm sm:text-base font-black text-white">
+                        La Tua Aula Masterclass da Maestro
+                      </h3>
+                      <p className="text-slate-400 text-xs">
+                        La stanza &egrave; assegnata automaticamente. Condividila con l'allievo.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-full font-black uppercase">
+                    👑 Maestro
                   </span>
                 </div>
+
+                {/* Box codice stanza visibile (nessun codice da inserire per il maestro!) */}
+                <div className="bg-slate-900 border border-amber-500/30 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
+                      Codice Aula Assegnato Automaticamente:
+                    </span>
+                    <div className="text-2xl font-black font-mono text-amber-400 tracking-wider">
+                      {hostedRoomCodes.masterclass}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={() => handleCopyLink('masterclass', hostedRoomCodes.masterclass, 'allievo')}
+                      className="flex-1 sm:flex-none py-2 px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                      title="Copia link di invito per l'allievo"
+                    >
+                      {copiedState === hostedRoomCodes.masterclass ? (
+                        <Check className="w-4 h-4 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-amber-400" />
+                      )}
+                      <span>{copiedState === hostedRoomCodes.masterclass ? 'Link Copiato!' : 'Copia Link 📋'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleShareWhatsApp('masterclass', hostedRoomCodes.masterclass, 'allievo')}
+                      className="flex-1 sm:flex-none py-2 px-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow"
+                      title="Invia codice all'allievo su WhatsApp"
+                    >
+                      <MessageCircle className="w-4 h-4 fill-white" />
+                      <span>Invia su WhatsApp 💬</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stato del Match dell'Allievo */}
+                <div className="bg-slate-900/60 border border-slate-800 p-3.5 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-300 uppercase flex items-center gap-2">
+                      <Users className="w-4 h-4 text-amber-400" />
+                      <span>Stato Connessione Allievo:</span>
+                    </span>
+
+                    {hasStudentMatch ? (
+                      <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>MATCH TROVATO: ALLIEVO COLLEGATO!</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full flex items-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 animate-spin" />
+                        <span>In attesa che l'allievo entri nella stanza...</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                    <div>
+                      {hasStudentMatch ? (
+                        <span className="text-emerald-300 font-bold">
+                          👨‍🎓 {otherConnectedMember?.username || 'Allievo'} è entrato nell'aula {hostedRoomCodes.masterclass}!
+                        </span>
+                      ) : (
+                        <span>
+                          Il Maestro non pu&ograve; entrare al pianoforte finch&eacute; l'Allievo non entra nell'aula.
+                        </span>
+                      )}
+                    </div>
+
+                    {!hasStudentMatch && (
+                      <button
+                        onClick={() => {
+                          setConnectedMembers([
+                            { id: 'usr_me', username: globalName, role: 'maestro', score: 0 },
+                            { id: 'bot_student', username: 'Allievo Simualto 🤖', role: 'allievo', score: 0 },
+                          ]);
+                        }}
+                        className="text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/30 font-bold cursor-pointer transition-all shrink-0"
+                      >
+                        🤖 Simula Allievo (Test)
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Opzioni Didattiche */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase block">
+                      Spartito di Riferimento Lezione
+                    </label>
+                    <select
+                      value={selectedSong.id}
+                      onChange={(e) => {
+                        const found = PRESET_SONGS.find((s) => s.id === e.target.value);
+                        if (found) setSelectedSong(found);
+                      }}
+                      className="w-full bg-slate-900 border border-slate-800 text-white font-bold text-xs rounded-xl px-3 py-2 outline-none"
+                    >
+                      {PRESET_SONGS.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.title} ({s.key})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase block">
+                      Velocit&agrave; Esecuzione Allievo
+                    </label>
+                    <div className="flex items-center gap-1 pt-0.5">
+                      {[50, 75, 100].map((spd) => (
+                        <button
+                          key={spd}
+                          onClick={() => setMasterclassSpeed(spd)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            masterclassSpeed === spd
+                              ? 'bg-amber-500 text-slate-950 font-black'
+                              : 'bg-slate-900 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {spd}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pulsante Avvio Maestro: BLOCCATO FINCHÉ NON C'È IL MATCH CON L'ALLIEVO */}
+                <div className="pt-2">
+                  <button
+                    onClick={() => handleLaunchSession(hostedRoomCodes.masterclass, 'maestro')}
+                    disabled={!hasStudentMatch}
+                    className={`w-full py-4 px-6 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2.5 transition-all shadow-2xl active:scale-95 ${
+                      hasStudentMatch
+                        ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:brightness-110 text-slate-950 cursor-pointer animate-pulse'
+                        : 'bg-slate-800/80 text-slate-500 border border-slate-700/50 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    {hasStudentMatch ? (
+                      <>
+                        <Play className="w-5 h-5 fill-slate-950 shrink-0" />
+                        <span>ALLIEVO COLLEGATO! AVVIA LEZIONE AL PIANOFORTE ({hostedRoomCodes.masterclass}) 🚀</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-5 h-5 text-slate-500 shrink-0" />
+                        <span>IN ATTESA CHE L'ALLIEVO ENTRI NELL'AULA... (0/1 ALLIEVO)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 2B. VISTA ALLIEVO: INSERISCE IL CODICE AULA COMUNICATO DAL MAESTRO */}
+            {isAllievo && (
+              <div className="bg-slate-950 p-5 rounded-2xl border-2 border-emerald-500/50 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5 text-emerald-400" />
+                    <div>
+                      <h3 className="text-sm sm:text-base font-black text-white">
+                        Ingresso Allievo alla Masterclass
+                      </h3>
+                      <p className="text-slate-400 text-xs">
+                        Inserisci il codice stanza che ti ha detto il Maestro o che hai ricevuto nel link.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full font-black uppercase">
+                    👨‍🎓 Allievo
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-slate-300 font-bold uppercase block">
+                    Codice Aula del Maestro da Inserire:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={joinInputs.masterclass}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        setJoinInputs((prev) => ({ ...prev, masterclass: val }));
+                      }}
+                      placeholder="Es. MASTERCLASS-101"
+                      className="flex-1 bg-slate-900 border-2 border-emerald-500/50 text-emerald-300 font-mono font-black text-sm sm:text-base rounded-xl px-4 py-3 outline-none focus:border-emerald-400 uppercase tracking-widest placeholder:normal-case placeholder:font-sans placeholder:text-slate-600"
+                    />
+                    {joinInputs.masterclass && (
+                      <button
+                        onClick={() => setJoinInputs((prev) => ({ ...prev, masterclass: '' }))}
+                        className="text-slate-400 hover:text-white text-xs px-3 py-3 bg-slate-900 rounded-xl border border-slate-800"
+                        title="Cancella"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Non appena inserisci il codice ed entri, il Maestro vedr&agrave; il match e la lezione avr&agrave; inizio!
+                  </p>
+                </div>
+
+                {/* Pulsante Entra Allievo */}
+                <div className="pt-2">
+                  <button
+                    onClick={() => handleLaunchSession(joinInputs.masterclass, 'allievo')}
+                    disabled={!joinInputs.masterclass.trim()}
+                    className="w-full py-4 px-6 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-40 active:scale-95 text-slate-950 font-black text-sm sm:text-base rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>🚀 ENTRA NELL'AULA DEL MAESTRO ({joinInputs.masterclass.trim() || 'INSERISCI CODICE'})</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ============================================================== */
+          /* NON-MASTERCLASS MODES (BATTLE, QUATTRO MANI, PIANO BAR, ETC.)  */
+          /* ============================================================== */
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Card A: Entra con Codice */}
+              <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border-2 border-emerald-500/40 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                  <div className="flex items-center gap-2 text-emerald-400 font-black text-xs sm:text-sm uppercase tracking-wide">
+                    <span>🚪</span>
+                    <span>Hai un Codice Stanza? Entra qui</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold uppercase">
+                    {activeTab === 'battle' ? 'Sfidante' : activeTab === 'pianobar' ? 'Pubblico' : 'Partecipante'}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase block">
+                    Codice Stanza da Inserire:
+                  </label>
+                  <input
+                    type="text"
+                    value={joinInputs[activeTab]}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase();
+                      setJoinInputs((prev) => ({ ...prev, [activeTab]: val }));
+                    }}
+                    placeholder={`Es. ${activeTab.toUpperCase()}-101`}
+                    className="w-full bg-slate-900 border border-emerald-500/50 text-emerald-300 font-mono font-black text-xs sm:text-sm rounded-xl px-3 py-2 outline-none uppercase tracking-wider"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase block">
+                    Il Tuo Ruolo in questa Stanza:
+                  </label>
+                  <select
+                    value={selectedRoles[activeTab]}
+                    onChange={(e) => setSelectedRoles((prev) => ({ ...prev, [activeTab]: e.target.value }))}
+                    className="w-full bg-slate-900 border border-emerald-500/40 text-emerald-300 font-bold text-xs rounded-xl px-3 py-2 outline-none"
+                  >
+                    {availableRoles.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
-                  onClick={() => handleRegenerateHostedCode(activeTab)}
-                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1 border border-slate-700 transition-all cursor-pointer"
-                  title="Genera un codice stanza diverso"
+                  onClick={() => handleLaunchSession(joinInputs[activeTab], selectedRoles[activeTab])}
+                  disabled={!joinInputs[activeTab].trim()}
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:opacity-40 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Nuovo</span>
+                  <span>🚀 ENTRA IN QUESTA STANZA</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
-            </div>
 
-            {/* Condivisione con WhatsApp & Copia Link */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                onClick={() =>
-                  handleCopyLink(
-                    activeTab,
-                    hostedRoomCodes[activeTab],
-                    activeTab === 'masterclass' ? 'allievo' : 'sfidante'
-                  )
-                }
-                className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
-                title="Copia link completo per l'allievo/sfidante"
-              >
-                {copiedState === hostedRoomCodes[activeTab] ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5 text-amber-400" />
-                )}
-                <span>{copiedState === hostedRoomCodes[activeTab] ? 'Copiato!' : 'Copia Link 📋'}</span>
-              </button>
-
-              <button
-                onClick={() =>
-                  handleShareWhatsApp(
-                    activeTab,
-                    hostedRoomCodes[activeTab],
-                    activeTab === 'masterclass' ? 'allievo' : 'sfidante'
-                  )
-                }
-                className="py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow"
-                title="Invia invito direttamente su WhatsApp"
-              >
-                <MessageCircle className="w-3.5 h-3.5 fill-white" />
-                <span>WhatsApp 💬</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 2. OPZIONI SPECIFICHE DELLA MODALITÀ */}
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-300">
-            <Sliders className="w-4 h-4 text-amber-400" />
-            <span>Configurazione & Brano per {activeTab.toUpperCase()}</span>
-          </div>
-
-          {activeTab === 'masterclass' && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                  Spartito / Brano Lezione
-                </label>
-                <select
-                  value={selectedSong.id}
-                  onChange={(e) => {
-                    const found = PRESET_SONGS.find((s) => s.id === e.target.value);
-                    if (found) setSelectedSong(found);
-                  }}
-                  className="w-full bg-slate-900 border border-slate-800 text-white font-bold text-xs rounded-xl px-3 py-2 outline-none"
-                >
-                  {PRESET_SONGS.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.title} ({s.key})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                  Velocit&agrave; Rallentatore
-                </label>
-                <div className="flex items-center gap-1 pt-0.5">
-                  {[50, 75, 100].map((spd) => (
-                    <button
-                      key={spd}
-                      onClick={() => setMasterclassSpeed(spd)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        masterclassSpeed === spd
-                          ? 'bg-amber-500 text-slate-950 font-black'
-                          : 'bg-slate-900 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {spd}%
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                  Modalit&agrave; didattica allievo
-                </label>
-                <div className="flex items-center gap-1 pt-0.5">
-                  <button
-                    onClick={() => setMasterclassExerciseType('arcade')}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      masterclassExerciseType === 'arcade'
-                        ? 'bg-purple-600 text-white font-black'
-                        : 'bg-slate-900 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    🎮 Arcade a Tempo
-                  </button>
-                  <button
-                    onClick={() => setMasterclassExerciseType('learn')}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      masterclassExerciseType === 'learn'
-                        ? 'bg-blue-600 text-white font-black'
-                        : 'bg-slate-900 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    📖 Impara Nota per Nota
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'battle' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                  Brano per il Duello 1v1
-                </label>
-                <select
-                  value={selectedSong.id}
-                  onChange={(e) => {
-                    const found = PRESET_SONGS.find((s) => s.id === e.target.value);
-                    if (found) setSelectedSong(found);
-                  }}
-                  className="w-full bg-slate-900 border border-slate-800 text-white font-bold text-xs rounded-xl px-3 py-2 outline-none"
-                >
-                  {PRESET_SONGS.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.title} ({s.key})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                  Livello Difficolt&agrave; Duello
-                </label>
-                <div className="flex items-center gap-1 pt-0.5">
-                  {(['facile', 'normale', 'virtuoso'] as const).map((diff) => (
-                    <button
-                      key={diff}
-                      onClick={() => setBattleDifficulty(diff)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer ${
-                        battleDifficulty === diff
-                          ? 'bg-amber-500 text-slate-950 font-black'
-                          : 'bg-slate-900 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {diff}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'duet' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                  Spartito a Quattro Mani
-                </label>
-                <select
-                  value={selectedSong.id}
-                  onChange={(e) => {
-                    const found = PRESET_SONGS.find((s) => s.id === e.target.value);
-                    if (found) setSelectedSong(found);
-                  }}
-                  className="w-full bg-slate-900 border border-slate-800 text-white font-bold text-xs rounded-xl px-3 py-2 outline-none"
-                >
-                  {PRESET_SONGS.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.title} ({s.key})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="p-2 bg-slate-900/60 rounded-xl border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>
-                  Uno sfidante suona la <strong className="text-amber-300">Mano Destra (melodia)</strong>, l'altro suona la <strong className="text-emerald-300">Mano Sinistra (bassi)</strong>!
-                </span>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'pianobar' && (
-            <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-slate-300">
-                <Radio className="w-4 h-4 text-amber-400" />
-                <span>Timbro Pianoforte: <strong>Gran Coda Concert Grand</strong> in streaming dal vivo</span>
-              </div>
-              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded font-bold uppercase">
-                Sala Live
-              </span>
-            </div>
-          )}
-
-          {(activeTab === 'relay' || activeTab === 'guess') && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                  Brano Musicale
-                </label>
-                <select
-                  value={selectedSong.id}
-                  onChange={(e) => {
-                    const found = PRESET_SONGS.find((s) => s.id === e.target.value);
-                    if (found) setSelectedSong(found);
-                  }}
-                  className="w-full bg-slate-900 border border-slate-800 text-white font-bold text-xs rounded-xl px-3 py-2 outline-none"
-                >
-                  {PRESET_SONGS.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 3. PARTECIPANTI IN QUESTA STANZA & SALA D'ATTESA (LIVE WEB SOCKET) */}
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-black uppercase text-slate-300 flex items-center gap-2">
-              <Users className="w-4 h-4 text-amber-400" />
-              <span>
-                Partecipanti Connessi a <strong className="text-amber-400 font-mono">{currentRoomCode}</strong> ({connectedMembers.length}/2)
-              </span>
-            </div>
-
-            {connectedMembers.length >= 2 || activeTab === 'postcards' ? (
-              <span className="text-[11px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Stanza Pronta per Iniziare!</span>
-              </span>
-            ) : (
-              <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
-                <AlertCircle className="w-3.5 h-3.5" />
-                <span>
-                  {activeTab === 'masterclass' && 'In attesa dell\'Allievo o Maestro...'}
-                  {activeTab === 'battle' && 'In attesa dell\'altro Sfidante...'}
-                  {activeTab === 'pianobar' && 'In attesa del Pubblico / Esecutore...'}
-                  {activeTab !== 'masterclass' && activeTab !== 'battle' && activeTab !== 'pianobar' && 'In attesa dei partecipanti...'}
-                </span>
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Slot 1: You */}
-            <div className="p-3 bg-slate-900 border border-amber-500/40 rounded-xl flex items-center justify-between text-xs font-bold">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-amber-300">{globalName} (Tu)</span>
-              </div>
-              <span className="text-[10px] bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded font-black uppercase">
-                {currentRole}
-              </span>
-            </div>
-
-            {/* Slot 2: Connected Peer or Waiting Placeholder */}
-            {connectedMembers.length >= 2 ? (
-              <div className="p-3 bg-slate-900 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs font-bold animate-pulse">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-emerald-300">
-                    {connectedMembers.find((m) => m.username !== globalName)?.username || 'Partecipante Connesso'}
+              {/* Card B: Crea Nuova Stanza */}
+              <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <div className="flex items-center gap-2 text-amber-400 font-black text-xs sm:text-sm uppercase tracking-wide">
+                    <span>👑</span>
+                    <span>Crea e Ospita una Nuova Stanza</span>
+                  </div>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold uppercase">
+                    Host
                   </span>
                 </div>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-200 px-2 py-0.5 rounded font-black uppercase">
-                  {connectedMembers.find((m) => m.username !== globalName)?.role || 'Online'}
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase block">
+                    Codice Stanza Assegnato:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-slate-900 border border-slate-800 text-amber-400 font-mono font-black text-xs sm:text-sm rounded-xl px-3 py-2 flex items-center justify-between">
+                      <span>{hostedRoomCodes[activeTab]}</span>
+                      <span className="text-[9px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-bold uppercase">
+                        Attiva
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRegenerateHostedCode(activeTab)}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1 border border-slate-700 transition-all cursor-pointer"
+                      title="Genera nuovo codice"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="hidden sm:inline">Nuovo</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => handleCopyLink(activeTab, hostedRoomCodes[activeTab], 'sfidante')}
+                    className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  >
+                    {copiedState === hostedRoomCodes[activeTab] ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5 text-amber-400" />
+                    )}
+                    <span>{copiedState === hostedRoomCodes[activeTab] ? 'Copiato!' : 'Copia Link 📋'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleShareWhatsApp(activeTab, hostedRoomCodes[activeTab], 'sfidante')}
+                    className="py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 fill-white" />
+                    <span>WhatsApp 💬</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Pulsante Avvio per altre modalità */}
+            <div className="pt-2">
+              <button
+                onClick={() => handleLaunchSession()}
+                className="w-full py-3.5 px-6 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2.5 transition-all shadow-2xl active:scale-95 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 cursor-pointer"
+              >
+                <Play className="w-5 h-5 fill-slate-950 shrink-0" />
+                <span>
+                  {activeTab === 'battle' && `ENTRA NEL DUELLO 1v1 COME SFIDANTE (${currentRoomCode}) ⚔️`}
+                  {activeTab === 'duet' && `SUONA A QUATTRO MANI (${currentRoomCode}) 🖐️`}
+                  {activeTab === 'pianobar' && `ENTRA AL PIANO BAR LIVE (${currentRoomCode}) 🍸`}
+                  {activeTab === 'relay' && `INIZIA LA STAFFETTA MUSICALE (${currentRoomCode}) 🏃`}
+                  {activeTab === 'guess' && `SFIDA A INDOVINA LA CANZONE (${currentRoomCode}) ❓`}
+                  {activeTab === 'postcards' && `APRI IL PIANOFORTE DELLE CARTOLINE 💌`}
                 </span>
-              </div>
-            ) : (
-              <div className="p-3 bg-slate-900/60 border border-dashed border-slate-800 rounded-xl flex items-center justify-between text-xs font-bold text-slate-500 gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-slate-600" />
-                  <span className="truncate">
-                    {activeTab === 'masterclass' && 'In attesa di Allievo o Maestro...'}
-                    {activeTab === 'battle' && 'In attesa di un secondo Sfidante...'}
-                    {activeTab === 'pianobar' && 'In attesa del Pubblico in sala...'}
-                    {activeTab !== 'masterclass' && activeTab !== 'battle' && activeTab !== 'pianobar' && 'In attesa di partecipanti...'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => {
-                      const simName =
-                        activeTab === 'masterclass'
-                          ? currentRole === 'maestro'
-                            ? 'Allievo Bot 👨‍🎓'
-                            : 'Maestro Bot 👨‍🏫'
-                          : activeTab === 'battle'
-                          ? 'Sfidante Bot 🤖'
-                          : activeTab === 'pianobar'
-                          ? 'Pubblico Bot 🥂'
-                          : 'Compagno Bot 🤖';
-                      const simRole =
-                        activeTab === 'masterclass'
-                          ? currentRole === 'maestro'
-                            ? 'allievo'
-                            : 'maestro'
-                          : activeTab === 'battle'
-                          ? 'sfidante'
-                          : activeTab === 'pianobar'
-                          ? 'pubblico'
-                          : 'giocatore';
-
-                      setConnectedMembers([
-                        { id: 'usr_me', username: globalName, role: currentRole, score: 0 },
-                        {
-                          id: 'bot_peer',
-                          username: simName,
-                          role: simRole,
-                          score: 0,
-                        },
-                      ]);
-                    }}
-                    className="text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/30 font-bold transition-all cursor-pointer whitespace-nowrap"
-                  >
-                    🤖 Simula Compagno
-                  </button>
-                  <button
-                    onClick={() => handleShareWhatsApp(activeTab, currentRoomCode, currentRole)}
-                    className="text-[10px] text-emerald-400 hover:underline font-bold whitespace-nowrap cursor-pointer"
-                  >
-                    WhatsApp 💬
-                  </button>
-                </div>
-              </div>
-            )}
+              </button>
+            </div>
           </div>
-        </div>
-
-        {/* 4. PULSANTE PRINCIPALE DI AVVIO / INGRESSO AL PIANOFORTE */}
-        <div className="pt-2">
-          <button
-            onClick={() => handleLaunchSession()}
-            className="w-full py-3.5 px-6 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2.5 transition-all shadow-2xl active:scale-95 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 cursor-pointer"
-          >
-            <Play className="w-5 h-5 fill-slate-950 shrink-0" />
-            <span>
-              {activeTab === 'masterclass' && `AVVIA LEZIONE MASTERCLASS (STANZA: ${currentRoomCode}) 🎹`}
-              {activeTab === 'battle' && `ENTRA NEL DUELLO 1v1 COME SFIDANTE (${currentRoomCode}) ⚔️`}
-              {activeTab === 'duet' && `SUONA A QUATTRO MANI (${currentRoomCode}) 🖐️`}
-              {activeTab === 'pianobar' && `ENTRA AL PIANO BAR LIVE (${currentRoomCode}) 🍸`}
-              {activeTab === 'relay' && `INIZIA LA STAFFETTA MUSICALE (${currentRoomCode}) 🏃`}
-              {activeTab === 'guess' && `SFIDA A INDOVINA LA CANZONE (${currentRoomCode}) ❓`}
-              {activeTab === 'postcards' && `APRI IL PIANOFORTE DELLE CARTOLINE 💌`}
-            </span>
-          </button>
-        </div>
+        )}
       </div>
 
       {/* AUDIO-LETTERE (POSTCARDS) SECTION */}

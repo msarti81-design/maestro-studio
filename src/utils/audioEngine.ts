@@ -353,20 +353,24 @@ class AudioEngine {
     }
   }
 
+  private staticHammerBuffer: AudioBuffer | null = null;
+
   /**
-   * Generates a felt hammer strike noise burst
+   * Generates a felt hammer strike noise burst (cached buffer for 0ms CPU glissando)
    */
   private createHammerTransient(ctx: AudioContext, freq: number, now: number): { source: AudioBufferSourceNode; gain: GainNode } | null {
     try {
-      const bufferSize = Math.floor(ctx.sampleRate * 0.016);
-      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const output = noiseBuffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.22));
+      if (!this.staticHammerBuffer || this.staticHammerBuffer.sampleRate !== ctx.sampleRate) {
+        const bufferSize = Math.floor(ctx.sampleRate * 0.016);
+        this.staticHammerBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = this.staticHammerBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.22));
+        }
       }
 
       const whiteNoise = ctx.createBufferSource();
-      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.buffer = this.staticHammerBuffer;
 
       const hammerFilter = ctx.createBiquadFilter();
       hammerFilter.type = 'bandpass';
@@ -374,7 +378,7 @@ class AudioEngine {
       hammerFilter.Q.setValueAtTime(2.4, now);
 
       const hammerGain = ctx.createGain();
-      hammerGain.gain.setValueAtTime(0.32, now);
+      hammerGain.gain.setValueAtTime(0.18, now);
       hammerGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.015);
 
       whiteNoise.connect(hammerFilter);
@@ -687,39 +691,23 @@ class AudioEngine {
   }
 
   releaseNote(note: string) {
+    if (this.isSamplerLoaded && this.sampler) {
+      try {
+        this.sampler.triggerRelease([note]);
+      } catch (e) {}
+    }
+
     if (!this.audioCtx) return;
     const now = this.audioCtx.currentTime;
-
-    // Felt damper acoustic click on key release
-    try {
-      const releaseNoiseBuffer = this.audioCtx.createBuffer(1, Math.floor(this.audioCtx.sampleRate * 0.02), this.audioCtx.sampleRate);
-      const data = releaseNoiseBuffer.getChannelData(0);
-      for (let i = 0; i < data.length; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.3));
-      }
-      const noiseSrc = this.audioCtx.createBufferSource();
-      noiseSrc.buffer = releaseNoiseBuffer;
-      const noiseGain = this.audioCtx.createGain();
-      noiseGain.gain.setValueAtTime(0.06, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.018);
-      noiseSrc.connect(noiseGain);
-      if (this.masterEqualizerLow) {
-        noiseGain.connect(this.masterEqualizerLow);
-      } else {
-        noiseGain.connect(this.audioCtx.destination);
-      }
-      noiseSrc.start(now);
-      noiseSrc.stop(now + 0.02);
-    } catch (e) {}
 
     this.activeVoices.forEach((voice) => {
       if (voice.note === note) {
         try {
           voice.masterGain.gain.cancelScheduledValues(now);
           voice.masterGain.gain.setValueAtTime(Math.max(0.0001, voice.masterGain.gain.value), now);
-          voice.masterGain.gain.linearRampToValueAtTime(0.0001, now + 0.045);
+          voice.masterGain.gain.linearRampToValueAtTime(0.0001, now + 0.18);
           voice.oscNodes.forEach((o) => {
-            try { (o as any).stop?.(now + 0.05); } catch (e) {}
+            try { (o as any).stop?.(now + 0.20); } catch (e) {}
           });
         } catch (e) {}
       }

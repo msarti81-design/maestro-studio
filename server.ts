@@ -399,7 +399,7 @@ Return a JSON object containing:
         const { type, roomId, username, mode, role } = msg;
 
         if (type === "room:join") {
-          const rId = roomId || "lobby";
+          const rId = (roomId ? String(roomId).trim().toUpperCase() : "LOBBY");
           if (!activeRooms.has(rId)) {
             activeRooms.set(rId, {
               id: rId,
