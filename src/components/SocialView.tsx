@@ -635,10 +635,16 @@ export const SocialView: React.FC<SocialViewProps> = ({
     if (m.id && m.id === clientSessionId) return false;
     if (m.role && (m.role.toLowerCase() === 'allievo' || m.role.toLowerCase() === 'studente')) return true;
     if (m.username && m.username.trim().toLowerCase() !== globalName.trim().toLowerCase()) return true;
-    return true;
+    return false;
   }) || (connectedMembers.length >= 2 ? connectedMembers.find((m) => m.id !== clientSessionId) || connectedMembers[1] : null);
 
-  const hasStudentMatch = Boolean(otherConnectedMember) || connectedMembers.length >= 2;
+  // For Allievo: check if Maestro is present in the room
+  const maestroMember = connectedMembers.find((m) => {
+    if (m.id && m.id === clientSessionId) return false;
+    return m.role && (m.role.toLowerCase() === 'maestro' || m.role.toLowerCase() === 'teacher');
+  });
+
+  const hasStudentMatch = Boolean(otherConnectedMember) || (isMaestro && connectedMembers.length >= 2);
 
   // Sound chime when student match is found for Maestro
   const hadMatchRef = useRef(false);
@@ -1081,14 +1087,30 @@ export const SocialView: React.FC<SocialViewProps> = ({
                       )}
                     </div>
                     {joinInputs.masterclass.trim() && (
-                      <div className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5">
-                        <span>✓ Aula riconosciuta:</span>
-                        <span className="font-mono bg-emerald-500/20 px-2 py-0.5 rounded text-white">{normalizedInputRoom}</span>
+                      <div className="space-y-1.5 pt-1">
+                        <div className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5">
+                          <span>✓ Aula riconosciuta:</span>
+                          <span className="font-mono bg-emerald-500/20 px-2 py-0.5 rounded text-white">{normalizedInputRoom}</span>
+                        </div>
+
+                        {maestroMember ? (
+                          <div className="bg-emerald-950/80 border border-emerald-400/60 p-2.5 rounded-xl flex items-center justify-between text-xs text-emerald-300 font-bold animate-pulse">
+                            <div className="flex items-center gap-2">
+                              <span>👑</span>
+                              <span>Maestro <strong>{maestroMember.username}</strong> è presente in quest'aula!</span>
+                            </div>
+                            <span className="bg-emerald-500 text-slate-950 px-2 py-0.5 rounded font-black text-[10px] uppercase shadow">
+                              Pronto 🟢
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-amber-300/80 bg-slate-900 border border-amber-500/20 px-3 py-1.5 rounded-xl flex items-center gap-2">
+                            <span className="animate-spin">⏳</span>
+                            <span>In attesa del collegamento con il Maestro... Entra per avviare il piano!</span>
+                          </div>
+                        )}
                       </div>
                     )}
-                    <p className="text-[11px] text-slate-400">
-                      Non appena premi il pulsante verde, il Maestro vedrà il match in tempo reale e la lezione avrà inizio!
-                    </p>
                   </div>
 
                   {/* Pulsante Entra Allievo */}

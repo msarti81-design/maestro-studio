@@ -447,24 +447,20 @@ class AudioEngine {
       }
 
       if (instrument === "piano") {
-        const B = 0.00032;
-
+        // High-definition warm acoustic piano model (low CPU, pristine glissando)
         const partials = [
           { k: 1, amp: 1.00, decay: 1.00, type: 'triangle' as const },
-          { k: 2, amp: 0.62, decay: 0.75, type: 'sine' as const },
-          { k: 3, amp: 0.38, decay: 0.52, type: 'sine' as const },
-          { k: 4, amp: 0.22, decay: 0.35, type: 'sine' as const },
-          { k: 5, amp: 0.12, decay: 0.22, type: 'sine' as const },
-          { k: 6, amp: 0.06, decay: 0.15, type: 'sine' as const },
+          { k: 2, amp: 0.52, decay: 0.75, type: 'sine' as const },
+          { k: 3, amp: 0.28, decay: 0.50, type: 'sine' as const },
         ];
 
         partials.forEach(p => {
-          const inharmonicFreq = freq * p.k * Math.sqrt(1 + B * p.k * p.k);
-          if (inharmonicFreq > 18500) return;
+          const harmonicFreq = freq * p.k;
+          if (harmonicFreq > 18500) return;
 
           const osc = this.audioCtx!.createOscillator();
           osc.type = p.type;
-          osc.frequency.setValueAtTime(inharmonicFreq, now);
+          osc.frequency.setValueAtTime(harmonicFreq, now);
 
           const g = this.audioCtx!.createGain();
           g.gain.setValueAtTime(0.0001, now);
@@ -477,23 +473,18 @@ class AudioEngine {
           gainNodes.push(g);
         });
 
-        // Triple-String Acoustic Detune Chorus
-        const detuneFrequencies = [freq + 0.38, freq - 0.42];
-        detuneFrequencies.forEach((dFreq) => {
-          const detuneOsc = this.audioCtx!.createOscillator();
-          detuneOsc.type = 'triangle';
-          detuneOsc.frequency.setValueAtTime(dFreq, now);
-
-          const detuneGain = this.audioCtx!.createGain();
-          detuneGain.gain.setValueAtTime(0.0001, now);
-          detuneGain.gain.linearRampToValueAtTime(0.32, now + 0.0035);
-          detuneGain.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration * 0.88);
-
-          detuneOsc.connect(detuneGain);
-          detuneGain.connect(voiceMasterGain);
-          oscNodes.push(detuneOsc);
-          gainNodes.push(detuneGain);
-        });
+        // Acoustic Detune Chorus Shimmer
+        const detuneOsc = this.audioCtx.createOscillator();
+        detuneOsc.type = 'triangle';
+        detuneOsc.frequency.setValueAtTime(freq + 0.38, now);
+        const detuneGain = this.audioCtx.createGain();
+        detuneGain.gain.setValueAtTime(0.0001, now);
+        detuneGain.gain.linearRampToValueAtTime(0.24, now + 0.0035);
+        detuneGain.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration * 0.85);
+        detuneOsc.connect(detuneGain);
+        detuneGain.connect(voiceMasterGain);
+        oscNodes.push(detuneOsc);
+        gainNodes.push(detuneGain);
 
         // Physical Hammer Felt Impact Transient
         const hammer = this.createHammerTransient(this.audioCtx, freq, now);
@@ -507,8 +498,8 @@ class AudioEngine {
 
         // Master Voice Envelope
         voiceMasterGain.gain.setValueAtTime(0.0001, now);
-        voiceMasterGain.gain.linearRampToValueAtTime(0.98, now + 0.0025);
-        voiceMasterGain.gain.exponentialRampToValueAtTime(0.68, now + 0.16);
+        voiceMasterGain.gain.linearRampToValueAtTime(0.96, now + 0.0025);
+        voiceMasterGain.gain.exponentialRampToValueAtTime(0.65, now + 0.16);
         voiceMasterGain.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration);
 
       } else if (instrument === "guitar") {
@@ -703,12 +694,8 @@ class AudioEngine {
     this.activeVoices.forEach((voice) => {
       if (voice.note === note) {
         try {
-          voice.masterGain.gain.cancelScheduledValues(now);
-          voice.masterGain.gain.setValueAtTime(Math.max(0.0001, voice.masterGain.gain.value), now);
-          voice.masterGain.gain.linearRampToValueAtTime(0.0001, now + 0.18);
-          voice.oscNodes.forEach((o) => {
-            try { (o as any).stop?.(now + 0.20); } catch (e) {}
-          });
+          // Smooth musical release curve without clicks or clicks
+          voice.masterGain.gain.setTargetAtTime(0.0001, now, 0.05);
         } catch (e) {}
       }
     });

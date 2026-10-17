@@ -425,24 +425,32 @@ Return a JSON object containing:
           }
 
           const room = activeRooms.get(rId)!;
-          const clientId = (msg.clientId && String(msg.clientId).trim()) || `user_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-          currentClient = {
-            ws,
-            id: clientId,
-            username: username || "Maestro",
-            role: role || "player",
-            roomId: rId,
-            score: 0,
-            lastActive: Date.now(),
-          };
+          const effectiveId = (msg.clientId && String(msg.clientId).trim()) || `ws_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-          room.clients.set(clientId, currentClient);
+          if (room.clients.has(effectiveId)) {
+            currentClient = room.clients.get(effectiveId)!;
+            currentClient.ws = ws;
+            currentClient.username = username || currentClient.username;
+            currentClient.role = role || currentClient.role;
+            currentClient.lastActive = Date.now();
+          } else {
+            currentClient = {
+              ws,
+              id: effectiveId,
+              username: username || (role === "maestro" ? "Maestro" : "Allievo"),
+              role: role || "player",
+              roomId: rId,
+              score: 0,
+              lastActive: Date.now(),
+            };
+            room.clients.set(effectiveId, currentClient);
+          }
 
           // Send welcome message directly to this client so it knows its own ID and room
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({
               type: "room:welcome",
-              clientId,
+              clientId: effectiveId,
               roomId: rId,
               role: currentClient.role,
             }));
@@ -610,16 +618,21 @@ Return a JSON object containing:
 
     ws.on("close", () => {
       if (currentClient) {
+        currentClient.ws = null;
+        currentClient.lastActive = Date.now();
         const room = activeRooms.get(currentClient.roomId);
         if (room) {
-          currentClient.ws = null;
-          // Grace period of 4 seconds so navigation (e.g. SocialView -> PianoView) doesn't cause student to drop
+          // Allow a grace period of 20 seconds for screen transitions (SocialView -> PianoView)
           setTimeout(() => {
-            if (currentClient && !currentClient.ws) {
-              room.clients.delete(currentClient.id);
-              broadcastRoomState(room);
+            const r = activeRooms.get(currentClient!.roomId);
+            if (r) {
+              const c = r.clients.get(currentClient!.id);
+              if (c && (!c.ws || c.ws.readyState !== WebSocket.OPEN) && (Date.now() - (c.lastActive || 0) > 18000)) {
+                r.clients.delete(currentClient!.id);
+                broadcastRoomState(r);
+              }
             }
-          }, 4000);
+          }, 18000);
         }
       }
     });
@@ -630,7 +643,7 @@ Return a JSON object containing:
     try {
       const { roomId, username, role, mode, clientId } = req.body;
       const rId = (roomId ? String(roomId).trim().toUpperCase() : "LOBBY");
-      const cleanUser = String(username || "Utente").trim();
+      const cleanUser = String(username || (role === "maestro" ? "Maestro" : "Allievo")).trim();
       const cleanRole = String(role || "allievo").trim();
 
       if (!activeRooms.has(rId)) {
@@ -646,7 +659,7 @@ Return a JSON object containing:
       }
 
       const room = activeRooms.get(rId)!;
-      const cId = clientId || `user_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      const cId = (clientId && String(clientId).trim()) || `http_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
       const client = room.clients.get(cId) || {
         id: cId,
