@@ -15,10 +15,77 @@ import { DeviceIdentityModal } from './components/DeviceIdentityModal';
 import { getStoredUsername, verifyAndLockUsername } from './utils/deviceIdentity';
 import { audioEngine } from './utils/audioEngine';
 
-import { ActiveSocialSession, SocialSessionResults } from './types';
+import { ActiveSocialSession, SocialSessionResults, SocialRoomMode } from './types';
+
+// Helper to extract room invitation parameters from URL (query string or hash)
+function parseRoomInviteFromUrl(): ActiveSocialSession | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const search = window.location.search;
+    const hash = window.location.hash;
+
+    let room = '';
+    let mode: SocialRoomMode = 'masterclass';
+    let role: 'maestro' | 'allievo' = 'allievo';
+
+    // 1. Search params (?room=MASTERCLASS-101&mode=masterclass&role=allievo)
+    if (search) {
+      const sp = new URLSearchParams(search);
+      if (sp.has('room') || sp.has('roomId') || sp.has('aula')) {
+        room = sp.get('room') || sp.get('roomId') || sp.get('aula') || '';
+        if (sp.has('mode')) mode = (sp.get('mode') as SocialRoomMode) || 'masterclass';
+        if (sp.has('role')) role = (sp.get('role') as any) || 'allievo';
+      }
+    }
+
+    // 2. Hash params (#social?room=MASTERCLASS-101 or #room=MASTERCLASS-101)
+    if (!room && hash) {
+      const qIdx = hash.indexOf('?');
+      if (qIdx !== -1) {
+        const hp = new URLSearchParams(hash.substring(qIdx + 1));
+        if (hp.has('room') || hp.has('roomId') || hp.has('aula')) {
+          room = hp.get('room') || hp.get('roomId') || hp.get('aula') || '';
+          if (hp.has('mode')) mode = (hp.get('mode') as SocialRoomMode) || 'masterclass';
+          if (hp.has('role')) role = (hp.get('role') as any) || 'allievo';
+        }
+      } else if (hash.startsWith('#room=')) {
+        room = hash.substring(6);
+      }
+    }
+
+    if (room && room.trim()) {
+      const cleanRoom = room.trim().toUpperCase();
+      if (!mode) {
+        if (cleanRoom.startsWith('MASTERCLASS-')) mode = 'masterclass';
+        else if (cleanRoom.startsWith('STAFFETTA-')) mode = 'relay';
+        else if (cleanRoom.startsWith('DUETTO-')) mode = 'duet';
+        else if (cleanRoom.startsWith('BATTLE-')) mode = 'battle';
+        else if (cleanRoom.startsWith('QUIZ-')) mode = 'guess';
+        else if (cleanRoom.startsWith('PIANOBAR-')) mode = 'pianobar';
+        else mode = 'masterclass';
+      }
+
+      return {
+        mode,
+        roomId: cleanRoom,
+        userRole: role,
+        status: 'active',
+      };
+    }
+  } catch (e) {}
+
+  return null;
+}
 
 export default function App() {
+  const [activeSocialSession, setActiveSocialSession] = useState<ActiveSocialSession | null>(() => parseRoomInviteFromUrl());
+
   const [currentView, setCurrentView] = useState<ViewMode | 'home'>(() => {
+    // If URL has an active room invitation, jump directly to piano room!
+    const invite = parseRoomInviteFromUrl();
+    if (invite) return 'piano';
+
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
       if (path.includes('piano') || path.includes('song')) return 'piano';
@@ -27,10 +94,10 @@ export default function App() {
       if (path.includes('social') || path.includes('challenge')) return 'social';
 
       const hash = window.location.hash.toLowerCase();
-      if (hash === '#piano' || hash === '#song') return 'piano';
-      if (hash === '#sheet') return 'sheet';
-      if (hash === '#jam') return 'jam';
-      if (hash === '#social' || hash === '#challenge') return 'social';
+      if (hash.startsWith('#piano') || hash.startsWith('#song')) return 'piano';
+      if (hash.startsWith('#sheet')) return 'sheet';
+      if (hash.startsWith('#jam')) return 'jam';
+      if (hash.startsWith('#social') || hash.startsWith('#challenge')) return 'social';
 
       try {
         const saved = localStorage.getItem('maestro_last_view');
@@ -44,7 +111,6 @@ export default function App() {
 
   const [volume, setVolume] = useState<number>(0);
   const [isAudioActive, setIsAudioActive] = useState<boolean>(false);
-  const [activeSocialSession, setActiveSocialSession] = useState<ActiveSocialSession | null>(null);
   const [lastSessionResults, setLastSessionResults] = useState<SocialSessionResults | null>(null);
 
   // Global Device Identity & Security State
@@ -58,7 +124,25 @@ export default function App() {
         setUsername(id.username);
       }
     });
-  }, []);
+
+    // Check for room invitation in URL and listen for URL changes
+    const checkUrlInvite = () => {
+      const invite = parseRoomInviteFromUrl();
+      if (invite) {
+        setActiveSocialSession(invite);
+        setCurrentView('piano');
+        audioEngine.init().catch(() => {});
+        setIsAudioActive(true);
+      }
+    };
+
+    window.addEventListener('hashchange', checkUrlInvite);
+    window.addEventListener('popstate', checkUrlInvite);
+    return () => {
+      window.removeEventListener('hashchange', checkUrlInvite);
+      window.removeEventListener('popstate', checkUrlInvite);
+    };
+  }, [username]);
 
   const handleSelectView = (view: ViewMode | 'home') => {
     setCurrentView(view);

@@ -780,7 +780,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
       );
     }
 
-    const effectiveRole = isSimulatingStudentMode ? 'student' : socialSession?.userRole;
+    const isTeacherRole = !isSimulatingStudentMode && (socialSession?.userRole === 'maestro' || (socialSession?.userRole as string) === 'teacher');
+    const effectiveRole = isTeacherRole ? 'maestro' : 'student';
 
     // Masterclass: If user is Maestro (and not simulating student), record note into current phrase (up to 100 notes!)
     if (socialSession?.mode === 'masterclass' && effectiveRole === 'maestro') {
@@ -1561,7 +1562,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
       {/* MASTERCLASS CONSOLE BAR (Maestro e Allievo) */}
       {socialSession?.mode === 'masterclass' && (() => {
-        const effectiveRole = isSimulatingStudentMode ? 'student' : socialSession.userRole;
+        const isTeacherRole = !isSimulatingStudentMode && (socialSession?.userRole === 'maestro' || (socialSession?.userRole as string) === 'teacher');
+        const effectiveRole = isTeacherRole ? 'maestro' : 'student';
         return (
           <div className="bg-slate-900/95 border-b border-amber-500/30 px-2 sm:px-3 py-1.5 flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0 z-20 overflow-x-auto scrollbar-none text-[10px] sm:text-xs">
             {/* TEACHER (MAESTRO) VIEW */}

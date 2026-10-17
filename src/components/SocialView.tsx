@@ -54,16 +54,66 @@ export const SocialView: React.FC<SocialViewProps> = ({
   lastResults,
   onClearResults,
 }) => {
-  const [activeTab, setActiveTab] = useState<SocialRoomMode>('masterclass');
+  // Helper to read room and mode from URL
+  const getInitialUrlState = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      let r = sp.get('room') || sp.get('roomId') || sp.get('aula');
+      let m = sp.get('mode') as SocialRoomMode | null;
+      let rl = sp.get('role') as any;
+
+      if (!r && window.location.hash.includes('?')) {
+        const q = window.location.hash.substring(window.location.hash.indexOf('?') + 1);
+        const hp = new URLSearchParams(q);
+        r = hp.get('room') || hp.get('roomId') || hp.get('aula');
+        if (!m) m = hp.get('mode') as SocialRoomMode | null;
+        if (!rl) rl = hp.get('role') as any;
+      }
+
+      if (r && r.trim()) {
+        const cleanR = r.trim().toUpperCase();
+        if (!m) {
+          if (cleanR.startsWith('MASTERCLASS-')) m = 'masterclass';
+          else if (cleanR.startsWith('STAFFETTA-')) m = 'relay';
+          else if (cleanR.startsWith('DUETTO-')) m = 'duet';
+          else if (cleanR.startsWith('BATTLE-')) m = 'battle';
+          else if (cleanR.startsWith('QUIZ-')) m = 'guess';
+          else if (cleanR.startsWith('PIANOBAR-')) m = 'pianobar';
+          else m = 'masterclass';
+        }
+        return {
+          room: cleanR,
+          mode: m || 'masterclass',
+          role: rl || 'allievo',
+        };
+      }
+    } catch (e) {}
+    return null;
+  };
+
+  const initialUrlRef = useRef(getInitialUrlState());
+  const initialUrl = initialUrlRef.current;
+
+  const [activeTab, setActiveTab] = useState<SocialRoomMode>(() => initialUrl?.mode || 'masterclass');
 
   // Global Username Management
   const [globalName, setGlobalName] = useState<string>(() => getUsername());
 
   // Room Setup & Connection State
-  const [userRole, setUserRole] = useState<'maestro' | 'allievo' | 'spettatore' | 'giocatore'>('maestro');
-  const [roomId, setRoomId] = useState<string>('AULA-MAESTRO-101');
+  const [userRole, setUserRole] = useState<'maestro' | 'allievo' | 'spettatore' | 'giocatore'>(
+    () => (initialUrl?.role as any) || 'maestro'
+  );
+  const [roomId, setRoomId] = useState<string>(
+    () => initialUrl?.room || `MASTERCLASS-${Math.floor(100 + Math.random() * 900)}`
+  );
   const [selectedSong, setSelectedSong] = useState<SheetSong>(PRESET_SONGS[0]);
   const [masterclassSpeed, setMasterclassSpeed] = useState<number>(100);
+
+  // Manual Room Join State (Student input field)
+  const [manualRoomCode, setManualRoomCode] = useState<string>('');
+  const [manualRole, setManualRole] = useState<'allievo' | 'maestro' | 'giocatore'>('allievo');
+  const [isCopiedLink, setIsCopiedLink] = useState<boolean>(false);
 
   // WebSocket Live Lobby Presence
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -95,8 +145,14 @@ export const SocialView: React.FC<SocialViewProps> = ({
     },
   ]);
 
-  // Update room code prefix when tab changes
+  // Update room code prefix when tab changes (only if not loaded from URL)
   useEffect(() => {
+    if (initialUrl && initialUrl.mode === activeTab) {
+      setRoomId(initialUrl.room);
+      setUserRole(initialUrl.role as any);
+      return;
+    }
+
     switch (activeTab) {
       case 'masterclass':
         setRoomId(`MASTERCLASS-${Math.floor(100 + Math.random() * 900)}`);
@@ -137,7 +193,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
         socketRef.current = null;
       }
     };
-  }, [roomId, activeTab]);
+  }, [roomId, activeTab, userRole]);
 
   const connectRoomWebSocket = (rId: string, name: string, role: string) => {
     if (socketRef.current) {
@@ -202,15 +258,39 @@ export const SocialView: React.FC<SocialViewProps> = ({
     }
   };
 
-  // WhatsApp Invite Link Generator
-  const handleShareWhatsApp = () => {
+  // Clean URL Generator for Instant Room Joining
+  const getShareUrl = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    const shareUrl = `${baseUrl}/#social?mode=${activeTab}&room=${roomId}`;
+    return `${baseUrl}/?room=${encodeURIComponent(roomId)}&mode=${encodeURIComponent(activeTab)}&role=allievo`;
+  };
+
+  // Instant Copy to Clipboard
+  const handleCopyLink = async () => {
+    try {
+      const url = getShareUrl();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setIsCopiedLink(true);
+      setTimeout(() => setIsCopiedLink(false), 2500);
+    } catch (e) {}
+  };
+
+  // WhatsApp Invite Link Generator with Clean URL
+  const handleShareWhatsApp = () => {
+    const shareUrl = getShareUrl();
 
     let textMessage = '';
     switch (activeTab) {
       case 'masterclass':
-        textMessage = `👨‍🏫 *INVITO MASTERCLASS PIANOFORTE MAESTRO STUDIO*\nCiao! Ti invito alla lezione di pianoforte in rete.\n\n📍 *Codice Aula:* ${roomId}\n🔗 *Unisciti qui:* ${shareUrl}`;
+        textMessage = `👨‍🏫 *INVITO MASTERCLASS PIANOFORTE MAESTRO STUDIO*\nCiao! Ti invito alla lezione di pianoforte in rete.\n\n📍 *Codice Aula:* ${roomId}\n🔗 *Clicca per unirti subito:* ${shareUrl}`;
         break;
       case 'relay':
         textMessage = `🎹 *STAFFETTA MUSICALE - PASS THE MELODY*\nSei pronto a suonare una battuta a testa? Unisciti alla mia stanza!\n\n📍 *Codice Stanza:* ${roomId}\n🔗 *Gioca qui:* ${shareUrl}`;
@@ -236,16 +316,43 @@ export const SocialView: React.FC<SocialViewProps> = ({
     window.open(waUrl, '_blank');
   };
 
-  // Check if enough players are connected (Minimum 2 required for Masterclass, Relay, Duet, Battle)
+  // Manual Room Join (Student types or pastes Room ID or URL)
+  const handleManualJoin = () => {
+    let cleanCode = manualRoomCode.trim().toUpperCase();
+    if (!cleanCode) return;
+
+    if (cleanCode.includes('ROOM=')) {
+      const match = cleanCode.match(/ROOM=([A-Z0-9_-]+)/i);
+      if (match && match[1]) cleanCode = match[1];
+    } else if (cleanCode.includes('/#')) {
+      const match = cleanCode.match(/[?&]ROOM=([A-Z0-9_-]+)/i);
+      if (match && match[1]) cleanCode = match[1];
+    }
+
+    let inferredMode: SocialRoomMode = activeTab;
+    if (cleanCode.startsWith('MASTERCLASS-')) inferredMode = 'masterclass';
+    else if (cleanCode.startsWith('STAFFETTA-')) inferredMode = 'relay';
+    else if (cleanCode.startsWith('DUETTO-')) inferredMode = 'duet';
+    else if (cleanCode.startsWith('BATTLE-')) inferredMode = 'battle';
+    else if (cleanCode.startsWith('QUIZ-')) inferredMode = 'guess';
+    else if (cleanCode.startsWith('PIANOBAR-')) inferredMode = 'pianobar';
+
+    audioEngine.init().catch(() => {});
+
+    onLaunchPianoChallenge({
+      mode: inferredMode,
+      roomId: cleanCode,
+      userRole: manualRole,
+      song: selectedSong,
+      status: 'active',
+    });
+  };
+
+  // Check if enough players are connected (Minimum 2 recommended for Masterclass, Relay, Duet, Battle)
   const isRoomReadyToStart = connectedMembers.length >= 2 || activeTab === 'postcards';
 
   // Launch Full Screen Piano Challenge
   const handleStartPianoChallenge = () => {
-    if (!isRoomReadyToStart) {
-      alert(`⚠️ In attesa dell'allievo/sfidante! Condividi l'invito su WhatsApp o attendi che la seconda persona entri nel codice stanza "${roomId}".`);
-      return;
-    }
-
     const session: ActiveSocialSession = {
       mode: activeTab,
       roomId: roomId.trim() || 'AULA-1',
@@ -253,6 +360,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
       song: selectedSong,
       status: 'active',
     };
+    audioEngine.init().catch(() => {});
     onLaunchPianoChallenge(session);
   };
 
@@ -299,6 +407,59 @@ export const SocialView: React.FC<SocialViewProps> = ({
               className="bg-slate-900 text-xs font-black text-amber-300 outline-none w-36 px-2 py-0.5 rounded border border-amber-500/30 focus:border-amber-400 mt-0.5"
               placeholder="Il tuo nome..."
             />
+          </div>
+        </div>
+      </div>
+
+      {/* QUICK ROOM JOIN INPUT (PER L'ALLIEVO O CHI HA UN CODICE STANZA) */}
+      <div className="bg-gradient-to-r from-emerald-950/70 via-slate-900/95 to-teal-950/70 border-2 border-emerald-500/50 p-4 sm:p-5 rounded-3xl shadow-xl space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-500/20 pb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-sm">
+              🚪
+            </div>
+            <div>
+              <h2 className="text-sm sm:text-base font-black text-white flex items-center gap-1.5">
+                <span>Entra con Codice Stanza</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold uppercase">Allievo / Partecipante</span>
+              </h2>
+              <p className="text-slate-400 text-[11px]">
+                Il Maestro ti ha detto il nome della stanza o inviato un link? Inseriscilo qui ed entra direttamente nell'aula!
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-2.5">
+          <div className="relative flex-1 w-full">
+            <input
+              type="text"
+              value={manualRoomCode}
+              onChange={(e) => setManualRoomCode(e.target.value)}
+              placeholder="Inserisci o incolla qui il Codice Stanza (es. MASTERCLASS-101 o il link)..."
+              className="w-full bg-slate-950 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs sm:text-sm rounded-xl px-3.5 py-2.5 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 uppercase tracking-wide placeholder:normal-case placeholder:font-sans placeholder:text-slate-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <select
+              value={manualRole}
+              onChange={(e) => setManualRole(e.target.value as any)}
+              className="bg-slate-950 border border-emerald-500/40 text-emerald-300 font-bold text-xs rounded-xl px-3 py-2.5 outline-none shrink-0"
+            >
+              <option value="allievo">👨‍🎓 Come Allievo</option>
+              <option value="maestro">👨‍🏫 Come Maestro</option>
+              <option value="giocatore">🎮 Come Giocatore</option>
+            </select>
+
+            <button
+              onClick={handleManualJoin}
+              disabled={!manualRoomCode.trim()}
+              className="flex-1 sm:flex-none px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-40 active:scale-95 text-slate-950 font-black text-xs sm:text-sm rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <span>🚀 ENTRA NELL'AULA</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -410,7 +571,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-slate-400 font-bold uppercase">Codice Stanza:</span>
             <input
               type="text"
@@ -418,6 +579,14 @@ export const SocialView: React.FC<SocialViewProps> = ({
               onChange={(e) => setRoomId(e.target.value.toUpperCase())}
               className="bg-slate-950 border border-slate-800 text-amber-400 font-mono font-bold text-xs rounded-xl px-3 py-1.5 outline-none focus:border-amber-400 w-36 uppercase text-center"
             />
+            <button
+              onClick={handleCopyLink}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer shadow-sm"
+              title="Copia negli appunti il link di invito per l'allievo"
+            >
+              {isCopiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
+              <span>{isCopiedLink ? '✓ Copiato!' : 'Copia Link'}</span>
+            </button>
           </div>
         </div>
 
@@ -556,36 +725,40 @@ export const SocialView: React.FC<SocialViewProps> = ({
           </div>
         </div>
 
-        {/* ACTION BUTTONS: WHATSAPP SHARE & ENFORCED PIANO LAUNCH */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+        {/* ACTION BUTTONS: WHATSAPP SHARE, COPY LINK & PIANO LAUNCH */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
           {/* Direct WhatsApp Share Button */}
           <button
             onClick={handleShareWhatsApp}
-            className="py-3.5 px-5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 cursor-pointer"
+            className="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 cursor-pointer"
           >
-            <MessageCircle className="w-5 h-5 fill-white shrink-0" />
-            <span>Condividi Invito Allievo su WhatsApp 💬</span>
+            <MessageCircle className="w-4 h-4 fill-white shrink-0" />
+            <span>Condividi su WhatsApp 💬</span>
           </button>
 
-          {/* Enforced Piano Challenge Launch (Locked if alone) */}
+          {/* Direct Copy Link Button */}
+          <button
+            onClick={handleCopyLink}
+            className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer"
+          >
+            {isCopiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-amber-400" />}
+            <span>{isCopiedLink ? '✓ Link Copiato!' : 'Copia Link Invito 📋'}</span>
+          </button>
+
+          {/* Piano Challenge Launch (Maestro can enter and wait for student) */}
           <button
             onClick={handleStartPianoChallenge}
-            disabled={!isRoomReadyToStart}
-            className={`py-3.5 px-5 font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 transition-all shadow-xl active:scale-95 ${
-              isRoomReadyToStart
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 cursor-pointer'
-                : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
-            }`}
+            className="py-3 px-4 font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 transition-all shadow-xl active:scale-95 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 cursor-pointer"
           >
             {isRoomReadyToStart ? (
               <>
-                <Unlock className="w-5 h-5 text-slate-950 shrink-0" />
-                <span>AVVIA SFIDA SUL PIANOFORTE VERO E PROPRIO 🎹 (2/2)</span>
+                <Unlock className="w-4 h-4 text-slate-950 shrink-0" />
+                <span>AVVIA SFIDA PIANOFORTE 🎹 (2/2)</span>
               </>
             ) : (
               <>
-                <Lock className="w-5 h-5 text-slate-500 shrink-0" />
-                <span>IN ATTESA DELL'ALLIEVO SU WHATSAPP... 🔒</span>
+                <Play className="w-4 h-4 fill-slate-950 shrink-0" />
+                <span>AVVIA PIANO E ATTENDI ALLIEVO 🎹</span>
               </>
             )}
           </button>
