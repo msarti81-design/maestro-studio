@@ -105,6 +105,17 @@ class MidiEngine {
         new CustomEvent('piano:midinoteup', { detail: { note: noteName } })
       );
     }
+    // Control Change (CC 64 = Sustain Pedal)
+    else if (status === 0xb0) {
+      const controller = data[1];
+      const value = data.length > 2 ? data[2] : 0;
+      if (controller === 64) {
+        const sustainState = value >= 64;
+        window.dispatchEvent(
+          new CustomEvent('piano:midisustain', { detail: { sustain: sustainState } })
+        );
+      }
+    }
   }
 
   onNoteDown(cb: (note: string, velocity: number) => void) {

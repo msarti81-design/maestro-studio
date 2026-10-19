@@ -1800,6 +1800,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     const handleMidiUp = (e: Event) => {
       const custom = e as CustomEvent<{ note: string }>;
       if (custom.detail?.note) {
+        audioEngine.releaseNote(custom.detail.note);
         if (!sustainRef.current) {
           setKeyVisual(custom.detail.note, false);
         }
@@ -1807,14 +1808,52 @@ export const PianoView: React.FC<PianoViewProps> = ({
       }
     };
 
+    const handleMidiSustain = (e: Event) => {
+      const custom = e as CustomEvent<{ sustain: boolean }>;
+      if (custom.detail?.sustain !== undefined) {
+        const isSus = Boolean(custom.detail.sustain);
+        setSustain(isSus);
+        sustainRef.current = isSus;
+        audioEngine.setSustain(isSus);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) return;
+        e.preventDefault();
+        setSustain(true);
+        sustainRef.current = true;
+        audioEngine.setSustain(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) return;
+        e.preventDefault();
+        setSustain(false);
+        sustainRef.current = false;
+        audioEngine.setSustain(false);
+      }
+    };
+
     window.addEventListener('piano:midinotedown', handleMidiDown);
     window.addEventListener('piano:midinoteup', handleMidiUp);
+    window.addEventListener('piano:midisustain', handleMidiSustain);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
 
     return () => {
       unsubMidi();
       window.removeEventListener('piano:gamificationupdate', handleGamification);
       window.removeEventListener('piano:midinotedown', handleMidiDown);
       window.removeEventListener('piano:midinoteup', handleMidiUp);
+      window.removeEventListener('piano:midisustain', handleMidiSustain);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
     };
   }, [triggerNoteHit]);
 

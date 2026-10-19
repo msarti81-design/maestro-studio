@@ -26,6 +26,7 @@ interface ActiveVoice {
 class AudioEngine {
   private audioCtx: AudioContext | null = null;
   private isSustainOn = false;
+  private sustainedNotes = new Set<string>();
   private volumePercent = 85;
   private soundProfile: SoundProfile = 'concert';
 
@@ -393,15 +394,24 @@ class AudioEngine {
   /**
    * Plays a single note with high-definition acoustic realism
    */
-  playNote(note: string, duration: string = "8n", instrument: InstrumentType = "piano") {
+  playNote(note: string, duration: string = "8n", instrument: InstrumentType = "piano", isInteractive: boolean = true) {
     this.ensureContext();
 
     // 1. If Real Acoustic Grand Piano Sample is loaded and instrument is piano, use the sample!
     if (instrument === "piano" && this.isSamplerLoaded && this.sampler) {
       try {
         const vel = 0.88;
-        this.sampler.triggerAttackRelease(note, duration, undefined, vel);
-        return;
+        if (this.isSustainOn) {
+          this.sampler.triggerAttack(note, undefined, vel);
+          this.sustainedNotes.add(note);
+          return;
+        } else if (isInteractive) {
+          this.sampler.triggerAttack(note, undefined, vel);
+          return;
+        } else {
+          this.sampler.triggerAttackRelease(note, duration, undefined, vel);
+          return;
+        }
       } catch (e) {
         // Fall back seamlessly to physical modeling
       }
@@ -413,8 +423,8 @@ class AudioEngine {
     }
 
     const now = this.audioCtx.currentTime;
-    const durationSec = duration === "2n" ? 2.4 : duration === "4n" ? 1.5 : duration === "16n" ? 0.35 : 0.90;
-    const effectiveDuration = this.isSustainOn ? durationSec * 3.0 : durationSec;
+    const durationSec = duration === "2n" ? 3.5 : duration === "4n" ? 2.5 : duration === "16n" ? 0.6 : 1.8;
+    const effectiveDuration = this.isSustainOn ? Math.max(durationSec * 3.5, 6.0) : durationSec;
 
     // Smooth voice recycling
     while (this.activeVoices.length >= this.MAX_VOICES) {
@@ -679,9 +689,23 @@ class AudioEngine {
 
   setSustain(sustain: boolean) {
     this.isSustainOn = sustain;
+    if (!sustain) {
+      this.sustainedNotes.forEach((note) => {
+        this.releaseNoteForce(note);
+      });
+      this.sustainedNotes.clear();
+    }
   }
 
   releaseNote(note: string) {
+    if (this.isSustainOn) {
+      this.sustainedNotes.add(note);
+      return;
+    }
+    this.releaseNoteForce(note);
+  }
+
+  releaseNoteForce(note: string) {
     if (this.isSamplerLoaded && this.sampler) {
       try {
         this.sampler.triggerRelease([note]);
@@ -694,7 +718,7 @@ class AudioEngine {
     this.activeVoices.forEach((voice) => {
       if (voice.note === note) {
         try {
-          // Smooth musical release curve without clicks or clicks
+          voice.masterGain.gain.cancelScheduledValues(now);
           voice.masterGain.gain.setTargetAtTime(0.0001, now, 0.05);
         } catch (e) {}
       }
