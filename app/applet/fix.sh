@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 echo "=========================================================="
-echo "  Aggiornamento Forzato HTTPS + Build - Maestro Studio (Porta 5000)"
+echo "  Aggiornamento Forzato HTTPS Proxy Pass (Porta 5000) - Maestro Studio"
 echo "=========================================================="
 
 APP_DIR="/var/www/maestro-studio"
@@ -35,11 +35,11 @@ else
     echo "SUCCESS: dist/index.html generata correttamente."
 fi
 
-echo "=== Configurazione Nginx per HTTP (80) e HTTPS SSL (443) ==="
+echo "=== Configurazione Nginx con proxy_pass trailing slash per perfetta parità con la porta 5000 ==="
 NGINX_CONF="/etc/nginx/sites-available/freeserv"
 
 if [ -f "/etc/letsencrypt/live/freeserv.it/fullchain.pem" ]; then
-    echo "Certificati SSL Let's Encrypt trovati. Configurazione Nginx HTTPS (443) attiva."
+    echo "Certificati SSL Let's Encrypt trovati. Configurazione HTTPS 443 attiva."
     sudo bash -c "cat > $NGINX_CONF" << 'EOF'
 server {
     listen 80;
@@ -63,8 +63,8 @@ server {
         return 301 /song/;
     }
 
-    location /Song {
-        proxy_pass http://127.0.0.1:5000;
+    location /Song/ {
+        proxy_pass http://127.0.0.1:5000/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -74,8 +74,8 @@ server {
         proxy_set_header X-Forwarded-Proto https;
         proxy_cache_bypass $http_upgrade;
     }
-    location /song {
-        proxy_pass http://127.0.0.1:5000;
+    location /song/ {
+        proxy_pass http://127.0.0.1:5000/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -88,7 +88,7 @@ server {
 }
 EOF
 else
-    echo "Certificati SSL Let's Encrypt non trovati. Configurazione Nginx HTTP (80)."
+    echo "Certificati SSL non trovati. Configurazione HTTP 80 attiva."
     sudo bash -c "cat > $NGINX_CONF" << 'EOF'
 server {
     listen 80;
@@ -101,8 +101,8 @@ server {
         return 301 /song/;
     }
 
-    location /Song {
-        proxy_pass http://127.0.0.1:5000;
+    location /Song/ {
+        proxy_pass http://127.0.0.1:5000/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -112,8 +112,8 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
-    location /song {
-        proxy_pass http://127.0.0.1:5000;
+    location /song/ {
+        proxy_pass http://127.0.0.1:5000/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -141,13 +141,13 @@ pm2 save
 
 echo "=== DIAGNOSTICA LOCALE AUTOMATICA ==="
 sleep 2
-echo "Test HTTP locale su http://127.0.0.1:5000/Song/:"
-curl -I http://127.0.0.1:5000/Song/ || echo "Attenzione: curl locale fallito"
+echo "Test HTTP locale su http://127.0.0.1:5000/:"
+curl -I http://127.0.0.1:5000/ || echo "Attenzione: curl locale fallito"
 
 echo "Stato PM2:"
 pm2 status
 
 echo "=========================================================="
-echo " SUCCESSO! L'app è attiva su HTTPS per freeserv.it/Song/"
+echo " SUCCESSO! L'app è configurata con proxy pass pulito su HTTPS"
 echo "=========================================================="
 exit 0
