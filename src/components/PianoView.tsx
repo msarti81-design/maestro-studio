@@ -1114,51 +1114,6 @@ export const PianoView: React.FC<PianoViewProps> = ({
       sendEvt('webrtc:offer', { sdp: pc.localDescription });
       sendEvt('piano:voice_status', { isActive: true, isMuted: false });
 
-      // Live discrete audio chunk generator (sends complete standalone audio slices every 400ms)
-      if (typeof MediaRecorder !== 'undefined') {
-        const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : 'audio/mp4';
-
-        const sendAudioSlice = () => {
-          if (!localVoiceStreamRef.current) return;
-          try {
-            const rec = new MediaRecorder(localVoiceStreamRef.current, { mimeType: mime });
-            const chunks: Blob[] = [];
-            rec.ondataavailable = (e) => {
-              if (e.data && e.data.size > 0) chunks.push(e.data);
-            };
-            rec.onstop = () => {
-              if (chunks.length > 0) {
-                const blob = new Blob(chunks, { type: mime });
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  const b64 = reader.result;
-                  if (b64 && typeof b64 === 'string') {
-                    sendEvt('piano:audio_chunk', { audio: b64 });
-                  }
-                };
-                reader.readAsDataURL(blob);
-              }
-            };
-            rec.start();
-            setTimeout(() => {
-              if (rec.state === 'recording') rec.stop();
-            }, 350);
-          } catch (recErr) {}
-        };
-
-        const chunkInterval = setInterval(() => {
-          if (!localVoiceStreamRef.current) {
-            clearInterval(chunkInterval);
-            return;
-          }
-          sendAudioSlice();
-        }, 400);
-      }
-
       showToast('🎙️ Vivavoce Attivo! Parla liberamente con il microfono');
     } catch (err: any) {
       showToast(`⚠️ Permesso microfono negato o non disponibile`);
