@@ -4,7 +4,7 @@ export const BUILT_IN_SONGS: InteractiveSong[] = [
   {
     id: 'scale-c-major',
     title: 'C Major Scale (Tutorial)',
-    author: 'KeyCraft Studio',
+    author: 'VirtuKeys Studio',
     bpm: 80,
     difficulty: 'easy',
     notes: [
