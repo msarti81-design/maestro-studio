@@ -144,38 +144,30 @@ class AudioEngine {
         urls: {
           A0: "A0.mp3",
           C1: "C1.mp3",
-          "D#1": "Ds1.mp3",
-          "F#1": "Fs1.mp3",
+          E1: "E1.mp3",
           A1: "A1.mp3",
           C2: "C2.mp3",
-          "D#2": "Ds2.mp3",
-          "F#2": "Fs2.mp3",
+          E2: "E2.mp3",
           A2: "A2.mp3",
           C3: "C3.mp3",
-          "D#3": "Ds3.mp3",
-          "F#3": "Fs3.mp3",
+          E3: "E3.mp3",
           A3: "A3.mp3",
           C4: "C4.mp3",
-          "D#4": "Ds4.mp3",
-          "F#4": "Fs4.mp3",
+          E4: "E4.mp3",
           A4: "A4.mp3",
           C5: "C5.mp3",
-          "D#5": "Ds5.mp3",
-          "F#5": "Fs5.mp3",
+          E5: "E5.mp3",
           A5: "A5.mp3",
           C6: "C6.mp3",
-          "D#6": "Ds6.mp3",
-          "F#6": "Fs6.mp3",
+          E6: "E6.mp3",
           A6: "A6.mp3",
           C7: "C7.mp3",
-          "D#7": "Ds7.mp3",
-          "F#7": "Fs7.mp3",
-          A7: "A7.mp3",
+          E7: "E7.mp3",
           C8: "C8.mp3",
         },
-        baseUrl: "https://tonejs.github.io/audio/salamander/",
+        baseUrl: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/",
         release: 1.8,
-        attack: 0.005,
+        attack: 0.001,
         onload: () => {
           this.isSamplerLoaded = true;
         },
@@ -575,12 +567,22 @@ class AudioEngine {
       }
 
       if (instrument === "piano") {
-        // High-definition warm acoustic piano model (low CPU, pristine glissando)
+        // Concert Grand Yamaha/Steinway physical modeling (6 acoustic partials + inharmonicity + hammer filter)
         const partials = [
-          { k: 1, amp: 1.00, decay: 1.00, type: 'triangle' as const },
-          { k: 2, amp: 0.52, decay: 0.75, type: 'sine' as const },
-          { k: 3, amp: 0.28, decay: 0.50, type: 'sine' as const },
+          { k: 1.000, amp: 1.00, decay: 1.00, type: 'triangle' as const },
+          { k: 2.001, amp: 0.65, decay: 0.85, type: 'sine' as const },
+          { k: 3.004, amp: 0.42, decay: 0.70, type: 'sine' as const },
+          { k: 4.009, amp: 0.28, decay: 0.55, type: 'sine' as const },
+          { k: 5.016, amp: 0.18, decay: 0.40, type: 'sine' as const },
+          { k: 6.025, amp: 0.10, decay: 0.30, type: 'sine' as const },
         ];
+
+        // Dynamic Hammer Felt Attack Filter
+        const hammerFilter = this.audioCtx.createBiquadFilter();
+        hammerFilter.type = 'lowpass';
+        const initialCutoff = Math.min(16000, Math.max(1800, freq * 8));
+        hammerFilter.frequency.setValueAtTime(initialCutoff, now);
+        hammerFilter.frequency.exponentialRampToValueAtTime(Math.min(4500, Math.max(800, freq * 2.5)), now + 0.15);
 
         partials.forEach(p => {
           const harmonicFreq = freq * p.k;
@@ -592,11 +594,11 @@ class AudioEngine {
 
           const g = this.audioCtx!.createGain();
           g.gain.setValueAtTime(0.0001, now);
-          g.gain.linearRampToValueAtTime(p.amp * 0.9, now + 0.0025);
-          g.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration * p.decay);
+          g.gain.linearRampToValueAtTime(p.amp * 0.9, now + 0.002);
+          g.gain.linearRampToValueAtTime(0.0001, now + effectiveDuration * p.decay);
 
           osc.connect(g);
-          g.connect(voiceMasterGain);
+          g.connect(hammerFilter);
           oscNodes.push(osc);
           gainNodes.push(g);
         });
@@ -608,27 +610,28 @@ class AudioEngine {
         const detuneGain = this.audioCtx.createGain();
         detuneGain.gain.setValueAtTime(0.0001, now);
         detuneGain.gain.linearRampToValueAtTime(0.24, now + 0.0035);
-        detuneGain.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration * 0.85);
+        detuneGain.gain.linearRampToValueAtTime(0.0001, now + effectiveDuration * 0.85);
         detuneOsc.connect(detuneGain);
-        detuneGain.connect(voiceMasterGain);
+        detuneGain.connect(hammerFilter);
         oscNodes.push(detuneOsc);
         gainNodes.push(detuneGain);
 
         // Physical Hammer Felt Impact Transient
         const hammer = this.createHammerTransient(this.audioCtx, freq, now);
         if (hammer) {
-          hammer.gain.connect(voiceMasterGain);
+          hammer.gain.connect(hammerFilter);
           hammer.source.start(now);
           hammer.source.stop(now + 0.02);
           oscNodes.push(hammer.source);
           gainNodes.push(hammer.gain);
         }
 
+        hammerFilter.connect(voiceMasterGain);
+
         // Master Voice Envelope
         voiceMasterGain.gain.setValueAtTime(0.0001, now);
-        voiceMasterGain.gain.linearRampToValueAtTime(0.96, now + 0.0025);
-        voiceMasterGain.gain.exponentialRampToValueAtTime(0.65, now + 0.16);
-        voiceMasterGain.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration);
+        voiceMasterGain.gain.linearRampToValueAtTime(0.96, now + 0.002);
+        voiceMasterGain.gain.linearRampToValueAtTime(0.0001, now + effectiveDuration);
 
       } else if (instrument === "guitar") {
         const osc = this.audioCtx.createOscillator();
