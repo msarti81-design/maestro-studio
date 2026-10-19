@@ -33,6 +33,7 @@ class AudioEngine {
   // Master Audio Chain Nodes
   private masterGain: GainNode | null = null;
   private compressor: DynamicsCompressorNode | null = null;
+  private waveShaperLimiter: WaveShaperNode | null = null;
   private masterEqualizerLow: BiquadFilterNode | null = null;
   private masterEqualizerMid: BiquadFilterNode | null = null;
   private masterEqualizerHigh: BiquadFilterNode | null = null;
@@ -41,6 +42,7 @@ class AudioEngine {
   private dryGain: GainNode | null = null;
   private isInitialized = false;
   private activeVoices: ActiveVoice[] = [];
+  private recentBassNotes: { note: string; time: number }[] = [];
   private readonly MAX_VOICES = 64;
 
   // Real Sampled Acoustic Grand Piano (Tone.Sampler)
@@ -198,6 +200,16 @@ class AudioEngine {
     return impulse;
   }
 
+  private createSoftLimiterCurve(samples = 2048): Float32Array {
+    const curve = new Float32Array(samples);
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1;
+      // Smooth analog tape saturation curve prevents digital clipping on fast glissandos
+      curve[i] = Math.tanh(x * 1.05);
+    }
+    return curve;
+  }
+
   private ensureContext() {
     try {
       if (!this.audioCtx || this.audioCtx.state === 'closed') {
@@ -240,7 +252,12 @@ class AudioEngine {
         this.compressor.attack.setValueAtTime(0.025, this.audioCtx.currentTime);
         this.compressor.release.setValueAtTime(0.38, this.audioCtx.currentTime);
 
-        // 4. Master Output Gain
+        // 4. Soft-Clipping WaveShaper Brickwall Limiter (Guarantees zero digital clipping during fast bass glissandos)
+        this.waveShaperLimiter = this.audioCtx.createWaveShaper();
+        this.waveShaperLimiter.curve = this.createSoftLimiterCurve();
+        this.waveShaperLimiter.oversample = '4x';
+
+        // 5. Master Output Gain
         this.masterGain = this.audioCtx.createGain();
         this.applyVolumeToGain();
 
@@ -255,7 +272,8 @@ class AudioEngine {
         this.dryGain.connect(this.compressor);
         this.reverbGain.connect(this.compressor);
 
-        this.compressor.connect(this.masterGain);
+        this.compressor.connect(this.waveShaperLimiter);
+        this.waveShaperLimiter.connect(this.masterGain);
         this.masterGain.connect(this.audioCtx.destination);
       }
 
@@ -399,10 +417,31 @@ class AudioEngine {
   playNote(note: string, duration: string = "8n", instrument: InstrumentType = "piano", isInteractive: boolean = true) {
     this.ensureContext();
 
+    const midi = NOTE_TO_MIDI[note] ?? 60;
+
+    // Bass glissando dampening: if user is sliding fast across low keys without sustain, prune older bass notes
+    if (midi < 48) {
+      const nowMs = Date.now();
+      if (!this.isSustainOn) {
+        this.recentBassNotes = this.recentBassNotes.filter((b) => {
+          const isOld = nowMs - b.time > 130;
+          if (!isOld && b.note !== note) {
+            if (this.isSamplerLoaded && this.sampler) {
+              try { this.sampler.triggerRelease([b.note]); } catch (e) {}
+            }
+          }
+          return !isOld;
+        });
+      }
+      this.recentBassNotes.push({ note, time: nowMs });
+    }
+
+    // Low bass notes (below C3) use velocity 0.74 (vs 0.88) to maintain equal perceived loudness without bass sum overload
+    const vel = midi < 48 ? 0.74 : 0.88;
+
     // 1. If Real Acoustic Grand Piano Sample is loaded and instrument is piano, use the sample!
     if (instrument === "piano" && this.isSamplerLoaded && this.sampler) {
       try {
-        const vel = 0.88;
         if (this.isSustainOn) {
           this.sampler.triggerAttack(note, undefined, vel);
           this.sustainedNotes.add(note);
