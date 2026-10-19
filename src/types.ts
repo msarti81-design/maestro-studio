@@ -1,6 +1,6 @@
 export type ViewMode = 'piano' | 'sheet' | 'jam' | 'social' | 'recordings';
 export type NoteNotationFormat = 'latin' | 'letter' | 'german' | 'numeric' | 'none';
-export type SoundProfile = 'concert' | 'studio' | 'bright' | 'cathedral';
+export type SoundProfile = 'concert' | 'studio' | 'bright' | 'warm' | 'cathedral';
 export type StudioTheme = 'midnight' | 'mahogany' | 'neon';
 
 export interface NoteEvent {

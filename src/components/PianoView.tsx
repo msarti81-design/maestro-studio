@@ -3075,17 +3075,18 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
                   6. Acoustic Profile &amp; Hi-Fi Reverb
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                   {[
                     { id: 'concert', label: 'Grand Concert', desc: 'Royal hall (Steinway D), deep and majestic' },
                     { id: 'studio', label: 'Intimate Studio', desc: 'Close mic, warm, dry and defined' },
-                    { id: 'bright', label: 'Live Stage', desc: 'Bright and sharp, strong rhythmic presence' },
-                    { id: 'cathedral', label: 'Cathedral', desc: 'Ethereal 4.5s reverb with spatial echo' },
+                    { id: 'bright', label: 'Live Stage', desc: 'Bright and sharp, strong presence' },
+                    { id: 'warm', label: 'Warm Felt', desc: 'Soft vintage felt piano acoustics' },
+                    { id: 'cathedral', label: 'Cathedral', desc: 'Ethereal 4.5s spatial cathedral hall' },
                   ].map((p) => (
                     <button
                       key={p.id}
                       onClick={() => handleSoundProfileChange(p.id as SoundProfile)}
-                      className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                      className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                         soundProfile === p.id
                           ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-md'
                           : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'

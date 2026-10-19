@@ -182,20 +182,52 @@ class AudioEngine {
   /**
    * Generates a stereo impulse response for the Concert Hall Convolution Reverb
    */
-  private createStereoConcertHallImpulse(ctx: AudioContext, duration = 2.6, decay = 2.8): AudioBuffer {
+  private createStereoConcertHallImpulse(ctx: AudioContext, duration = 2.8, decay = 2.6): AudioBuffer {
     const rate = ctx.sampleRate;
     const length = Math.floor(rate * duration);
     const impulse = ctx.createBuffer(2, length, rate);
     const left = impulse.getChannelData(0);
     const right = impulse.getChannelData(1);
 
+    // Early reflection delays (in milliseconds) simulating a 9-foot grand in a luxury hall
+    const earlyReflectionsL = [
+      { delayMs: 14, gain: 0.72 },
+      { delayMs: 24, gain: 0.58 },
+      { delayMs: 38, gain: 0.46 },
+      { delayMs: 52, gain: 0.35 },
+      { delayMs: 78, gain: 0.22 },
+    ];
+    const earlyReflectionsR = [
+      { delayMs: 18, gain: 0.68 },
+      { delayMs: 28, gain: 0.52 },
+      { delayMs: 44, gain: 0.42 },
+      { delayMs: 62, gain: 0.31 },
+      { delayMs: 84, gain: 0.18 },
+    ];
+
+    // Late diffuse reverberation decay
     for (let i = 0; i < length; i++) {
       const t = i / length;
       const env = Math.pow(1 - t, decay);
-      const damping = Math.exp(-t * 3.0);
-      left[i] = (Math.random() * 2 - 1) * env * damping;
-      right[i] = (Math.random() * 2 - 1) * env * damping;
+      const damping = Math.exp(-t * 2.8);
+      left[i] = (Math.random() * 2 - 1) * env * damping * 0.42;
+      right[i] = (Math.random() * 2 - 1) * env * damping * 0.42;
     }
+
+    // Inject early reflections into channel buffers
+    earlyReflectionsL.forEach(({ delayMs, gain }) => {
+      const sampleIdx = Math.floor((delayMs / 1000) * rate);
+      if (sampleIdx < length) {
+        left[sampleIdx] += gain * 0.5;
+      }
+    });
+
+    earlyReflectionsR.forEach(({ delayMs, gain }) => {
+      const sampleIdx = Math.floor((delayMs / 1000) * rate);
+      if (sampleIdx < length) {
+        right[sampleIdx] += gain * 0.5;
+      }
+    });
 
     return impulse;
   }
@@ -286,29 +318,44 @@ class AudioEngine {
   }
 
   private applyProfileAcoustics() {
-    if (!this.reverbGain || !this.dryGain || !this.masterEqualizerHigh || !this.audioCtx) return;
+    if (!this.reverbGain || !this.dryGain || !this.masterEqualizerLow || !this.masterEqualizerMid || !this.masterEqualizerHigh || !this.audioCtx) return;
     const now = this.audioCtx.currentTime;
 
     switch (this.soundProfile) {
       case 'concert':
-        this.dryGain.gain.setValueAtTime(0.85, now);
-        this.reverbGain.gain.setValueAtTime(0.26, now);
+        this.dryGain.gain.setValueAtTime(0.88, now);
+        this.reverbGain.gain.setValueAtTime(0.24, now);
+        this.masterEqualizerLow.gain.setValueAtTime(1.5, now);
+        this.masterEqualizerMid.gain.setValueAtTime(1.2, now);
         this.masterEqualizerHigh.gain.setValueAtTime(2.2, now);
         break;
       case 'studio':
         this.dryGain.gain.setValueAtTime(0.96, now);
         this.reverbGain.gain.setValueAtTime(0.08, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(1.2, now);
+        this.masterEqualizerLow.gain.setValueAtTime(0.8, now);
+        this.masterEqualizerMid.gain.setValueAtTime(1.5, now);
+        this.masterEqualizerHigh.gain.setValueAtTime(1.0, now);
         break;
       case 'bright':
         this.dryGain.gain.setValueAtTime(0.90, now);
         this.reverbGain.gain.setValueAtTime(0.18, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(4.0, now);
+        this.masterEqualizerLow.gain.setValueAtTime(0.5, now);
+        this.masterEqualizerMid.gain.setValueAtTime(2.0, now);
+        this.masterEqualizerHigh.gain.setValueAtTime(3.8, now);
+        break;
+      case 'warm':
+        this.dryGain.gain.setValueAtTime(0.92, now);
+        this.reverbGain.gain.setValueAtTime(0.22, now);
+        this.masterEqualizerLow.gain.setValueAtTime(2.2, now);
+        this.masterEqualizerMid.gain.setValueAtTime(1.8, now);
+        this.masterEqualizerHigh.gain.setValueAtTime(-1.2, now);
         break;
       case 'cathedral':
-        this.dryGain.gain.setValueAtTime(0.60, now);
+        this.dryGain.gain.setValueAtTime(0.58, now);
         this.reverbGain.gain.setValueAtTime(0.52, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(2.8, now);
+        this.masterEqualizerLow.gain.setValueAtTime(1.8, now);
+        this.masterEqualizerMid.gain.setValueAtTime(0.8, now);
+        this.masterEqualizerHigh.gain.setValueAtTime(2.6, now);
         break;
     }
   }
