@@ -65,3 +65,4 @@ echo " SUCCESSO! L'app è attiva sulla PORTA 5000"
 echo " Raggiungibile su: http://freeserv.it/Song"
 echo "=========================================================="
 exit 0
+
