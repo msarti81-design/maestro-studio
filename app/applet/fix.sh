@@ -6,12 +6,14 @@ echo "=========================================================="
 
 APP_DIR="/var/www/maestro-studio"
 
-echo "=== Pulizia completa e clonazione pulita da zero ==="
+echo "=== Spostamento in / e rimozione sicura della cartella precedente ==="
+cd /
 sudo rm -rf "$APP_DIR"
 sudo mkdir -p "$APP_DIR"
 sudo chown -R $USER:$USER "$APP_DIR"
 cd "$APP_DIR"
 
+echo "=== Clonazione repository ==="
 git clone https://github.com/msarti81-design/maestro-studio.git .
 
 echo "=== Installazione dipendenze Node.js ==="
@@ -69,7 +71,7 @@ EOF
 sudo ln -sf /etc/nginx/sites-available/freeserv /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
-echo "=== Riavvio PM2 su PORTA 5000 ==="
+echo "=== Riavvio PM2 su PORTO 5000 ==="
 if ! command -v pm2 &> /dev/null; then
     sudo npm install -g pm2
 fi
