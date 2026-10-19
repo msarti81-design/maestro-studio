@@ -21,12 +21,19 @@ fi
 npm install
 npm run build
 
-echo "=== Configurazione Nginx per /Song e /song su porta 5000 ==="
+echo "=== Configurazione Nginx con redirect trailing slash per /Song e /song ==="
 NGINX_CONF="/etc/nginx/sites-available/freeserv"
 sudo bash -c "cat > $NGINX_CONF" << 'EOF'
 server {
     listen 80;
     server_name freeserv.it www.freeserv.it;
+
+    location = /Song {
+        return 301 /Song/;
+    }
+    location = /song {
+        return 301 /song/;
+    }
 
     location /Song {
         proxy_pass http://127.0.0.1:5000;
@@ -61,6 +68,6 @@ pm2 save
 
 echo "=========================================================="
 echo " SUCCESSO! L'app è attiva sulla PORTA 5000"
-echo " Raggiungibile su: http://freeserv.it/Song"
+echo " Raggiungibile su: http://freeserv.it/Song/"
 echo "=========================================================="
 exit 0
