@@ -21,48 +21,72 @@ export function midiToNoteName(midiNumber: number): string {
   return `${name}${octave}`;
 }
 
-function getHarmonicOctaveNote(note: string): string | null {
-  const midi = NOTE_TO_MIDI[note];
-  if (!midi) return null;
-  const harmonicMidi = midi + 12;
-  if (harmonicMidi > 108) return null;
-  return midiToNoteName(harmonicMidi);
-}
+// Complete Salamander Grand Piano multi-sample library (Yamaha C5 Concert Grand)
+// Every 3 semitones has a dedicated stereo 24/44.1kHz recording
+const SALAMANDER_SAMPLES: Record<string, string> = {
+  A0: "A0.mp3",
+  C1: "C1.mp3",
+  "D#1": "Ds1.mp3",
+  "F#1": "Fs1.mp3",
+  A1: "A1.mp3",
+  C2: "C2.mp3",
+  "D#2": "Ds2.mp3",
+  "F#2": "Fs2.mp3",
+  A2: "A2.mp3",
+  C3: "C3.mp3",
+  "D#3": "Ds3.mp3",
+  "F#3": "Fs3.mp3",
+  A3: "A3.mp3",
+  C4: "C4.mp3",
+  "D#4": "Ds4.mp3",
+  "F#4": "Fs4.mp3",
+  A4: "A4.mp3",
+  C5: "C5.mp3",
+  "D#5": "Ds5.mp3",
+  "F#5": "Fs5.mp3",
+  A5: "A5.mp3",
+  C6: "C6.mp3",
+  "D#6": "Ds6.mp3",
+  "F#6": "Fs6.mp3",
+  A6: "A6.mp3",
+  C7: "C7.mp3",
+  "D#7": "Ds7.mp3",
+  "F#7": "Fs7.mp3",
+  A7: "A7.mp3",
+  C8: "C8.mp3",
+};
 
-interface ActiveVoice {
+interface ActiveSynthVoice {
   note: string;
-  oscNodes: (AudioNode | OscillatorNode)[];
+  oscNodes: OscillatorNode[];
   gainNodes: GainNode[];
   masterGain: GainNode;
-  endTime: number;
+  stopTime: number;
 }
 
 class AudioEngine {
-  private audioCtx: AudioContext | null = null;
   private isSustainOn = false;
   private sustainedNotes = new Set<string>();
   private volumePercent = 85;
   private soundProfile: SoundProfile = 'concert';
-
-  // Master Audio Chain Nodes
-  private masterGain: GainNode | null = null;
-  private compressor: DynamicsCompressorNode | null = null;
-  private waveShaperLimiter: WaveShaperNode | null = null;
-  private masterEqualizerLow: BiquadFilterNode | null = null;
-  private masterEqualizerMid: BiquadFilterNode | null = null;
-  private masterEqualizerHigh: BiquadFilterNode | null = null;
-  private convolver: ConvolverNode | null = null;
-  private reverbGain: GainNode | null = null;
-  private dryGain: GainNode | null = null;
   private isInitialized = false;
-  private activeVoices: ActiveVoice[] = [];
-  private recentBassNotes: { note: string; time: number }[] = [];
-  private readonly MAX_VOICES = 64;
 
-  // Real Sampled Acoustic Grand Piano (Tone.Sampler)
+  // Active voice tracker for polyphony management & voice stealing
+  private activeVoices = new Map<string, { startTime: number; isHeld: boolean }>();
+  private readonly MAX_POLYPHONY = 28;
+  private recentBassNotes: { note: string; time: number }[] = [];
+
+  // Tone.js Audio Graph Nodes
   private sampler: Tone.Sampler | null = null;
   private isSamplerLoaded = false;
-  private samplerReverb: Tone.Reverb | null = null;
+  private subFilter: Tone.Filter | null = null;
+  private equalizer: Tone.EQ3 | null = null;
+  private reverb: Tone.Reverb | null = null;
+  private limiter: Tone.Limiter | null = null;
+  private masterGain: Tone.Gain | null = null;
+
+  // Active synth voices for guitar, strings, bass
+  private synthVoices: ActiveSynthVoice[] = [];
 
   // Tone.js synths for Jam Band drums
   private drumSynth: Tone.MembraneSynth | null = null;
@@ -72,326 +96,210 @@ class AudioEngine {
   constructor() {
     try {
       const saved = localStorage.getItem('maestro_sound_profile');
-      if (saved === 'concert' || saved === 'studio' || saved === 'bright' || saved === 'cathedral') {
+      if (saved === 'concert' || saved === 'studio' || saved === 'bright' || saved === 'warm' || saved === 'cathedral') {
         this.soundProfile = saved;
       }
     } catch (e) {}
   }
 
   async init() {
-    if (this.isInitialized && this.audioCtx && this.audioCtx.state === 'running') return;
+    if (this.isInitialized && Tone.context.state === 'running') return;
 
     try {
-      this.ensureContext();
-      if (this.audioCtx && this.audioCtx.state === 'suspended') {
-        await this.audioCtx.resume();
+      await Tone.start();
+
+      const rawCtx = Tone.context.rawContext as AudioContext;
+      if (rawCtx && rawCtx.state === 'suspended') {
+        await rawCtx.resume();
       }
 
-      // 1. Initialize Tone.js
-      try {
-        await Tone.start();
-
-        // Sync initial volume to Tone.Destination
-        this.applyVolumeToGain();
-
-        // Initialize Real Acoustic Grand Piano Sampler
-        if (!this.sampler) {
-          this.initSampler();
-        }
-
-        // Initialize Drum synths
-        if (!this.drumSynth) {
-          this.drumSynth = new Tone.MembraneSynth({
-            volume: -2,
-            pitchDecay: 0.04,
-            octaves: 5,
-            oscillator: { type: "sine" },
-            envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.35 },
-          }).toDestination();
-
-          this.hihatSynth = new Tone.MetalSynth({
-            volume: -12,
-            frequency: 200,
-            envelope: { attack: 0.001, decay: 0.06, release: 0.04 },
-            harmonicity: 5.1,
-            modulationIndex: 32,
-            resonance: 4000,
-            octaves: 1.5,
-          } as any).toDestination();
-
-          this.snareSynth = new Tone.NoiseSynth({
-            volume: -6,
-            noise: { type: "white" },
-            envelope: { attack: 0.001, decay: 0.18, sustain: 0, release: 0.12 },
-          }).toDestination();
-        }
-      } catch (e) {
-        console.warn("Tone.start error:", e);
+      // Add auto-recovery listener if browser suspends or interrupts audio
+      if (rawCtx) {
+        rawCtx.onstatechange = () => {
+          if (rawCtx.state === 'suspended' || (rawCtx.state as any) === 'interrupted') {
+            rawCtx.resume().catch(() => {});
+          }
+        };
       }
+
+      this.buildAudioGraph();
+      this.initSampler();
+      this.initDrums();
+      this.applyVolumeToGain();
 
       this.isInitialized = true;
     } catch (e) {
-      console.error("Failed to initialize Web Audio Engine", e);
+      console.warn("AudioEngine init warning:", e);
     }
   }
 
-  /**
-   * Loads high-definition real acoustic grand piano samples asynchronously
-   */
+  private buildAudioGraph() {
+    if (this.masterGain) return;
+
+    try {
+      // 1. Subsonic High-Pass Filter: Cuts out DC offset & sub-24Hz thumps (prevents speaker popping & distortion)
+      this.subFilter = new Tone.Filter({
+        frequency: 24,
+        type: "highpass",
+        rolloff: -12,
+      });
+
+      // 2. High-Fidelity Acoustic Equalizer: Tuned for real Yamaha C5 Concert Grand
+      this.equalizer = new Tone.EQ3({
+        low: 1.8,     // Rich, warm wooden soundboard body
+        mid: 0.0,     // Clear, uncolored natural acoustic midrange
+        high: 0.8,    // Silky hammer-felt and copper-string shimmer
+        lowFrequency: 140,
+        highFrequency: 5500,
+      });
+
+      // 3. Luxury Concert Hall Convolution / Algorithmic Reverb
+      this.reverb = new Tone.Reverb({
+        decay: this.soundProfile === 'cathedral' ? 4.5 : this.soundProfile === 'studio' ? 1.0 : 2.2,
+        preDelay: 0.015,
+        wet: this.soundProfile === 'studio' ? 0.08 : this.soundProfile === 'cathedral' ? 0.40 : 0.16,
+      });
+
+      // 4. Studio Brickwall Peak Limiter (-0.5 dBFS) - 100% transparent, prevents ANY digital clipping during glissandos
+      this.limiter = new Tone.Limiter(-0.5);
+
+      // 5. Master Output Gain
+      this.masterGain = new Tone.Gain(1.0);
+
+      // Connect Chain: subFilter -> equalizer -> reverb -> limiter -> masterGain -> Tone.Destination
+      this.subFilter.connect(this.equalizer);
+      this.equalizer.connect(this.reverb);
+      this.reverb.connect(this.limiter);
+      this.limiter.connect(this.masterGain);
+      this.masterGain.toDestination();
+
+      this.applyProfileAcoustics();
+    } catch (e) {
+      console.warn("Failed to build audio graph:", e);
+    }
+  }
+
   private initSampler() {
+    if (this.sampler) return;
+
     try {
       this.sampler = new Tone.Sampler({
-        urls: {
-          A0: "A0.mp3",
-          C1: "C1.mp3",
-          E1: "E1.mp3",
-          A1: "A1.mp3",
-          C2: "C2.mp3",
-          E2: "E2.mp3",
-          A2: "A2.mp3",
-          C3: "C3.mp3",
-          E3: "E3.mp3",
-          A3: "A3.mp3",
-          C4: "C4.mp3",
-          E4: "E4.mp3",
-          A4: "A4.mp3",
-          C5: "C5.mp3",
-          E5: "E5.mp3",
-          A5: "A5.mp3",
-          C6: "C6.mp3",
-          E6: "E6.mp3",
-          A6: "A6.mp3",
-          C7: "C7.mp3",
-          E7: "E7.mp3",
-          C8: "C8.mp3",
-        },
-        baseUrl: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/",
-        release: 1.8,
-        attack: 0.001,
+        urls: SALAMANDER_SAMPLES,
+        baseUrl: "https://tonejs.github.io/audio/salamander/",
+        release: 1.4,
+        attack: 0.0,
         onload: () => {
           this.isSamplerLoaded = true;
         },
       });
 
-      this.samplerReverb = new Tone.Reverb({
-        decay: this.soundProfile === 'cathedral' ? 4.5 : this.soundProfile === 'studio' ? 1.0 : 2.4,
-        preDelay: 0.02,
-        wet: this.soundProfile === 'studio' ? 0.12 : 0.28,
-      }).toDestination();
-
-      this.sampler.connect(this.samplerReverb);
+      if (this.subFilter) {
+        this.sampler.connect(this.subFilter);
+      } else {
+        this.sampler.toDestination();
+      }
     } catch (e) {
       console.warn("Sampler load warning:", e);
     }
   }
 
-  /**
-   * Generates a stereo impulse response for the Concert Hall Convolution Reverb
-   */
-  private createStereoConcertHallImpulse(ctx: AudioContext, duration = 2.8, decay = 2.6): AudioBuffer {
-    const rate = ctx.sampleRate;
-    const length = Math.floor(rate * duration);
-    const impulse = ctx.createBuffer(2, length, rate);
-    const left = impulse.getChannelData(0);
-    const right = impulse.getChannelData(1);
-
-    // Early reflection delays (in milliseconds) simulating a 9-foot grand in a luxury hall
-    const earlyReflectionsL = [
-      { delayMs: 14, gain: 0.72 },
-      { delayMs: 24, gain: 0.58 },
-      { delayMs: 38, gain: 0.46 },
-      { delayMs: 52, gain: 0.35 },
-      { delayMs: 78, gain: 0.22 },
-    ];
-    const earlyReflectionsR = [
-      { delayMs: 18, gain: 0.68 },
-      { delayMs: 28, gain: 0.52 },
-      { delayMs: 44, gain: 0.42 },
-      { delayMs: 62, gain: 0.31 },
-      { delayMs: 84, gain: 0.18 },
-    ];
-
-    // Late diffuse reverberation decay
-    for (let i = 0; i < length; i++) {
-      const t = i / length;
-      const env = Math.pow(1 - t, decay);
-      const damping = Math.exp(-t * 2.8);
-      left[i] = (Math.random() * 2 - 1) * env * damping * 0.42;
-      right[i] = (Math.random() * 2 - 1) * env * damping * 0.42;
-    }
-
-    // Inject early reflections into channel buffers
-    earlyReflectionsL.forEach(({ delayMs, gain }) => {
-      const sampleIdx = Math.floor((delayMs / 1000) * rate);
-      if (sampleIdx < length) {
-        left[sampleIdx] += gain * 0.5;
-      }
-    });
-
-    earlyReflectionsR.forEach(({ delayMs, gain }) => {
-      const sampleIdx = Math.floor((delayMs / 1000) * rate);
-      if (sampleIdx < length) {
-        right[sampleIdx] += gain * 0.5;
-      }
-    });
-
-    return impulse;
-  }
-
-  private createSoftLimiterCurve(samples = 2048): Float32Array {
-    const curve = new Float32Array(samples);
-    for (let i = 0; i < samples; i++) {
-      const x = (i * 2) / samples - 1;
-      // Smooth analog tape saturation curve prevents digital clipping on fast glissandos
-      curve[i] = Math.tanh(x * 1.05);
-    }
-    return curve;
-  }
-
-  private ensureContext() {
+  private initDrums() {
+    if (this.drumSynth) return;
     try {
-      if (!this.audioCtx || this.audioCtx.state === 'closed') {
-        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
-        this.audioCtx = new AudioCtxClass({
-          latencyHint: 'interactive',
-        });
+      this.drumSynth = new Tone.MembraneSynth({
+        volume: -2,
+        pitchDecay: 0.04,
+        octaves: 5,
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.001, decay: 0.35, sustain: 0.01, release: 0.35 },
+      }).toDestination();
 
-        // 1. Acoustic Soundboard Equalizer (Deep acoustic bass boost & soundboard cavity resonance)
-        this.masterEqualizerLow = this.audioCtx.createBiquadFilter();
-        this.masterEqualizerLow.type = 'lowshelf';
-        this.masterEqualizerLow.frequency.setValueAtTime(110, this.audioCtx.currentTime);
-        this.masterEqualizerLow.gain.setValueAtTime(5.2, this.audioCtx.currentTime);
+      this.hihatSynth = new Tone.MetalSynth({
+        volume: -14,
+        frequency: 200,
+        envelope: { attack: 0.001, decay: 0.06, release: 0.04 },
+        harmonicity: 5.1,
+        modulationIndex: 32,
+        resonance: 4000,
+        octaves: 1.5,
+      } as any).toDestination();
 
-        this.masterEqualizerMid = this.audioCtx.createBiquadFilter();
-        this.masterEqualizerMid.type = 'peaking';
-        this.masterEqualizerMid.frequency.setValueAtTime(260, this.audioCtx.currentTime);
-        this.masterEqualizerMid.Q.setValueAtTime(0.85, this.audioCtx.currentTime);
-        this.masterEqualizerMid.gain.setValueAtTime(2.8, this.audioCtx.currentTime);
+      this.snareSynth = new Tone.NoiseSynth({
+        volume: -8,
+        noise: { type: "white" },
+        envelope: { attack: 0.001, decay: 0.18, sustain: 0, release: 0.12 },
+      }).toDestination();
+    } catch (e) {}
+  }
 
-        this.masterEqualizerHigh = this.audioCtx.createBiquadFilter();
-        this.masterEqualizerHigh.type = 'highshelf';
-        this.masterEqualizerHigh.frequency.setValueAtTime(5500, this.audioCtx.currentTime);
-        this.masterEqualizerHigh.gain.setValueAtTime(0.2, this.audioCtx.currentTime);
-
-        // 2. Convolution Reverb
-        this.convolver = this.audioCtx.createConvolver();
-        const decayTime = this.soundProfile === 'cathedral' ? 4.8 : this.soundProfile === 'studio' ? 1.0 : 2.6;
-        this.convolver.buffer = this.createStereoConcertHallImpulse(this.audioCtx, decayTime);
-
-        this.reverbGain = this.audioCtx.createGain();
-        this.dryGain = this.audioCtx.createGain();
-        this.applyProfileAcoustics();
-
-        // 3. Studio Mastering Compressor & Limiter (Tuned to prevent bass pumping/crackle)
-        this.compressor = this.audioCtx.createDynamicsCompressor();
-        this.compressor.threshold.setValueAtTime(-18, this.audioCtx.currentTime);
-        this.compressor.knee.setValueAtTime(20, this.audioCtx.currentTime);
-        this.compressor.ratio.setValueAtTime(2.8, this.audioCtx.currentTime);
-        this.compressor.attack.setValueAtTime(0.025, this.audioCtx.currentTime);
-        this.compressor.release.setValueAtTime(0.38, this.audioCtx.currentTime);
-
-        // 4. Soft-Clipping WaveShaper Brickwall Limiter (Guarantees zero digital clipping during fast bass glissandos)
-        this.waveShaperLimiter = this.audioCtx.createWaveShaper();
-        this.waveShaperLimiter.curve = this.createSoftLimiterCurve() as any;
-        this.waveShaperLimiter.oversample = '4x';
-
-        // 5. Master Output Gain
-        this.masterGain = this.audioCtx.createGain();
-        this.applyVolumeToGain();
-
-        // Graph Routing:
-        this.masterEqualizerLow.connect(this.masterEqualizerMid);
-        this.masterEqualizerMid.connect(this.masterEqualizerHigh);
-
-        this.masterEqualizerHigh.connect(this.dryGain);
-        this.masterEqualizerHigh.connect(this.convolver);
-        this.convolver.connect(this.reverbGain);
-
-        this.dryGain.connect(this.compressor);
-        this.reverbGain.connect(this.compressor);
-
-        this.compressor.connect(this.waveShaperLimiter);
-        this.waveShaperLimiter.connect(this.masterGain);
-        this.masterGain.connect(this.audioCtx.destination);
+  private ensureAudioContextRunning() {
+    try {
+      const rawCtx = Tone.context.rawContext as AudioContext;
+      if (rawCtx && (rawCtx.state === 'suspended' || (rawCtx.state as any) === 'interrupted')) {
+        rawCtx.resume().catch(() => {});
       }
-
-      if (this.audioCtx.state === 'suspended') {
-        this.audioCtx.resume().catch(() => {});
-      }
-    } catch (e) {
-      console.warn("ensureContext error:", e);
-    }
+    } catch (e) {}
   }
 
   private applyProfileAcoustics() {
-    if (!this.reverbGain || !this.dryGain || !this.masterEqualizerLow || !this.masterEqualizerMid || !this.masterEqualizerHigh || !this.audioCtx) return;
-    const now = this.audioCtx.currentTime;
+    if (!this.equalizer || !this.reverb) return;
 
     switch (this.soundProfile) {
       case 'concert':
-        this.dryGain.gain.setValueAtTime(0.88, now);
-        this.reverbGain.gain.setValueAtTime(0.24, now);
-        this.masterEqualizerLow.gain.setValueAtTime(5.2, now);
-        this.masterEqualizerMid.gain.setValueAtTime(2.8, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(0.2, now);
+        this.equalizer.low.value = 1.8;
+        this.equalizer.mid.value = 0.0;
+        this.equalizer.high.value = 0.8;
+        this.reverb.decay = 2.2;
+        this.reverb.wet.value = 0.16;
         break;
       case 'studio':
-        this.dryGain.gain.setValueAtTime(0.96, now);
-        this.reverbGain.gain.setValueAtTime(0.08, now);
-        this.masterEqualizerLow.gain.setValueAtTime(4.2, now);
-        this.masterEqualizerMid.gain.setValueAtTime(3.2, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(0.0, now);
+        this.equalizer.low.value = 1.2;
+        this.equalizer.mid.value = 0.4;
+        this.equalizer.high.value = 0.2;
+        this.reverb.decay = 1.0;
+        this.reverb.wet.value = 0.08;
         break;
       case 'bright':
-        this.dryGain.gain.setValueAtTime(0.90, now);
-        this.reverbGain.gain.setValueAtTime(0.18, now);
-        this.masterEqualizerLow.gain.setValueAtTime(3.5, now);
-        this.masterEqualizerMid.gain.setValueAtTime(2.2, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(1.5, now);
+        this.equalizer.low.value = 0.8;
+        this.equalizer.mid.value = 0.6;
+        this.equalizer.high.value = 2.2;
+        this.reverb.decay = 1.8;
+        this.reverb.wet.value = 0.18;
         break;
       case 'warm':
-        this.dryGain.gain.setValueAtTime(0.92, now);
-        this.reverbGain.gain.setValueAtTime(0.22, now);
-        this.masterEqualizerLow.gain.setValueAtTime(6.0, now);
-        this.masterEqualizerMid.gain.setValueAtTime(2.5, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(-1.8, now);
+        this.equalizer.low.value = 2.8;
+        this.equalizer.mid.value = 0.2;
+        this.equalizer.high.value = -0.8;
+        this.reverb.decay = 2.4;
+        this.reverb.wet.value = 0.18;
         break;
       case 'cathedral':
-        this.dryGain.gain.setValueAtTime(0.58, now);
-        this.reverbGain.gain.setValueAtTime(0.52, now);
-        this.masterEqualizerLow.gain.setValueAtTime(4.8, now);
-        this.masterEqualizerMid.gain.setValueAtTime(1.8, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(0.8, now);
+        this.equalizer.low.value = 1.5;
+        this.equalizer.mid.value = -0.5;
+        this.equalizer.high.value = 1.0;
+        this.reverb.decay = 4.5;
+        this.reverb.wet.value = 0.38;
         break;
     }
   }
 
   private applyVolumeToGain() {
-    let normalized = Math.max(0, Math.min(100, this.volumePercent)) / 100;
-    if (this.volumePercent <= 0) normalized = 0;
-    const gainValue = normalized === 0 ? 0 : Math.pow(normalized, 1.25) * 1.5;
+    const normalized = Math.max(0, Math.min(100, this.volumePercent)) / 100;
+    const gainValue = normalized === 0 ? 0 : Math.pow(normalized, 1.2);
 
-    // 1. Web Audio API Master Gain
-    if (this.masterGain && this.audioCtx) {
-      const now = this.audioCtx.currentTime;
-      this.masterGain.gain.cancelScheduledValues(now);
-      this.masterGain.gain.setValueAtTime(gainValue, now);
+    if (this.masterGain) {
+      this.masterGain.gain.rampTo(gainValue, 0.02);
     }
 
-    // 2. Tone.js Destination Master Volume (Directly controls Tone.Sampler acoustic piano and Tone synths!)
     try {
-      if (typeof Tone !== 'undefined' && Tone.getDestination) {
+      if (Tone.getDestination()) {
         if (normalized === 0) {
           Tone.getDestination().volume.value = -Infinity;
         } else {
-          // Tone.gainToDb converts gain factor to decibels
-          const db = Tone.gainToDb(gainValue);
-          Tone.getDestination().volume.value = db;
+          Tone.getDestination().volume.value = Tone.gainToDb(gainValue);
         }
       }
-    } catch (e) {
-      console.warn("Tone destination volume update error:", e);
-    }
+    } catch (e) {}
   }
 
   getVolume(): number {
@@ -399,9 +307,8 @@ class AudioEngine {
   }
 
   setVolume(percentOrDb: number) {
-    // If passed a negative dB value like from slider (-30 to +6), map to 0-100%
     if (percentOrDb <= 6 && percentOrDb >= -30) {
-      const normalized = (percentOrDb - (-30)) / (6 - (-30)); // 0.0 to 1.0
+      const normalized = (percentOrDb - (-30)) / (6 - (-30));
       this.volumePercent = Math.round(normalized * 100);
     } else {
       this.volumePercent = Math.max(0, Math.min(100, percentOrDb));
@@ -418,338 +325,252 @@ class AudioEngine {
     try {
       localStorage.setItem('maestro_sound_profile', profile);
     } catch (e) {}
-
     this.applyProfileAcoustics();
-
-    if (this.samplerReverb) {
-      this.samplerReverb.decay = profile === 'cathedral' ? 4.8 : profile === 'studio' ? 1.0 : 2.4;
-      this.samplerReverb.wet.value = profile === 'studio' ? 0.12 : profile === 'cathedral' ? 0.50 : 0.28;
-    }
   }
 
-  private staticHammerBuffer: AudioBuffer | null = null;
-
   /**
-   * Generates a felt hammer strike noise burst (cached buffer for 0ms CPU glissando)
+   * Fletcher-Munson equal-loudness velocity compensation across 88 keys:
+   * - Deep Bass (MIDI 21 - 45): full rich body without distortion (0.95 -> 0.88)
+   * - Mid Range (MIDI 46 - 72): standard natural acoustic velocity (0.82 -> 0.76)
+   * - High Treble (MIDI 73 - 108): softened so it is never shrill or overpowered (0.70 -> 0.58)
    */
-  private createHammerTransient(ctx: AudioContext, freq: number, now: number): { source: AudioBufferSourceNode; gain: GainNode } | null {
-    try {
-      if (!this.staticHammerBuffer || this.staticHammerBuffer.sampleRate !== ctx.sampleRate) {
-        const bufferSize = Math.floor(ctx.sampleRate * 0.016);
-        this.staticHammerBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const output = this.staticHammerBuffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-          output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.22));
-        }
-      }
-
-      const whiteNoise = ctx.createBufferSource();
-      whiteNoise.buffer = this.staticHammerBuffer;
-
-      const hammerFilter = ctx.createBiquadFilter();
-      hammerFilter.type = 'bandpass';
-      hammerFilter.frequency.setValueAtTime(Math.min(3200, Math.max(600, freq * 1.8)), now);
-      hammerFilter.Q.setValueAtTime(2.4, now);
-
-      const hammerGain = ctx.createGain();
-      hammerGain.gain.setValueAtTime(0.18, now);
-      hammerGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.015);
-
-      whiteNoise.connect(hammerFilter);
-      hammerFilter.connect(hammerGain);
-
-      return { source: whiteNoise, gain: hammerGain };
-    } catch (e) {
-      return null;
+  private calculateAcousticVelocity(midi: number): number {
+    if (midi <= 45) {
+      // Bass: 0.95 down to 0.88
+      return 0.95 - ((midi - 21) / 24) * 0.07;
+    } else if (midi <= 72) {
+      // Mid: 0.88 down to 0.76
+      return 0.88 - ((midi - 46) / 26) * 0.12;
+    } else {
+      // Treble: 0.74 down to 0.58 (smooth, pleasant high-end)
+      return Math.max(0.55, 0.74 - ((midi - 73) / 35) * 0.16);
     }
   }
 
   /**
-   * Plays a single note with high-definition acoustic realism
+   * Plays a single note with concert-grand acoustic realism
    */
   playNote(note: string, duration: string = "8n", instrument: InstrumentType = "piano", isInteractive: boolean = true) {
-    this.ensureContext();
+    this.ensureAudioContextRunning();
 
     const midi = NOTE_TO_MIDI[note] ?? 60;
+    const now = Tone.now();
+    const vel = this.calculateAcousticVelocity(midi);
 
-    // Bass glissando dampening: if user is sliding fast across low keys without sustain, prune older bass notes
-    if (midi < 48) {
-      const nowMs = Date.now();
-      if (!this.isSustainOn) {
-        this.recentBassNotes = this.recentBassNotes.filter((b) => {
-          const isOld = nowMs - b.time > 130;
-          if (!isOld && b.note !== note) {
-            if (this.isSamplerLoaded && this.sampler) {
-              try { this.sampler.triggerRelease([b.note]); } catch (e) {}
+    // 1. Acoustic Grand Piano (Yamaha C5 Concert Grand via Tone.Sampler)
+    if (instrument === "piano") {
+      if (!this.sampler) {
+        this.initSampler();
+      }
+
+      // Bass glissando dampening: if fast sliding across low keys without sustain pedal,
+      // prune older bass notes so low frequencies don't accumulate into rumble
+      if (midi < 48) {
+        const nowMs = Date.now();
+        if (!this.isSustainOn) {
+          this.recentBassNotes = this.recentBassNotes.filter((b) => {
+            const isOld = nowMs - b.time > 140;
+            if (!isOld && b.note !== note) {
+              if (this.sampler) {
+                try { this.sampler.triggerRelease([b.note]); } catch (e) {}
+              }
+            }
+            return !isOld;
+          });
+        }
+        this.recentBassNotes.push({ note, time: nowMs });
+      }
+
+      // Voice Stealing / Polyphony management (cap at MAX_POLYPHONY voices)
+      if (this.activeVoices.size >= this.MAX_POLYPHONY) {
+        // Find oldest voice that is no longer physically held down by finger
+        let stolenNote: string | null = null;
+        let oldestTime = Infinity;
+
+        for (const [vNote, info] of this.activeVoices.entries()) {
+          if (!info.isHeld && info.startTime < oldestTime) {
+            oldestTime = info.startTime;
+            stolenNote = vNote;
+          }
+        }
+
+        // If all are currently held, steal the oldest note overall
+        if (!stolenNote) {
+          for (const [vNote, info] of this.activeVoices.entries()) {
+            if (info.startTime < oldestTime) {
+              oldestTime = info.startTime;
+              stolenNote = vNote;
             }
           }
-          return !isOld;
-        });
-      }
-      this.recentBassNotes.push({ note, time: nowMs });
-    }
-
-    // Pitch-dependent velocity & bass power compensation:
-    // Low Bass (midi 21-48): vel 0.95 to 0.88 -> full deep room-shaking body!
-    // Mid Range (midi 49-72): vel 0.82 to 0.74 -> natural acoustic response!
-    // High Treble (midi 73-108): vel 0.70 to 0.60 -> smooth, non-piercing high end!
-    const pitchComp = Math.max(0.60, Math.min(0.95, 0.95 - (midi - 21) * 0.0042));
-    const vel = pitchComp;
-
-    // 1. If Real Acoustic Grand Piano Sample is loaded and instrument is piano, use the sample!
-    if (instrument === "piano" && this.isSamplerLoaded && this.sampler) {
-      try {
-        if (this.isSustainOn) {
-          this.sampler.triggerAttack(note, undefined, vel);
-          this.sustainedNotes.add(note);
-          return;
-        } else if (isInteractive) {
-          this.sampler.triggerAttack(note, undefined, vel);
-          return;
-        } else {
-          this.sampler.triggerAttackRelease(note, duration, undefined, vel);
-          return;
         }
-      } catch (e) {
-        // Fall back seamlessly to physical modeling
+
+        if (stolenNote && this.sampler) {
+          try {
+            this.sampler.triggerRelease([stolenNote]);
+          } catch (e) {}
+          this.activeVoices.delete(stolenNote);
+        }
       }
-    }
 
-    if (!this.audioCtx) return;
-    if (this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume().catch(() => {});
-    }
+      this.activeVoices.set(note, { startTime: Date.now(), isHeld: true });
 
-    const now = this.audioCtx.currentTime;
-    const durationSec = duration === "2n" ? 3.5 : duration === "4n" ? 2.5 : duration === "16n" ? 0.6 : 1.8;
-    const effectiveDuration = this.isSustainOn ? Math.max(durationSec * 3.5, 6.0) : durationSec;
-
-    // Smooth voice recycling
-    while (this.activeVoices.length >= this.MAX_VOICES) {
-      const oldest = this.activeVoices.shift();
-      if (oldest) {
+      if (this.sampler) {
         try {
-          oldest.masterGain.gain.cancelScheduledValues(now);
-          oldest.masterGain.gain.setValueAtTime(Math.max(0.0001, oldest.masterGain.gain.value), now);
-          oldest.masterGain.gain.linearRampToValueAtTime(0.0001, now + 0.015);
-          oldest.oscNodes.forEach(o => {
-            try { (o as any).stop?.(now + 0.02); } catch (e) {}
-          });
-        } catch (e) {}
+          if (this.isSustainOn) {
+            this.sampler.triggerAttack(note, now, vel);
+            this.sustainedNotes.add(note);
+          } else if (isInteractive) {
+            this.sampler.triggerAttack(note, now, vel);
+          } else {
+            this.sampler.triggerAttackRelease(note, duration, now, vel);
+          }
+          return;
+        } catch (e) {
+          console.warn("Sampler trigger error:", e);
+        }
       }
     }
 
-    try {
-      const freq = noteToFreq(note);
-      const voiceMasterGain = this.audioCtx.createGain();
-      const oscNodes: (AudioNode | OscillatorNode)[] = [];
-      const gainNodes: GainNode[] = [];
+    // 2. High-Performance Synth Modeling for other instruments (Guitar, Strings, Bass)
+    this.playSynthNote(note, duration, instrument);
+  }
 
-      // Binaural Stereo Panning based on keyboard pitch
-      const midi = NOTE_TO_MIDI[note] ?? 60;
-      const panValue = Math.max(-0.45, Math.min(0.45, (midi - 60) / 42));
-      let panNode: StereoPannerNode | null = null;
-      if (this.audioCtx.createStereoPanner) {
-        panNode = this.audioCtx.createStereoPanner();
-        panNode.pan.setValueAtTime(panValue, now);
+  private playSynthNote(note: string, duration: string, instrument: InstrumentType) {
+    try {
+      const rawCtx = Tone.context.rawContext as AudioContext;
+      if (!rawCtx) return;
+      const now = rawCtx.currentTime;
+      const freq = noteToFreq(note);
+
+      // Clean up excess synth voices (max 16 voices)
+      while (this.synthVoices.length >= 16) {
+        const oldest = this.synthVoices.shift();
+        if (oldest) {
+          try {
+            oldest.masterGain.gain.setValueAtTime(0, now);
+            oldest.oscNodes.forEach(o => { try { o.stop(now); o.disconnect(); } catch (e) {} });
+            oldest.gainNodes.forEach(g => { try { g.disconnect(); } catch (e) {} });
+            oldest.masterGain.disconnect();
+          } catch (e) {}
+        }
       }
 
-      if (instrument === "piano") {
-        // Concert Grand Yamaha/Steinway physical modeling (6 acoustic partials + inharmonicity + hammer filter)
-        const partials = [
-          { k: 1.000, amp: 1.00, decay: 1.00, type: 'triangle' as const },
-          { k: 2.001, amp: 0.65, decay: 0.85, type: 'sine' as const },
-          { k: 3.004, amp: 0.42, decay: 0.70, type: 'sine' as const },
-          { k: 4.009, amp: 0.28, decay: 0.55, type: 'sine' as const },
-          { k: 5.016, amp: 0.18, decay: 0.40, type: 'sine' as const },
-          { k: 6.025, amp: 0.10, decay: 0.30, type: 'sine' as const },
-        ];
+      const voiceMasterGain = rawCtx.createGain();
+      const oscNodes: OscillatorNode[] = [];
+      const gainNodes: GainNode[] = [];
+      const durSec = duration === '2n' ? 2.5 : duration === '4n' ? 1.4 : 0.6;
 
-        // Dynamic Hammer Felt Attack Filter
-        const hammerFilter = this.audioCtx.createBiquadFilter();
-        hammerFilter.type = 'lowpass';
-        const initialCutoff = Math.min(16000, Math.max(1800, freq * 8));
-        hammerFilter.frequency.setValueAtTime(initialCutoff, now);
-        hammerFilter.frequency.exponentialRampToValueAtTime(Math.min(4500, Math.max(800, freq * 2.5)), now + 0.15);
-
-        partials.forEach(p => {
-          const harmonicFreq = freq * p.k;
-          if (harmonicFreq > 18500) return;
-
-          const osc = this.audioCtx!.createOscillator();
-          osc.type = p.type;
-          osc.frequency.setValueAtTime(harmonicFreq, now);
-
-          const g = this.audioCtx!.createGain();
-          g.gain.setValueAtTime(0.0001, now);
-          g.gain.linearRampToValueAtTime(p.amp * 0.9, now + 0.002);
-          g.gain.linearRampToValueAtTime(0.0001, now + effectiveDuration * p.decay);
-
-          osc.connect(g);
-          g.connect(hammerFilter);
-          oscNodes.push(osc);
-          gainNodes.push(g);
-        });
-
-        // Acoustic Detune Chorus Shimmer
-        const detuneOsc = this.audioCtx.createOscillator();
-        detuneOsc.type = 'triangle';
-        detuneOsc.frequency.setValueAtTime(freq + 0.38, now);
-        const detuneGain = this.audioCtx.createGain();
-        detuneGain.gain.setValueAtTime(0.0001, now);
-        detuneGain.gain.linearRampToValueAtTime(0.24, now + 0.0035);
-        detuneGain.gain.linearRampToValueAtTime(0.0001, now + effectiveDuration * 0.85);
-        detuneOsc.connect(detuneGain);
-        detuneGain.connect(hammerFilter);
-        oscNodes.push(detuneOsc);
-        gainNodes.push(detuneGain);
-
-        // Physical Hammer Felt Impact Transient
-        const hammer = this.createHammerTransient(this.audioCtx, freq, now);
-        if (hammer) {
-          hammer.gain.connect(hammerFilter);
-          hammer.source.start(now);
-          hammer.source.stop(now + 0.02);
-          oscNodes.push(hammer.source);
-          gainNodes.push(hammer.gain);
-        }
-
-        hammerFilter.connect(voiceMasterGain);
-
-        // Master Voice Envelope
-        voiceMasterGain.gain.setValueAtTime(0.0001, now);
-        voiceMasterGain.gain.linearRampToValueAtTime(0.96, now + 0.002);
-        voiceMasterGain.gain.linearRampToValueAtTime(0.0001, now + effectiveDuration);
-
-      } else if (instrument === "guitar") {
-        const osc = this.audioCtx.createOscillator();
-        osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(freq, now);
-
-        const osc2 = this.audioCtx.createOscillator();
-        osc2.type = "triangle";
-        osc2.frequency.setValueAtTime(freq, now);
-
-        const filter = this.audioCtx.createBiquadFilter();
-        filter.type = "lowpass";
-        filter.frequency.setValueAtTime(freq * 5.8, now);
-        filter.frequency.exponentialRampToValueAtTime(freq * 1.8, now + 0.25);
-
-        osc.connect(filter);
-        osc2.connect(filter);
-        filter.connect(voiceMasterGain);
-        oscNodes.push(osc, osc2);
-
-        voiceMasterGain.gain.setValueAtTime(0.0001, now);
-        voiceMasterGain.gain.linearRampToValueAtTime(0.94, now + 0.004);
-        voiceMasterGain.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration * 0.9);
-
-      } else if (instrument === "strings") {
-        const osc1 = this.audioCtx.createOscillator();
+      if (instrument === "guitar") {
+        const osc1 = rawCtx.createOscillator();
         osc1.type = "sawtooth";
         osc1.frequency.setValueAtTime(freq, now);
 
-        const osc2 = this.audioCtx.createOscillator();
+        const osc2 = rawCtx.createOscillator();
+        osc2.type = "triangle";
+        osc2.frequency.setValueAtTime(freq, now);
+
+        const filter = rawCtx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(freq * 5.2, now);
+        filter.frequency.exponentialRampToValueAtTime(Math.max(200, freq * 1.5), now + 0.25);
+
+        osc1.connect(filter);
+        osc2.connect(filter);
+        filter.connect(voiceMasterGain);
+        oscNodes.push(osc1, osc2);
+
+        voiceMasterGain.gain.setValueAtTime(0.0001, now);
+        voiceMasterGain.gain.linearRampToValueAtTime(0.75, now + 0.005);
+        voiceMasterGain.gain.exponentialRampToValueAtTime(0.0001, now + durSec);
+
+      } else if (instrument === "strings") {
+        const osc1 = rawCtx.createOscillator();
+        osc1.type = "sawtooth";
+        osc1.frequency.setValueAtTime(freq, now);
+
+        const osc2 = rawCtx.createOscillator();
         osc2.type = "sawtooth";
         osc2.frequency.setValueAtTime(freq, now);
         osc2.detune.setValueAtTime(8, now);
 
-        const oscSub = this.audioCtx.createOscillator();
-        oscSub.type = "sine";
-        oscSub.frequency.setValueAtTime(freq, now);
-        oscSub.detune.setValueAtTime(-8, now);
-
-        const filter = this.audioCtx.createBiquadFilter();
+        const filter = rawCtx.createBiquadFilter();
         filter.type = "lowpass";
-        filter.frequency.setValueAtTime(2400, now);
+        filter.frequency.setValueAtTime(2200, now);
 
         osc1.connect(filter);
         osc2.connect(filter);
-        oscSub.connect(filter);
         filter.connect(voiceMasterGain);
-        oscNodes.push(osc1, osc2, oscSub);
+        oscNodes.push(osc1, osc2);
 
         voiceMasterGain.gain.setValueAtTime(0.0001, now);
-        voiceMasterGain.gain.linearRampToValueAtTime(0.88, now + 0.06);
-        voiceMasterGain.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration);
+        voiceMasterGain.gain.linearRampToValueAtTime(0.70, now + 0.06);
+        voiceMasterGain.gain.exponentialRampToValueAtTime(0.0001, now + durSec);
 
       } else if (instrument === "bass") {
-        const osc = this.audioCtx.createOscillator();
+        const osc = rawCtx.createOscillator();
         osc.type = "triangle";
         osc.frequency.setValueAtTime(freq / 2, now);
 
-        const sub = this.audioCtx.createOscillator();
+        const sub = rawCtx.createOscillator();
         sub.type = "sine";
         sub.frequency.setValueAtTime(freq / 2, now);
-
-        const pluck = this.audioCtx.createOscillator();
-        pluck.type = "sawtooth";
-        pluck.frequency.setValueAtTime(freq, now);
-        const pluckGain = this.audioCtx.createGain();
-        pluckGain.gain.setValueAtTime(0.45, now);
-        pluckGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-        pluck.connect(pluckGain);
-        pluckGain.connect(voiceMasterGain);
-        oscNodes.push(pluck);
 
         osc.connect(voiceMasterGain);
         sub.connect(voiceMasterGain);
         oscNodes.push(osc, sub);
 
         voiceMasterGain.gain.setValueAtTime(0.0001, now);
-        voiceMasterGain.gain.linearRampToValueAtTime(0.98, now + 0.004);
-        voiceMasterGain.gain.exponentialRampToValueAtTime(0.0001, now + effectiveDuration);
-      }
-
-      // Route through Panner Node
-      if (panNode) {
-        voiceMasterGain.connect(panNode);
-        if (this.masterEqualizerLow) {
-          panNode.connect(this.masterEqualizerLow);
-        } else {
-          panNode.connect(this.audioCtx.destination);
-        }
+        voiceMasterGain.gain.linearRampToValueAtTime(0.85, now + 0.005);
+        voiceMasterGain.gain.exponentialRampToValueAtTime(0.0001, now + durSec);
       } else {
-        if (this.masterEqualizerLow) {
-          voiceMasterGain.connect(this.masterEqualizerLow);
-        } else {
-          voiceMasterGain.connect(this.audioCtx.destination);
-        }
+        // Fallback piano synth
+        const osc = rawCtx.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, now);
+
+        osc.connect(voiceMasterGain);
+        oscNodes.push(osc);
+
+        voiceMasterGain.gain.setValueAtTime(0.0001, now);
+        voiceMasterGain.gain.linearRampToValueAtTime(0.80, now + 0.003);
+        voiceMasterGain.gain.exponentialRampToValueAtTime(0.0001, now + durSec);
       }
 
-      const stopTime = now + effectiveDuration + 0.05;
+      // Connect to master chain or destination
+      if (this.subFilter) {
+        Tone.connect(voiceMasterGain, this.subFilter);
+      } else {
+        voiceMasterGain.connect(rawCtx.destination);
+      }
+
+      const stopTime = now + durSec + 0.05;
       oscNodes.forEach(o => {
         try {
-          (o as OscillatorNode).start?.(now);
-          (o as OscillatorNode).stop?.(stopTime);
+          o.start(now);
+          o.stop(stopTime);
         } catch (e) {}
       });
 
-      const voice: ActiveVoice = {
+      const voiceObj: ActiveSynthVoice = {
         note,
         oscNodes,
         gainNodes,
         masterGain: voiceMasterGain,
-        endTime: stopTime,
+        stopTime,
       };
-      this.activeVoices.push(voice);
+      this.synthVoices.push(voiceObj);
 
-      // Cleanup on voice end
-      const firstOsc = oscNodes[0] as OscillatorNode;
-      if (firstOsc && 'onended' in firstOsc) {
-        firstOsc.onended = () => {
-          const idx = this.activeVoices.indexOf(voice);
-          if (idx !== -1) this.activeVoices.splice(idx, 1);
-          try {
-            oscNodes.forEach(o => (o as any).disconnect?.());
-            gainNodes.forEach(g => g.disconnect());
-            voiceMasterGain.disconnect();
-            if (panNode) panNode.disconnect();
-          } catch (e) {}
-        };
-      }
+      oscNodes[0].onended = () => {
+        const idx = this.synthVoices.indexOf(voiceObj);
+        if (idx !== -1) this.synthVoices.splice(idx, 1);
+        try {
+          oscNodes.forEach(o => o.disconnect());
+          gainNodes.forEach(g => g.disconnect());
+          voiceMasterGain.disconnect();
+        } catch (e) {}
+      };
     } catch (e) {
-      console.warn("playNote error:", e);
+      console.warn("Synth play error:", e);
     }
   }
 
@@ -758,40 +579,14 @@ class AudioEngine {
   }
 
   playDrum(type: string, time: number = 0) {
-    this.ensureContext();
-    if (!this.audioCtx) return;
-
-    const now = this.audioCtx.currentTime + time;
+    this.ensureAudioContextRunning();
     try {
-      if (type === "kick") {
-        const osc = this.audioCtx.createOscillator();
-        const gain = this.audioCtx.createGain();
-        osc.frequency.setValueAtTime(140, now);
-        osc.frequency.exponentialRampToValueAtTime(0.01, now + 0.28);
-        gain.gain.setValueAtTime(0.95, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-        osc.connect(gain);
-        if (this.compressor) {
-          gain.connect(this.compressor);
-        } else {
-          gain.connect(this.audioCtx.destination);
-        }
-        osc.start(now);
-        osc.stop(now + 0.28);
-        osc.onended = () => {
-          try {
-            osc.disconnect();
-            gain.disconnect();
-          } catch (e) {}
-        };
-      } else if (type === "snare") {
-        if (this.snareSynth) {
-          this.snareSynth.triggerAttackRelease("8n", Tone.now() + time);
-        }
-      } else if (type === "hihat") {
-        if (this.hihatSynth) {
-          this.hihatSynth.triggerAttackRelease("32n", Tone.now() + time, 0.4);
-        }
+      if (type === "kick" && this.drumSynth) {
+        this.drumSynth.triggerAttackRelease("C1", "8n", Tone.now() + time);
+      } else if (type === "snare" && this.snareSynth) {
+        this.snareSynth.triggerAttackRelease("8n", Tone.now() + time);
+      } else if (type === "hihat" && this.hihatSynth) {
+        this.hihatSynth.triggerAttackRelease("32n", Tone.now() + time, 0.4);
       }
     } catch (e) {}
   }
@@ -799,45 +594,75 @@ class AudioEngine {
   setSustain(sustain: boolean) {
     this.isSustainOn = sustain;
     if (!sustain) {
-      this.sustainedNotes.forEach((note) => {
-        this.releaseNoteForce(note);
-      });
-      this.sustainedNotes.clear();
+      // Sustain released: damp all sustained notes
+      if (this.sustainedNotes.size > 0) {
+        const notesToRelease = Array.from(this.sustainedNotes);
+        if (this.sampler) {
+          try {
+            this.sampler.triggerRelease(notesToRelease);
+          } catch (e) {}
+        }
+        this.sustainedNotes.forEach((n) => {
+          this.releaseSynthVoice(n);
+        });
+        this.sustainedNotes.clear();
+      }
     }
   }
 
+  /**
+   * Called when a key is physically released (finger lifted from screen or keyup)
+   */
   releaseNote(note: string) {
+    const voiceInfo = this.activeVoices.get(note);
+    if (voiceInfo) {
+      voiceInfo.isHeld = false;
+    }
+
     if (this.isSustainOn) {
+      // Pedal is held down: keep sound ringing until pedal lifts
       this.sustainedNotes.add(note);
       return;
     }
+
     this.releaseNoteForce(note);
   }
 
+  /**
+   * Immediately releases/damps a note with natural acoustic damper decay
+   */
   releaseNoteForce(note: string) {
-    if (this.isSamplerLoaded && this.sampler) {
+    this.activeVoices.delete(note);
+
+    if (this.sampler) {
       try {
         this.sampler.triggerRelease([note]);
       } catch (e) {}
     }
 
-    if (!this.audioCtx) return;
-    const now = this.audioCtx.currentTime;
-    const midi = NOTE_TO_MIDI[note] ?? 60;
-    // Low bass notes (below C3) get a smoother linear fade-out to prevent zero-crossing clicks & crackles
-    const fadeOutTime = midi < 48 ? 0.18 : 0.08;
+    this.releaseSynthVoice(note);
+  }
 
-    this.activeVoices.forEach((voice) => {
-      if (voice.note === note) {
-        try {
-          voice.masterGain.gain.cancelScheduledValues(now);
-          const currentGain = Math.max(0.0001, voice.masterGain.gain.value);
-          voice.masterGain.gain.setValueAtTime(currentGain, now);
-          voice.masterGain.gain.linearRampToValueAtTime(0.0001, now + fadeOutTime);
-          voice.masterGain.gain.setValueAtTime(0, now + fadeOutTime + 0.01);
-        } catch (e) {}
-      }
-    });
+  private releaseSynthVoice(note: string) {
+    try {
+      const rawCtx = Tone.context.rawContext as AudioContext;
+      if (!rawCtx) return;
+      const now = rawCtx.currentTime;
+
+      this.synthVoices.forEach((v) => {
+        if (v.note === note) {
+          try {
+            v.masterGain.gain.cancelScheduledValues(now);
+            const cur = Math.max(0.0001, v.masterGain.gain.value);
+            v.masterGain.gain.setValueAtTime(cur, now);
+            v.masterGain.gain.linearRampToValueAtTime(0.0001, now + 0.08);
+            v.oscNodes.forEach(o => {
+              try { o.stop(now + 0.09); } catch (e) {}
+            });
+          } catch (e) {}
+        }
+      });
+    } catch (e) {}
   }
 
   playJamBeat(style: string, beatIndex: number) {
@@ -860,19 +685,18 @@ class AudioEngine {
     } catch (e) {}
   }
 
-  // Synthesize Realistic Applause sound effect for Piano Bar / Social mode
   playApplauseSound() {
     this.init().catch(() => {});
-    if (!this.audioCtx) return;
     try {
-      const now = this.audioCtx.currentTime;
+      const rawCtx = Tone.context.rawContext as AudioContext;
+      if (!rawCtx) return;
+      const now = rawCtx.currentTime;
       const duration = 2.5;
-      const sampleRate = this.audioCtx.sampleRate;
-      const buffer = this.audioCtx.createBuffer(2, sampleRate * duration, sampleRate);
+      const sampleRate = rawCtx.sampleRate;
+      const buffer = rawCtx.createBuffer(2, sampleRate * duration, sampleRate);
       const left = buffer.getChannelData(0);
       const right = buffer.getChannelData(1);
 
-      // Pink noise + clapping pulse synthesis
       let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
       for (let i = 0; i < buffer.length; i++) {
         const white = Math.random() * 2 - 1;
@@ -893,20 +717,19 @@ class AudioEngine {
         right[i] = pink * 0.12 * envelope * (1 - clapDensity * 0.5);
       }
 
-      const src = this.audioCtx.createBufferSource();
+      const src = rawCtx.createBufferSource();
       src.buffer = buffer;
-      const filter = this.audioCtx.createBiquadFilter();
+      const filter = rawCtx.createBiquadFilter();
       filter.type = 'bandpass';
       filter.frequency.setValueAtTime(1400, now);
       filter.Q.setValueAtTime(0.8, now);
 
       src.connect(filter);
-      filter.connect(this.audioCtx.destination);
+      filter.connect(rawCtx.destination);
       src.start(now);
     } catch (e) {}
   }
 
-  // Synthesize Victory Chime for Duels and Quiz
   playChimeSound() {
     this.init().catch(() => {});
     const notes = ['E5', 'G#5', 'B5', 'E6'];
@@ -917,33 +740,33 @@ class AudioEngine {
     });
   }
 
-  // Synthesize Penalty Buzzer for wrong note in Relay / Battle
   playBuzzerSound() {
     this.init().catch(() => {});
-    if (!this.audioCtx) return;
     try {
-      const now = this.audioCtx.currentTime;
-      const osc = this.audioCtx.createOscillator();
-      const gain = this.audioCtx.createGain();
+      const rawCtx = Tone.context.rawContext as AudioContext;
+      if (!rawCtx) return;
+      const now = rawCtx.currentTime;
+      const osc = rawCtx.createOscillator();
+      const gain = rawCtx.createGain();
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(110, now); // Low A2 buzz
+      osc.frequency.setValueAtTime(110, now);
       gain.gain.setValueAtTime(0.2, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
       osc.connect(gain);
-      gain.connect(this.audioCtx.destination);
+      gain.connect(rawCtx.destination);
       osc.start(now);
       osc.stop(now + 0.35);
     } catch (e) {}
   }
 
-  // Synthesize Crisp Metronome Click Sound
   playMetronomeClick(isAccent: boolean = false) {
     this.init().catch(() => {});
-    if (!this.audioCtx) return;
     try {
-      const now = this.audioCtx.currentTime;
-      const osc = this.audioCtx.createOscillator();
-      const gain = this.audioCtx.createGain();
+      const rawCtx = Tone.context.rawContext as AudioContext;
+      if (!rawCtx) return;
+      const now = rawCtx.currentTime;
+      const osc = rawCtx.createOscillator();
+      const gain = rawCtx.createGain();
 
       osc.type = 'sine';
       osc.frequency.setValueAtTime(isAccent ? 1400 : 800, now);
@@ -953,7 +776,7 @@ class AudioEngine {
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
 
       osc.connect(gain);
-      gain.connect(this.audioCtx.destination);
+      gain.connect(rawCtx.destination);
 
       osc.start(now);
       osc.stop(now + 0.04);

@@ -346,6 +346,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   // Release sustained notes when sustain is turned off
   useEffect(() => {
+    audioEngine.setSustain(sustain);
     if (!sustain) {
       currentlyPressedNotesRef.current.forEach((note) => {
         if (!micActiveNotesRef.current.has(note)) {
@@ -397,9 +398,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const clearAllPressedVisuals = useCallback(() => {
     currentlyPressedNotesRef.current.forEach((note) => {
       setKeyVisual(note, false);
-      if (!sustainRef.current) {
-        audioEngine.releaseNote(getTransposedNote(note));
-      }
+      audioEngine.releaseNote(getTransposedNote(note));
     });
     currentlyPressedNotesRef.current.clear();
     keyNodesMapRef.current.forEach((el) => el.classList.remove('key-pressed-active'));
@@ -1424,10 +1423,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
   }, [triggerNoteHit]);
 
   const handleCanvasNoteUp = useCallback((baseNote: string) => {
-    if (!sustainRef.current) {
-      const note = getTransposedNote(baseNote);
-      audioEngine.releaseNote(note);
-    }
+    const note = getTransposedNote(baseNote);
+    audioEngine.releaseNote(note);
   }, [getTransposedNote]);
 
   // Measured DOM Piano Geometry (100% pixel-perfect match between visual buttons & touch hit-testing)
@@ -1628,10 +1625,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
     // Turn off notes no longer touched
     currentlyPressedNotesRef.current.forEach((note) => {
       if (!nextNotes.has(note)) {
-        if (!sustainRef.current) {
-          setKeyVisual(note, false);
-          audioEngine.releaseNote(getTransposedNote(note));
-        }
+        setKeyVisual(note, false);
+        audioEngine.releaseNote(getTransposedNote(note));
       }
     });
 
@@ -1712,7 +1707,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       const oldNote = currentMouseNoteRef.current;
       currentMouseNoteRef.current = baseNote;
 
-      if (oldNote && !sustainRef.current) {
+      if (oldNote) {
         setKeyVisual(oldNote, false);
         audioEngine.releaseNote(getTransposedNote(oldNote));
         currentlyPressedNotesRef.current.delete(oldNote);
@@ -1726,10 +1721,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   const handleMouseLeaveKey = (baseNote: string) => {
     if (isMouseDownRef.current && currentMouseNoteRef.current === baseNote) {
-      if (!sustainRef.current) {
-        setKeyVisual(baseNote, false);
-        audioEngine.releaseNote(getTransposedNote(baseNote));
-      }
+      setKeyVisual(baseNote, false);
+      audioEngine.releaseNote(getTransposedNote(baseNote));
       currentlyPressedNotesRef.current.delete(baseNote);
       currentMouseNoteRef.current = null;
     }
@@ -1743,7 +1736,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       if (note && note !== currentMouseNoteRef.current) {
         const oldNote = currentMouseNoteRef.current;
         currentMouseNoteRef.current = note;
-        if (oldNote && !sustainRef.current) {
+        if (oldNote) {
           setKeyVisual(oldNote, false);
           audioEngine.releaseNote(getTransposedNote(oldNote));
           currentlyPressedNotesRef.current.delete(oldNote);
@@ -1752,10 +1745,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
         currentlyPressedNotesRef.current.add(note);
         triggerNoteHit(note);
       } else if (!note && currentMouseNoteRef.current) {
-        if (!sustainRef.current) {
-          setKeyVisual(currentMouseNoteRef.current, false);
-          audioEngine.releaseNote(getTransposedNote(currentMouseNoteRef.current));
-        }
+        setKeyVisual(currentMouseNoteRef.current, false);
+        audioEngine.releaseNote(getTransposedNote(currentMouseNoteRef.current));
         currentlyPressedNotesRef.current.delete(currentMouseNoteRef.current);
         currentMouseNoteRef.current = null;
       }
@@ -1765,10 +1756,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
       if (isMouseDownRef.current) {
         isMouseDownRef.current = false;
         if (currentMouseNoteRef.current) {
-          if (!sustainRef.current) {
-            setKeyVisual(currentMouseNoteRef.current, false);
-            audioEngine.releaseNote(getTransposedNote(currentMouseNoteRef.current));
-          }
+          setKeyVisual(currentMouseNoteRef.current, false);
+          audioEngine.releaseNote(getTransposedNote(currentMouseNoteRef.current));
           currentlyPressedNotesRef.current.delete(currentMouseNoteRef.current);
           currentMouseNoteRef.current = null;
         }

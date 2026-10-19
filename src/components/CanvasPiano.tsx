@@ -224,9 +224,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     // Turn off un-touched notes
     currentNotes.forEach((note) => {
       if (!nextTouchedNotes.has(note)) {
-        if (!sustainRef.current) {
-          onNoteUpRef.current(note);
-        }
+        onNoteUpRef.current(note);
       }
     });
 
@@ -262,7 +260,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       e.preventDefault();
       if (e.touches.length === 0) {
         currentlyPressedNotesRef.current.forEach((note) => {
-          if (!sustainRef.current) onNoteUpRef.current(note);
+          onNoteUpRef.current(note);
         });
         currentlyPressedNotesRef.current.clear();
       } else {
@@ -288,7 +286,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         const currentNotes = currentlyPressedNotesRef.current;
         if (!currentNotes.has(note)) {
           currentNotes.forEach((n) => {
-            if (!sustainRef.current) onNoteUpRef.current(n);
+            onNoteUpRef.current(n);
           });
           currentNotes.clear();
           currentNotes.add(note);
@@ -301,7 +299,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       e.preventDefault();
       isMouseDownRef.current = false;
       currentlyPressedNotesRef.current.forEach((note) => {
-        if (!sustainRef.current) onNoteUpRef.current(note);
+        onNoteUpRef.current(note);
       });
       currentlyPressedNotesRef.current.clear();
     };
