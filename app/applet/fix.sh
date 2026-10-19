@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 echo "=========================================================="
-echo "  Aggiornamento Forzato HTTPS Proxy Pass (Porta 5000) - Maestro Studio"
+echo "  Aggiornamento Forzato HTTPS Definitivo - Maestro Studio"
 echo "=========================================================="
 
 APP_DIR="/var/www/maestro-studio"
@@ -35,16 +35,43 @@ else
     echo "SUCCESS: dist/index.html generata correttamente."
 fi
 
-echo "=== Configurazione Nginx con proxy_pass trailing slash per perfetta parità con la porta 5000 ==="
+echo "=== Configurazione Nginx HTTPS pulita e senza dipendenze esterne ==="
 NGINX_CONF="/etc/nginx/sites-available/freeserv"
 
-if [ -f "/etc/letsencrypt/live/freeserv.it/fullchain.pem" ]; then
-    echo "Certificati SSL Let's Encrypt trovati. Configurazione HTTPS 443 attiva."
-    sudo bash -c "cat > $NGINX_CONF" << 'EOF'
+sudo bash -c "cat > $NGINX_CONF" << 'EOF'
 server {
     listen 80;
     server_name freeserv.it www.freeserv.it;
-    return 301 https://$host$request_uri;
+
+    location = /Song {
+        return 301 https://$host$request_uri/;
+    }
+    location = /song {
+        return 301 https://$host$request_uri/;
+    }
+
+    location /Song/ {
+        proxy_pass http://127.0.0.1:5000/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+    location /song/ {
+        proxy_pass http://127.0.0.1:5000/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
 }
 
 server {
@@ -53,8 +80,9 @@ server {
 
     ssl_certificate /etc/letsencrypt/live/freeserv.it/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/freeserv.it/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
     location = /Song {
         return 301 /Song/;
@@ -87,48 +115,10 @@ server {
     }
 }
 EOF
-else
-    echo "Certificati SSL non trovati. Configurazione HTTP 80 attiva."
-    sudo bash -c "cat > $NGINX_CONF" << 'EOF'
-server {
-    listen 80;
-    server_name freeserv.it www.freeserv.it;
-
-    location = /Song {
-        return 301 /Song/;
-    }
-    location = /song {
-        return 301 /song/;
-    }
-
-    location /Song/ {
-        proxy_pass http://127.0.0.1:5000/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-    location /song/ {
-        proxy_pass http://127.0.0.1:5000/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-EOF
-fi
 
 sudo ln -sf /etc/nginx/sites-available/freeserv /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl restart nginx
 
 echo "=== Riavvio PM2 su PORTA 5000 ==="
 if ! command -v pm2 &> /dev/null; then
@@ -148,6 +138,6 @@ echo "Stato PM2:"
 pm2 status
 
 echo "=========================================================="
-echo " SUCCESSO! L'app è configurata con proxy pass pulito su HTTPS"
+echo " SUCCESSO! L'app è configurata e attiva su HTTPS"
 echo "=========================================================="
 exit 0
