@@ -55,7 +55,7 @@ export const PublishDisclaimerModal: React.FC<PublishDisclaimerModalProps> = ({
                 Disclaimer & Publication Terms
               </h2>
               <p className="text-slate-400 text-xs">
-                Publishing to the Maestro Studio Community
+                Publishing to the KeyCraft Studio Community
               </p>
             </div>
           </div>
@@ -86,7 +86,7 @@ export const PublishDisclaimerModal: React.FC<PublishDisclaimerModalProps> = ({
           </div>
 
           <p>
-            1. <strong>Song Origin:</strong> Publishing to the Community makes the song visible and freely playable by all Maestro Studio users.
+            1. <strong>Song Origin:</strong> Publishing to the Community makes the song visible and freely playable by all KeyCraft Studio users.
           </p>
 
           <p>
@@ -167,7 +167,7 @@ export const ReportSongModal: React.FC<ReportSongModalProps> = ({
       songId: song.id,
       songTitle: song.title,
       author: song.author || 'Unknown',
-      reporter: reporterName.trim() || 'Maestro Studio User',
+      reporter: reporterName.trim() || 'KeyCraft Studio User',
       reason,
       details: details.trim(),
     };

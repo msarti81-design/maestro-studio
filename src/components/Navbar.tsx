@@ -62,7 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Wordmark with Mini Visualizer */}
           <div className="flex items-baseline gap-1 sm:gap-1.5">
             <span className="text-sm sm:text-base font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-400">
-              MAESTRO
+              KEYCRAFT
             </span>
             <span className="hidden xs:inline-block text-[9px] uppercase tracking-widest font-extrabold text-amber-400/90 bg-amber-500/10 px-1 py-0.2 rounded border border-amber-500/20">
               STUDIO

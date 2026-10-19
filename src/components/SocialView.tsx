@@ -600,7 +600,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
 
     switch (mode) {
       case 'masterclass':
-        title = '👨‍🏫 MAESTRO STUDIO PIANO MASTERCLASS INVITATION';
+        title = '👨‍🏫 KEYCRAFT STUDIO PIANO MASTERCLASS INVITATION';
         subtitle = `Hello! I invite you to an online piano masterclass.\n📍 Room Code: *${room}*\nRole: *Student*`;
         break;
       case 'battle':

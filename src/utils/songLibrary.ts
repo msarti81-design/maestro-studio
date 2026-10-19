@@ -3,10 +3,10 @@ import { InteractiveSong } from '../types';
 export const BUILT_IN_SONGS: InteractiveSong[] = [
   {
     id: 'scale-c-major',
-    title: 'Scala di Do Maggiore (Tutorial)',
-    author: 'Maestro Studio',
+    title: 'C Major Scale (Tutorial)',
+    author: 'KeyCraft Studio',
     bpm: 80,
-    difficulty: 'facile',
+    difficulty: 'easy',
     notes: [
       { note: 'C4', time: 1.0, duration: 0.8 },
       { note: 'D4', time: 2.0, duration: 0.8 },

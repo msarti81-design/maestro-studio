@@ -67,9 +67,9 @@ class ErrorBoundary extends Component<Props, State> {
             <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mb-4 text-amber-400 font-bold text-2xl">
               🎹
             </div>
-            <h1 className="text-xl font-black text-white mb-2">Maestro Studio</h1>
+            <h1 className="text-xl font-black text-white mb-2">KeyCraft Studio</h1>
             <p className="text-xs text-slate-400 mb-6">
-              An unexpected application error occurred. Click the button below to restart Maestro Studio.
+              An unexpected application error occurred. Click the button below to restart KeyCraft Studio.
             </p>
 
             {this.state.error && (
@@ -82,7 +82,7 @@ class ErrorBoundary extends Component<Props, State> {
               onClick={this.handleReset}
               className="w-full py-3 bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-extrabold rounded-xl text-sm transition-all shadow-lg"
             >
-              Restart Maestro Studio
+              Restart KeyCraft Studio
             </button>
           </div>
         </div>

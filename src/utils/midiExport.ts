@@ -278,7 +278,7 @@ export function downloadBlobFile(filename: string, blob: Blob): boolean {
           navigator.share({
             files: [file],
             title: filename,
-            text: `File ${filename} da Maestro Studio`,
+            text: `File ${filename} from KeyCraft Studio`,
           }).catch((err) => {
             console.warn('Share dismissed or failed, using direct download', err);
             triggerDirectDownload(filename, blob);

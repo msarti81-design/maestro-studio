@@ -417,7 +417,7 @@ export const SheetComposerView: React.FC = () => {
   const handleWhatsAppShareSong = (song: SheetSong) => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
     const shareUrl = `${baseUrl}/#sheet?title=${encodeURIComponent(song.title)}`;
-    const text = `🎼 *MAESTRO STUDIO SHEET*\n*${song.title}* (${song.key}, ${song.bpm} BPM)\n\nListen and play this sheet on Maestro Studio!\n🔗 ${shareUrl}`;
+    const text = `🎼 *KEYCRAFT STUDIO SHEET*\n*${song.title}* (${song.key}, ${song.bpm} BPM)\n\nListen and play this sheet on KeyCraft Studio!\n🔗 ${shareUrl}`;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
 
     if (typeof window !== 'undefined') {
@@ -1123,7 +1123,7 @@ export const SheetComposerView: React.FC = () => {
                     JSON
                   </div>
                   <div>
-                    <h4 className="font-black text-white text-xs">Maestro Studio Sheet File (.json)</h4>
+                    <h4 className="font-black text-white text-xs">KeyCraft Studio Sheet File (.json)</h4>
                     <p className="text-[10px] text-slate-400">
                       Save or fully backup your composition with all notes and settings.
                     </p>

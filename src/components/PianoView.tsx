@@ -2055,7 +2055,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             </div>
           ) : (
             <span className="font-bold text-slate-400 text-[10px] sm:text-[11px] truncate tracking-wide hidden sm:inline">
-              🎹 Maestro Piano Studio
+              🎹 KeyCraft Piano Studio
             </span>
           )}
         </div>

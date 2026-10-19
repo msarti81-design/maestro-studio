@@ -93,7 +93,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onSelectView, onInitAudio, o
         <div className="relative inline-block">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-white flex items-center justify-center gap-3">
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500 drop-shadow-[0_0_25px_rgba(245,158,11,0.35)]">
-              MAESTRO
+              KEYCRAFT
             </span>
             <span className="text-white tracking-widest font-light text-2xl sm:text-3xl md:text-4xl opacity-90 border-l border-slate-700 pl-3">
               STUDIO
@@ -477,7 +477,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onSelectView, onInitAudio, o
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-amber-400 font-bold">
             <Disc3 className="w-4 h-4 animate-spin text-amber-400" />
-            <span>Maestro Audio Engine: 44.1 kHz Hi-Fi</span>
+            <span>KeyCraft Audio Engine: 44.1 kHz Hi-Fi</span>
           </div>
           <span className="text-slate-700 hidden sm:inline">•</span>
           <div className="hidden sm:flex items-center gap-1.5 text-slate-300">
