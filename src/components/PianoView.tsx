@@ -836,7 +836,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 applyIncomingPhraseProgress(evt.data || evt);
               } else if (evt.type === 'piano:key_event' && evt.data?.note) {
                 if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-                  audioEngine.playNote(evt.data.note, '8n', instrument);
+                  const isMasterclass = socialSession?.mode === 'masterclass';
+                  if (!isMasterclass) {
+                    audioEngine.playNote(evt.data.note, '8n', instrument);
+                  }
                   setKeyVisual(evt.data.note, true);
                   setTimeout(() => setKeyVisual(evt.data.note, false), 220);
                 }
@@ -896,7 +899,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
           // LIVE AUDIO & VISUAL PRESS FROM REMOTE PEER
           else if (msg.type === 'piano:key_event' && msg.note) {
-            audioEngine.playNote(msg.note, '8n', instrument);
+            const isMasterclass = socialSession?.mode === 'masterclass';
+            if (!isMasterclass) {
+              audioEngine.playNote(msg.note, '8n', instrument);
+            }
             setKeyVisual(msg.note, true);
             setTimeout(() => setKeyVisual(msg.note, false), 220);
           }
@@ -1075,8 +1081,19 @@ export const PianoView: React.FC<PianoViewProps> = ({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
         ],
       });
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+          try { pc.restartIce(); } catch (e) {}
+        }
+      };
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          try { pc.restartIce(); } catch (e) {}
+        }
+      };
       peerConnectionRef.current = pc;
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
