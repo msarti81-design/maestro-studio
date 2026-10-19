@@ -292,7 +292,7 @@ class AudioEngine {
 
         // 4. Soft-Clipping WaveShaper Brickwall Limiter (Guarantees zero digital clipping during fast bass glissandos)
         this.waveShaperLimiter = this.audioCtx.createWaveShaper();
-        this.waveShaperLimiter.curve = this.createSoftLimiterCurve();
+        this.waveShaperLimiter.curve = this.createSoftLimiterCurve() as any;
         this.waveShaperLimiter.oversample = '4x';
 
         // 5. Master Output Gain
@@ -496,60 +496,15 @@ class AudioEngine {
     const pitchComp = Math.max(0.60, Math.min(0.95, 0.95 - (midi - 21) * 0.0042));
     const vel = pitchComp;
 
-    // Sub-Acoustic Wooden Soundboard Cabinet Resonator Layer for Bass Notes (MIDI <= 48)
-    if (midi <= 48 && this.audioCtx && this.audioCtx.state === 'running') {
-      try {
-        const subNow = this.audioCtx.currentTime;
-        const subOsc = this.audioCtx.createOscillator();
-        subOsc.type = 'triangle';
-        const freq = noteToFreq(note);
-        subOsc.frequency.setValueAtTime(freq, subNow);
-
-        const subFilter = this.audioCtx.createBiquadFilter();
-        subFilter.type = 'lowpass';
-        subFilter.frequency.setValueAtTime(180, subNow);
-        subFilter.Q.setValueAtTime(1.2, subNow);
-
-        const subGain = this.audioCtx.createGain();
-        subGain.gain.setValueAtTime(0.0001, subNow);
-        subGain.gain.linearRampToValueAtTime(0.22 * vel, subNow + 0.004);
-        const subDecay = this.isSustainOn ? 4.5 : 1.8;
-        subGain.gain.linearRampToValueAtTime(0.0001, subNow + subDecay);
-
-        subOsc.connect(subFilter);
-        subFilter.connect(subGain);
-        if (this.masterEqualizerLow) {
-          subGain.connect(this.masterEqualizerLow);
-        } else {
-          subGain.connect(this.audioCtx.destination);
-        }
-
-        subOsc.start(subNow);
-        subOsc.stop(subNow + subDecay + 0.1);
-      } catch (e) {}
-    }
-
     // 1. If Real Acoustic Grand Piano Sample is loaded and instrument is piano, use the sample!
     if (instrument === "piano" && this.isSamplerLoaded && this.sampler) {
       try {
         if (this.isSustainOn) {
           this.sampler.triggerAttack(note, undefined, vel);
           this.sustainedNotes.add(note);
-
-          // Acoustic Soundboard Sympathetic String Resonance
-          const harmonicNote = getHarmonicOctaveNote(note);
-          if (harmonicNote && harmonicNote !== note) {
-            try { this.sampler.triggerAttack(harmonicNote, undefined, vel * 0.05); } catch (e) {}
-          }
           return;
         } else if (isInteractive) {
           this.sampler.triggerAttack(note, undefined, vel);
-
-          // Subtle Sympathetic String Resonance
-          const harmonicNote = getHarmonicOctaveNote(note);
-          if (harmonicNote && harmonicNote !== note) {
-            try { this.sampler.triggerAttack(harmonicNote, undefined, vel * 0.04); } catch (e) {}
-          }
           return;
         } else {
           this.sampler.triggerAttackRelease(note, duration, undefined, vel);

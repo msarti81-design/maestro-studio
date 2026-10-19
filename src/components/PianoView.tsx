@@ -397,10 +397,13 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const clearAllPressedVisuals = useCallback(() => {
     currentlyPressedNotesRef.current.forEach((note) => {
       setKeyVisual(note, false);
+      if (!sustainRef.current) {
+        audioEngine.releaseNote(getTransposedNote(note));
+      }
     });
     currentlyPressedNotesRef.current.clear();
     keyNodesMapRef.current.forEach((el) => el.classList.remove('key-pressed-active'));
-  }, []);
+  }, [getTransposedNote]);
 
   // Masterclass & Multi-user Real-time WebSocket state
   const wsRef = useRef<WebSocket | null>(null);
@@ -1627,6 +1630,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       if (!nextNotes.has(note)) {
         if (!sustainRef.current) {
           setKeyVisual(note, false);
+          audioEngine.releaseNote(getTransposedNote(note));
         }
       }
     });
@@ -1640,7 +1644,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     });
 
     currentlyPressedNotesRef.current = nextNotes;
-  }, [findNoteAtPoint, clearAllPressedVisuals, triggerNoteHit]);
+  }, [findNoteAtPoint, clearAllPressedVisuals, triggerNoteHit, getTransposedNote]);
 
   // Native non-passive touch event listeners for true 0ms mobile response
   useEffect(() => {
@@ -1710,6 +1714,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
       if (oldNote && !sustainRef.current) {
         setKeyVisual(oldNote, false);
+        audioEngine.releaseNote(getTransposedNote(oldNote));
         currentlyPressedNotesRef.current.delete(oldNote);
       }
 
@@ -1723,6 +1728,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     if (isMouseDownRef.current && currentMouseNoteRef.current === baseNote) {
       if (!sustainRef.current) {
         setKeyVisual(baseNote, false);
+        audioEngine.releaseNote(getTransposedNote(baseNote));
       }
       currentlyPressedNotesRef.current.delete(baseNote);
       currentMouseNoteRef.current = null;
@@ -1739,6 +1745,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         currentMouseNoteRef.current = note;
         if (oldNote && !sustainRef.current) {
           setKeyVisual(oldNote, false);
+          audioEngine.releaseNote(getTransposedNote(oldNote));
           currentlyPressedNotesRef.current.delete(oldNote);
         }
         setKeyVisual(note, true);
@@ -1747,6 +1754,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       } else if (!note && currentMouseNoteRef.current) {
         if (!sustainRef.current) {
           setKeyVisual(currentMouseNoteRef.current, false);
+          audioEngine.releaseNote(getTransposedNote(currentMouseNoteRef.current));
         }
         currentlyPressedNotesRef.current.delete(currentMouseNoteRef.current);
         currentMouseNoteRef.current = null;
@@ -1759,6 +1767,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         if (currentMouseNoteRef.current) {
           if (!sustainRef.current) {
             setKeyVisual(currentMouseNoteRef.current, false);
+            audioEngine.releaseNote(getTransposedNote(currentMouseNoteRef.current));
           }
           currentlyPressedNotesRef.current.delete(currentMouseNoteRef.current);
           currentMouseNoteRef.current = null;
@@ -1772,7 +1781,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       window.removeEventListener('mousemove', onWindowMouseMove);
       window.removeEventListener('mouseup', onWindowMouseUp);
     };
-  }, [findNoteAtPoint, triggerNoteHit]);
+  }, [findNoteAtPoint, triggerNoteHit, getTransposedNote]);
 
   // Web MIDI and Gamification Synchronization
   useEffect(() => {
