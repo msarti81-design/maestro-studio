@@ -714,7 +714,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       if (connectedPeersCount >= 2 && hadPeersCountRef.current < 2) {
         hadPeersCountRef.current = connectedPeersCount;
         const isTeacherRole = !isSimulatingStudentMode && (socialSession?.userRole === 'maestro' || (socialSession?.userRole as string) === 'teacher');
-        showToast(isTeacherRole ? "🎉 Allievo collegato all'aula! Ora potete suonare insieme!" : "👨‍🏫 Maestro collegato all'aula! Sei pronto alla lezione!");
+        showToast(isTeacherRole ? "🎉 Student connected to the room! You can now play together!" : "👨‍🏫 Teacher connected to the room! Ready for your lesson!");
         try {
           audioEngine.playNote('C5', '8n', instrument);
           setTimeout(() => audioEngine.playNote('G5', '4n', instrument), 160);
@@ -1236,16 +1236,16 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   const handleOpenLocalPhraseWaterfall = (phraseItems: MasterclassNoteItem[], displayMode: 'arcade' | 'learn' = 'arcade') => {
     if (!phraseItems || phraseItems.length === 0) return;
-    const song = createMasterclassWaterfallSong(phraseItems, `Frase del Maestro (${phraseItems.length} note)`);
+    const song = createMasterclassWaterfallSong(phraseItems, `Teacher's Phrase (${phraseItems.length} notes)`);
     setMasterclassPlayMode(displayMode);
     setActiveSong(song);
     setShowWaterfall(true);
-    showToast(`🎮 Aperta modalità Caduta ${displayMode === 'learn' ? 'Impara' : 'Arcade'}!`);
+    showToast(`🎮 Opened ${displayMode === 'learn' ? 'Learn' : 'Arcade'} Waterfall mode!`);
   };
 
   const handlePlayMasterclassPhrase = (phraseItems: MasterclassNoteItem[]) => {
     if (!phraseItems || phraseItems.length === 0) return;
-    showToast('🎵 Riproduzione frase musicale con ritmo...');
+    showToast('🎵 Playing musical phrase with tempo...');
 
     let cumulativeTime = 0;
     phraseItems.forEach((item, idx) => {
@@ -1260,7 +1260,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   const handleSimulateVirtualStudentReplay = () => {
     if (recordedMasterclassNotes.length === 0) return;
-    showToast('🤖 Allievo Virtuale in ascolto... replica della frase in corso!');
+    showToast('🤖 Virtual Student listening... replicating phrase!');
 
     let cumulativeTime = 0;
     recordedMasterclassNotes.forEach((item, idx) => {
@@ -1273,7 +1273,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         const current = idx + 1;
         const isDone = current === recordedMasterclassNotes.length;
         setStudentProgress({
-          studentName: 'Allievo Virtuale (Bot)',
+          studentName: 'Virtual Student (Bot)',
           currentIndex: current,
           totalNotes: recordedMasterclassNotes.length,
           completed: isDone,
@@ -1281,7 +1281,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
         if (isDone) {
           setTimeout(() => {
-            showToast("🎉 L'Allievo Virtuale ha eseguito tutte le note con successo!");
+            showToast("🎉 Virtual Student completed all notes successfully!");
           }, 300);
         }
       }, cumulativeTime);
@@ -2199,17 +2199,17 @@ export const PianoView: React.FC<PianoViewProps> = ({
                       ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
                       : 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30'
                   }`}
-                  title={isScaleAutoplay ? 'Metti in pausa' : 'Avvia esecuzione mano'}
+                  title={isScaleAutoplay ? 'Pause' : 'Start hand playback'}
                 >
                   {isScaleAutoplay ? (
                     <>
                       <Square className="w-3 h-3 fill-current" />
-                      <span>Pausa</span>
+                      <span>Pause</span>
                     </>
                   ) : (
                     <>
                       <Play className="w-3 h-3 fill-current" />
-                      <span>Avvia Mano</span>
+                      <span>Start Hand</span>
                     </>
                   )}
                 </button>
@@ -2220,14 +2220,14 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     setScaleActiveIdx((prev) => (prev + 1) % activeScaleExercise.notes.length);
                   }}
                   className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
-                  title="Nota successiva"
+                  title="Next note"
                 >
                   <SkipForward className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-1 bg-emerald-950/80 border border-emerald-500/40 px-2 py-0.5 rounded text-emerald-300 font-bold text-[10px] animate-pulse">
-                <span>👉 Suona {activeScaleExercise.notes[scaleActiveIdx]} con dito {activeScaleExercise.fingering[scaleActiveIdx % activeScaleExercise.fingering.length]}</span>
+                <span>👉 Play {activeScaleExercise.notes[scaleActiveIdx]} with finger {activeScaleExercise.fingering[scaleActiveIdx % activeScaleExercise.fingering.length]}</span>
               </div>
             )}
 
@@ -2253,28 +2253,28 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
                   : 'bg-slate-800/80 border-slate-700 text-slate-400'
               }`}
-              title={isScaleLoop ? 'Loop Continuo Attivo' : 'Loop Disattivato'}
+              title={isScaleLoop ? 'Continuous Loop Active' : 'Loop Disabled'}
             >
               <RotateCcw className={`w-3.5 h-3.5 ${isScaleLoop ? 'text-amber-400' : 'text-slate-400'}`} />
             </button>
 
-            {/* Centra Mano / Vista */}
+            {/* Center Hand / View */}
             <button
               onClick={() => centerKeyboardOnScale(activeScaleExercise)}
               className="px-2 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all"
-              title="Centra la tastiera esattamente dove si trova la mano e la scala"
+              title="Center keyboard on hand position and scale"
             >
-              <span>🎯 Centra</span>
+              <span>🎯 Center</span>
             </button>
 
-            {/* Cambia Scala */}
+            {/* Change Scale */}
             {onOpenScalesModal && (
               <button
                 onClick={onOpenScalesModal}
                 className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-[10px] font-bold border border-slate-700 cursor-pointer"
-                title="Scegli un'altra scala"
+                title="Choose another scale"
               >
-                Cambia
+                Change
               </button>
             )}
 
@@ -2283,7 +2283,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
               <button
                 onClick={onCloseScaleExercise}
                 className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-                title="Chiudi Palestra Scale"
+                title="Close Scale Gym"
               >
                 <X className="w-4 h-4" />
               </button>

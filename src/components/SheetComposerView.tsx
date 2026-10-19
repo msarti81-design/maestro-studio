@@ -865,7 +865,7 @@ export const SheetComposerView: React.FC = () => {
               className="px-2.5 py-1 text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/30 flex items-center gap-1 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Aggiungi Nota</span>
+              <span>Add Note</span>
             </button>
           </div>
         </div>
@@ -1015,7 +1015,7 @@ export const SheetComposerView: React.FC = () => {
                   <button
                     onClick={() => playSingleNote(bNote.note, bNote.duration, 'bass')}
                     className="text-sm font-black text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
-                    title="Ascolta nota basso"
+                    title="Listen to bass note"
                   >
                     <Volume2 className="w-3.5 h-3.5 shrink-0" />
                     <span>{formatNoteLabel(bNote.note, noteNotation, true)}</span>

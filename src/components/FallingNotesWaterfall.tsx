@@ -812,7 +812,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           <button
             onClick={togglePlayPause}
             className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors cursor-pointer"
-            title={isPlaying ? 'Pausa' : 'Riproduci'}
+            title={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
           </button>
