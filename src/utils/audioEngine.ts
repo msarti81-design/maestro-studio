@@ -158,6 +158,8 @@ class AudioEngine {
           C8: "C8.mp3",
         },
         baseUrl: "https://tonejs.github.io/audio/salamander/",
+        release: 1.8,
+        attack: 0.005,
         onload: () => {
           this.isSamplerLoaded = true;
         },
@@ -207,19 +209,19 @@ class AudioEngine {
         // 1. Acoustic Soundboard Equalizer
         this.masterEqualizerLow = this.audioCtx.createBiquadFilter();
         this.masterEqualizerLow.type = 'lowshelf';
-        this.masterEqualizerLow.frequency.setValueAtTime(160, this.audioCtx.currentTime);
-        this.masterEqualizerLow.gain.setValueAtTime(3.5, this.audioCtx.currentTime);
+        this.masterEqualizerLow.frequency.setValueAtTime(130, this.audioCtx.currentTime);
+        this.masterEqualizerLow.gain.setValueAtTime(1.5, this.audioCtx.currentTime);
 
         this.masterEqualizerMid = this.audioCtx.createBiquadFilter();
         this.masterEqualizerMid.type = 'peaking';
-        this.masterEqualizerMid.frequency.setValueAtTime(1400, this.audioCtx.currentTime);
-        this.masterEqualizerMid.Q.setValueAtTime(1.1, this.audioCtx.currentTime);
-        this.masterEqualizerMid.gain.setValueAtTime(2.0, this.audioCtx.currentTime);
+        this.masterEqualizerMid.frequency.setValueAtTime(1200, this.audioCtx.currentTime);
+        this.masterEqualizerMid.Q.setValueAtTime(1.0, this.audioCtx.currentTime);
+        this.masterEqualizerMid.gain.setValueAtTime(1.5, this.audioCtx.currentTime);
 
         this.masterEqualizerHigh = this.audioCtx.createBiquadFilter();
         this.masterEqualizerHigh.type = 'highshelf';
         this.masterEqualizerHigh.frequency.setValueAtTime(6500, this.audioCtx.currentTime);
-        this.masterEqualizerHigh.gain.setValueAtTime(2.5, this.audioCtx.currentTime);
+        this.masterEqualizerHigh.gain.setValueAtTime(2.2, this.audioCtx.currentTime);
 
         // 2. Convolution Reverb
         this.convolver = this.audioCtx.createConvolver();
@@ -230,13 +232,13 @@ class AudioEngine {
         this.dryGain = this.audioCtx.createGain();
         this.applyProfileAcoustics();
 
-        // 3. Studio Mastering Compressor & Limiter
+        // 3. Studio Mastering Compressor & Limiter (Tuned to prevent bass pumping/crackle)
         this.compressor = this.audioCtx.createDynamicsCompressor();
-        this.compressor.threshold.setValueAtTime(-12, this.audioCtx.currentTime);
-        this.compressor.knee.setValueAtTime(10, this.audioCtx.currentTime);
-        this.compressor.ratio.setValueAtTime(3.5, this.audioCtx.currentTime);
-        this.compressor.attack.setValueAtTime(0.002, this.audioCtx.currentTime);
-        this.compressor.release.setValueAtTime(0.18, this.audioCtx.currentTime);
+        this.compressor.threshold.setValueAtTime(-18, this.audioCtx.currentTime);
+        this.compressor.knee.setValueAtTime(20, this.audioCtx.currentTime);
+        this.compressor.ratio.setValueAtTime(2.8, this.audioCtx.currentTime);
+        this.compressor.attack.setValueAtTime(0.025, this.audioCtx.currentTime);
+        this.compressor.release.setValueAtTime(0.38, this.audioCtx.currentTime);
 
         // 4. Master Output Gain
         this.masterGain = this.audioCtx.createGain();
@@ -714,12 +716,18 @@ class AudioEngine {
 
     if (!this.audioCtx) return;
     const now = this.audioCtx.currentTime;
+    const midi = NOTE_TO_MIDI[note] ?? 60;
+    // Low bass notes (below C3) get a smoother linear fade-out to prevent zero-crossing clicks & crackles
+    const fadeOutTime = midi < 48 ? 0.18 : 0.08;
 
     this.activeVoices.forEach((voice) => {
       if (voice.note === note) {
         try {
           voice.masterGain.gain.cancelScheduledValues(now);
-          voice.masterGain.gain.setTargetAtTime(0.0001, now, 0.05);
+          const currentGain = Math.max(0.0001, voice.masterGain.gain.value);
+          voice.masterGain.gain.setValueAtTime(currentGain, now);
+          voice.masterGain.gain.linearRampToValueAtTime(0.0001, now + fadeOutTime);
+          voice.masterGain.gain.setValueAtTime(0, now + fadeOutTime + 0.01);
         } catch (e) {}
       }
     });
