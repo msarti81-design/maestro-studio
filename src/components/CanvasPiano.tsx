@@ -349,6 +349,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       }
 
       const dpr = window.devicePixelRatio || 1;
+      const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0 || /iPad|iPhone|iPod|Android|Tablet/i.test(navigator.userAgent));
 
       ctx.save();
       ctx.scale(dpr, dpr);
@@ -413,7 +414,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.fill();
 
           ctx.shadowColor = isNeon ? 'rgba(34, 211, 238, 0.95)' : isMahogany ? 'rgba(221, 161, 94, 0.9)' : 'rgba(245, 158, 11, 0.9)';
-          ctx.shadowBlur = 18;
+          ctx.shadowBlur = isTouchDevice ? 0 : 18;
           ctx.strokeStyle = isNeon ? '#22d3ee' : '#fef08a';
           ctx.lineWidth = 2.5;
           ctx.stroke();
@@ -520,8 +521,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         const radius = Math.min(6, keyW * 0.28);
 
         ctx.shadowColor = isNeon ? 'rgba(217, 70, 239, 0.6)' : 'rgba(0, 0, 0, 0.55)';
-        ctx.shadowBlur = isPressed ? 4 : 8;
-        ctx.shadowOffsetY = isPressed ? 1.5 : 4;
+        ctx.shadowBlur = isTouchDevice ? 0 : (isPressed ? 4 : 8);
+        ctx.shadowOffsetY = isTouchDevice ? 0 : (isPressed ? 1.5 : 4);
 
         ctx.beginPath();
         if (typeof ctx.roundRect === 'function') {

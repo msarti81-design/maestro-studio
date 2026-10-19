@@ -669,7 +669,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
   // Reusable Handlers for Incoming Masterclass Events (from WebSocket or HTTP Fallback)
   const applyIncomingTeacherPhrase = useCallback((msg: any) => {
     const isTeacherRole = !isSimulatingStudentMode && (socialSession?.userRole === 'maestro' || (socialSession?.userRole as string) === 'teacher');
-    if (isTeacherRole || msg.sender === username) {
+    if (isTeacherRole) {
       return; // Do NOT assign phrase to Maestro
     }
 
