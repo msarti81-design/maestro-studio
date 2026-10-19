@@ -250,22 +250,22 @@ class AudioEngine {
           latencyHint: 'interactive',
         });
 
-        // 1. Acoustic Soundboard Equalizer
+        // 1. Acoustic Soundboard Equalizer (Balanced bass warmth & silky treble)
         this.masterEqualizerLow = this.audioCtx.createBiquadFilter();
         this.masterEqualizerLow.type = 'lowshelf';
-        this.masterEqualizerLow.frequency.setValueAtTime(130, this.audioCtx.currentTime);
-        this.masterEqualizerLow.gain.setValueAtTime(1.5, this.audioCtx.currentTime);
+        this.masterEqualizerLow.frequency.setValueAtTime(150, this.audioCtx.currentTime);
+        this.masterEqualizerLow.gain.setValueAtTime(3.2, this.audioCtx.currentTime);
 
         this.masterEqualizerMid = this.audioCtx.createBiquadFilter();
         this.masterEqualizerMid.type = 'peaking';
-        this.masterEqualizerMid.frequency.setValueAtTime(1200, this.audioCtx.currentTime);
-        this.masterEqualizerMid.Q.setValueAtTime(1.0, this.audioCtx.currentTime);
-        this.masterEqualizerMid.gain.setValueAtTime(1.5, this.audioCtx.currentTime);
+        this.masterEqualizerMid.frequency.setValueAtTime(1000, this.audioCtx.currentTime);
+        this.masterEqualizerMid.Q.setValueAtTime(0.9, this.audioCtx.currentTime);
+        this.masterEqualizerMid.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
 
         this.masterEqualizerHigh = this.audioCtx.createBiquadFilter();
         this.masterEqualizerHigh.type = 'highshelf';
-        this.masterEqualizerHigh.frequency.setValueAtTime(6500, this.audioCtx.currentTime);
-        this.masterEqualizerHigh.gain.setValueAtTime(2.2, this.audioCtx.currentTime);
+        this.masterEqualizerHigh.frequency.setValueAtTime(5500, this.audioCtx.currentTime);
+        this.masterEqualizerHigh.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
 
         // 2. Convolution Reverb
         this.convolver = this.audioCtx.createConvolver();
@@ -325,37 +325,37 @@ class AudioEngine {
       case 'concert':
         this.dryGain.gain.setValueAtTime(0.88, now);
         this.reverbGain.gain.setValueAtTime(0.24, now);
-        this.masterEqualizerLow.gain.setValueAtTime(1.5, now);
-        this.masterEqualizerMid.gain.setValueAtTime(1.2, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(2.2, now);
+        this.masterEqualizerLow.gain.setValueAtTime(3.2, now);
+        this.masterEqualizerMid.gain.setValueAtTime(1.0, now);
+        this.masterEqualizerHigh.gain.setValueAtTime(0.5, now);
         break;
       case 'studio':
         this.dryGain.gain.setValueAtTime(0.96, now);
         this.reverbGain.gain.setValueAtTime(0.08, now);
-        this.masterEqualizerLow.gain.setValueAtTime(0.8, now);
-        this.masterEqualizerMid.gain.setValueAtTime(1.5, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(1.0, now);
+        this.masterEqualizerLow.gain.setValueAtTime(2.4, now);
+        this.masterEqualizerMid.gain.setValueAtTime(1.2, now);
+        this.masterEqualizerHigh.gain.setValueAtTime(0.0, now);
         break;
       case 'bright':
         this.dryGain.gain.setValueAtTime(0.90, now);
         this.reverbGain.gain.setValueAtTime(0.18, now);
-        this.masterEqualizerLow.gain.setValueAtTime(0.5, now);
-        this.masterEqualizerMid.gain.setValueAtTime(2.0, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(3.8, now);
+        this.masterEqualizerLow.gain.setValueAtTime(1.8, now);
+        this.masterEqualizerMid.gain.setValueAtTime(1.5, now);
+        this.masterEqualizerHigh.gain.setValueAtTime(1.8, now);
         break;
       case 'warm':
         this.dryGain.gain.setValueAtTime(0.92, now);
         this.reverbGain.gain.setValueAtTime(0.22, now);
-        this.masterEqualizerLow.gain.setValueAtTime(2.2, now);
-        this.masterEqualizerMid.gain.setValueAtTime(1.8, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(-1.2, now);
+        this.masterEqualizerLow.gain.setValueAtTime(3.8, now);
+        this.masterEqualizerMid.gain.setValueAtTime(1.2, now);
+        this.masterEqualizerHigh.gain.setValueAtTime(-1.8, now);
         break;
       case 'cathedral':
         this.dryGain.gain.setValueAtTime(0.58, now);
         this.reverbGain.gain.setValueAtTime(0.52, now);
-        this.masterEqualizerLow.gain.setValueAtTime(1.8, now);
-        this.masterEqualizerMid.gain.setValueAtTime(0.8, now);
-        this.masterEqualizerHigh.gain.setValueAtTime(2.6, now);
+        this.masterEqualizerLow.gain.setValueAtTime(2.8, now);
+        this.masterEqualizerMid.gain.setValueAtTime(0.6, now);
+        this.masterEqualizerHigh.gain.setValueAtTime(1.0, now);
         break;
     }
   }
@@ -483,8 +483,12 @@ class AudioEngine {
       this.recentBassNotes.push({ note, time: nowMs });
     }
 
-    // Low bass notes (below C3) use velocity 0.74 (vs 0.88) to maintain equal perceived loudness without bass sum overload
-    const vel = midi < 48 ? 0.74 : 0.88;
+    // Smooth pitch-dependent velocity scaling:
+    // Low Bass (midi 21-48): vel 0.88 to 0.84 -> full deep warm body!
+    // Mid Range (midi 49-72): vel 0.82 to 0.76 -> natural acoustic response!
+    // High Treble (midi 73-108): vel 0.72 to 0.62 -> smooth, non-piercing high end!
+    const pitchComp = Math.max(0.62, Math.min(0.88, 0.88 - (midi - 21) * 0.0032));
+    const vel = pitchComp;
 
     // 1. If Real Acoustic Grand Piano Sample is loaded and instrument is piano, use the sample!
     if (instrument === "piano" && this.isSamplerLoaded && this.sampler) {
