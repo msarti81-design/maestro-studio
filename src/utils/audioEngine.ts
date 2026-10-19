@@ -15,6 +15,20 @@ export function noteToFreq(note: string): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
+export function midiToNoteName(midiNumber: number): string {
+  const octave = Math.floor(midiNumber / 12) - 1;
+  const name = NAMES[midiNumber % 12];
+  return `${name}${octave}`;
+}
+
+function getHarmonicOctaveNote(note: string): string | null {
+  const midi = NOTE_TO_MIDI[note];
+  if (!midi) return null;
+  const harmonicMidi = midi + 12;
+  if (harmonicMidi > 108) return null;
+  return midiToNoteName(harmonicMidi);
+}
+
 interface ActiveVoice {
   note: string;
   oscNodes: (AudioNode | OscillatorNode)[];
@@ -496,9 +510,21 @@ class AudioEngine {
         if (this.isSustainOn) {
           this.sampler.triggerAttack(note, undefined, vel);
           this.sustainedNotes.add(note);
+
+          // Acoustic Soundboard Sympathetic String Resonance
+          const harmonicNote = getHarmonicOctaveNote(note);
+          if (harmonicNote && harmonicNote !== note) {
+            try { this.sampler.triggerAttack(harmonicNote, undefined, vel * 0.05); } catch (e) {}
+          }
           return;
         } else if (isInteractive) {
           this.sampler.triggerAttack(note, undefined, vel);
+
+          // Subtle Sympathetic String Resonance
+          const harmonicNote = getHarmonicOctaveNote(note);
+          if (harmonicNote && harmonicNote !== note) {
+            try { this.sampler.triggerAttack(harmonicNote, undefined, vel * 0.04); } catch (e) {}
+          }
           return;
         } else {
           this.sampler.triggerAttackRelease(note, duration, undefined, vel);
