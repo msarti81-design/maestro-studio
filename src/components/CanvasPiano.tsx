@@ -190,7 +190,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     // 1. Check Black Keys FIRST (highest z-index layer)
     for (let i = 0; i < blackKeys.length; i++) {
       const bk = blackKeys[i];
-      if (x >= bk.x - 2 && x <= bk.x + bk.width + 2 && y >= bk.y && y <= bk.height + 15) {
+      if (x >= bk.x - 2 && x <= bk.x + bk.width + 2 && y >= bk.y && y <= bk.height + 2) {
         return bk.note;
       }
     }

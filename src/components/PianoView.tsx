@@ -152,6 +152,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
     };
   }, [isPianoMetronomeActive, pianoBpm]);
 
+  // Pre-warm and initialize professional audio engine immediately on PianoView mount
+  useEffect(() => {
+    audioEngine.init().catch(() => {});
+  }, []);
+
   // Master Volume Controls (0 to 100)
   const [volume, setVolume] = useState<number>(() => audioEngine.getVolume());
   const [prevVolume, setPrevVolume] = useState<number>(90);
