@@ -160,7 +160,7 @@ class AudioEngine {
       this.limiter = new Tone.Limiter(-0.5);
 
       // 5. Master Output Gain (Boosted for rich, full acoustic presence)
-      this.masterGain = new Tone.Gain(1.35);
+      this.masterGain = new Tone.Gain(1.85);
 
       // Connect Chain: subFilter -> equalizer -> reverb -> limiter -> masterGain -> Destination
       this.subFilter.connect(this.equalizer);
