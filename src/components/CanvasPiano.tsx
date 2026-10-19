@@ -438,17 +438,16 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.fillStyle = gradient;
           ctx.fill();
 
-          // Procedural Wood Grain / Neon Details for White Keys
+          // Procedural Wood Grain / Neon Details for White Keys (Optimized)
           if (isMahogany) {
             ctx.save();
-            ctx.strokeStyle = 'rgba(92, 58, 33, 0.22)';
+            ctx.strokeStyle = 'rgba(92, 58, 33, 0.2)';
             ctx.lineWidth = 1;
-            for (let wx = keyX + 4; wx < keyX + keyW - 2; wx += Math.max(5, keyW / 4)) {
-              ctx.beginPath();
-              ctx.moveTo(wx, wk.y + 12);
-              ctx.lineTo(wx, wk.y + keyH - 15);
-              ctx.stroke();
-            }
+            const wx = keyX + keyW * 0.5;
+            ctx.beginPath();
+            ctx.moveTo(wx, wk.y + 12);
+            ctx.lineTo(wx, wk.y + keyH - 15);
+            ctx.stroke();
             ctx.restore();
           } else if (isNeon) {
             ctx.save();
@@ -575,21 +574,20 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.fillStyle = gradient;
           ctx.fill();
 
-          // Procedural Wood Grain / Neon Details for Black Keys
+          // Procedural Wood Grain / Neon Details for Black Keys (Optimized)
           if (isMahogany) {
             ctx.save();
-            ctx.strokeStyle = 'rgba(255, 209, 102, 0.22)';
+            ctx.strokeStyle = 'rgba(255, 209, 102, 0.2)';
             ctx.lineWidth = 1;
-            for (let bx = keyX + 3; bx < keyX + keyW - 2; bx += Math.max(3, keyW / 3)) {
-              ctx.beginPath();
-              ctx.moveTo(bx, bk.y + 6);
-              ctx.lineTo(bx, bk.y + keyH - 10);
-              ctx.stroke();
-            }
+            const bx = keyX + keyW * 0.5;
+            ctx.beginPath();
+            ctx.moveTo(bx, bk.y + 6);
+            ctx.lineTo(bx, bk.y + keyH - 10);
+            ctx.stroke();
             ctx.restore();
           } else if (isNeon) {
             ctx.save();
-            ctx.strokeStyle = 'rgba(217, 70, 239, 0.4)';
+            ctx.strokeStyle = 'rgba(217, 70, 239, 0.35)';
             ctx.lineWidth = 1.2;
             ctx.beginPath();
             ctx.moveTo(keyX + keyW / 2, bk.y + 4);

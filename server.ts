@@ -502,16 +502,9 @@ Return a JSON object containing:
           const rId = (roomId ? String(roomId).trim().toUpperCase() : "LOBBY");
           const cleanRole = String(role || "allievo").trim();
           
-          let room: RoomState | undefined;
-          if (cleanRole === 'maestro') {
-            room = getOrCreateRoom(rId, mode, username);
-          } else {
-            room = getRoom(rId);
-          }
-
+          let room: RoomState | undefined = getRoom(rId);
           if (!room) {
-             ws.send(JSON.stringify({ type: "room:error", error: "Stanza inesistente" }));
-             return;
+            room = getOrCreateRoom(rId, mode, username);
           }
 
           const effectiveId = (msg.clientId && String(msg.clientId).trim()) || `ws_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -780,15 +773,9 @@ Return a JSON object containing:
       const cleanUser = String(username || (role === "maestro" ? "Maestro" : "Allievo")).trim();
       const cleanRole = String(role || "allievo").trim();
 
-      let activeRoom: RoomState | undefined;
-      if (cleanRole === 'maestro') {
-        activeRoom = getOrCreateRoom(rId, mode, cleanUser);
-      } else {
-        activeRoom = getRoom(rId);
-      }
-
+      let activeRoom: RoomState | undefined = getRoom(rId);
       if (!activeRoom) {
-        return res.status(404).json({ error: "L'aula non esiste o non è attiva." });
+        activeRoom = getOrCreateRoom(rId, mode || "masterclass", cleanUser);
       }
 
       const cId = (clientId && String(clientId).trim()) || `http_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
