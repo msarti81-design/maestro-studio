@@ -1,0 +1,6 @@
+{
+  "name": "VirtuKeys Studio - Grand Piano & Jam Band",
+  "description": "Interactive grand piano, sheet music composer, and multi-instrument jam band studio with AI accompaniment.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
