@@ -236,6 +236,16 @@ public class MainActivity extends BridgeActivity {
                 webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
             }
             
+            // Automatically grant microphone and media permissions inside Android WebView
+            webView.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public void onPermissionRequest(final PermissionRequest request) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        request.grant(request.getResources());
+                    }
+                }
+            });
+
             // Register JavascriptInterface for instant direct file saves
             webView.addJavascriptInterface(new AndroidFileSaver(), "AndroidFileSaver");
 
