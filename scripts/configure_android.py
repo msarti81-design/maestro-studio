@@ -37,14 +37,18 @@ def configure_manifest():
                 perm_elem.set(f'{android_ns}maxSdkVersion', '32')
             root.insert(0, perm_elem)
 
-    # 2. Activity Configuration
+    # 2. Activity & Application Configuration
+    app_elem = root.find('application')
+    if app_elem is not None:
+        app_elem.set(f'{android_ns}usesCleartextTraffic', 'true')
+
     for activity in root.findall('.//activity'):
         activity.set(f'{android_ns}screenOrientation', 'sensorLandscape')
         activity.set(f'{android_ns}configChanges', 'orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode')
         activity.set(f'{android_ns}theme', '@style/AppTheme.NoActionBarFullscreen')
     
     tree.write(manifest_path, encoding='utf-8', xml_declaration=True)
-    print("Successfully configured AndroidManifest.xml with Mic & Storage Permissions!")
+    print("Successfully configured AndroidManifest.xml with Mic, Storage Permissions & Cleartext Traffic!")
 
 def configure_styles():
     styles_content = """<?xml version="1.0" encoding="utf-8"?>
@@ -225,6 +229,12 @@ public class MainActivity extends BridgeActivity {
             webView.getSettings().setJavaScriptEnabled(true);
             webView.getSettings().setAllowFileAccess(true);
             webView.getSettings().setDomStorageEnabled(true);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
+            }
             
             // Register JavascriptInterface for instant direct file saves
             webView.addJavascriptInterface(new AndroidFileSaver(), "AndroidFileSaver");

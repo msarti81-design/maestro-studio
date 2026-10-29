@@ -60,6 +60,27 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+  // Enable CORS for native mobile app / cross-origin requests
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
+  // Automatically normalize /Song or /song prefix for all API routes
+  app.use((req, res, next) => {
+    if (req.url.startsWith("/Song/")) {
+      req.url = req.url.substring(5);
+    } else if (req.url.startsWith("/song/")) {
+      req.url = req.url.substring(5);
+    }
+    next();
+  });
+
   const httpServer = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
 

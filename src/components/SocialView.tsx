@@ -9,7 +9,7 @@ import {
 import { PRESET_SONGS } from '../data/songs';
 import { audioEngine } from '../utils/audioEngine';
 import { getUsername, setUsername as saveGlobalUsername } from '../utils/songStorage';
-import { getAppWebSocketUrl, getAppApiUrl, getOrCreateClientId } from '../utils/networkHelper';
+import { getAppWebSocketUrl, getAppApiUrl, getOrCreateClientId, getPublicShareBaseUrl } from '../utils/networkHelper';
 import {
   Users,
   GraduationCap,
@@ -189,6 +189,11 @@ export function normalizeRoomCode(rawCode: string, defaultMode: SocialRoomMode =
       default:
         return `MASTERCLASS-${clean}`;
     }
+  }
+
+  // If user typed e.g. "M-542", "M 542", "M542"
+  if (/^M-?\d+$/.test(clean)) {
+    return clean.replace(/^M-?/, 'MASTERCLASS-');
   }
 
   // If user typed e.g. "ROOM-542", "ROOM 542", "ROOM542"
@@ -550,9 +555,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
   // Helper to build a dual-format URL (query + hash) that never breaks
   const getShareUrl = (mode: SocialRoomMode, room: string, role: string) => {
     if (typeof window === 'undefined') return '';
-    const origin = window.location.origin;
-    const path = window.location.pathname;
-    const base = `${origin}${path}`.replace(/\/+$/, '');
+    const base = getPublicShareBaseUrl().replace(/\/+$/, '');
     const cleanRoom = normalizeRoomCode(room, mode);
     const query = `room=${encodeURIComponent(cleanRoom)}&mode=${encodeURIComponent(mode)}&role=${encodeURIComponent(role)}`;
     return `${base}/?${query}#social?${query}`;

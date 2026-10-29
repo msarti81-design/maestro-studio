@@ -1,3 +1,5 @@
+import { getAppApiUrl } from './networkHelper';
+
 export interface DeviceUserIdentity {
   username: string;
   deviceId: string;
@@ -51,7 +53,7 @@ export async function verifyAndLockUsername(username: string): Promise<DeviceUse
   const cleanName = username.trim() || getStoredUsername();
 
   try {
-    const res = await fetch('/api/user/register-or-verify', {
+    const res = await fetch(getAppApiUrl('/api/user/register-or-verify'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: cleanName, deviceId }),
@@ -104,7 +106,7 @@ export async function transferAccountWithCode(
   const cleanCode = transferCode.trim().toUpperCase();
 
   try {
-    const res = await fetch('/api/user/transfer-profile', {
+    const res = await fetch(getAppApiUrl('/api/user/transfer-profile'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

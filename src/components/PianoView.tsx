@@ -54,7 +54,7 @@ import { identifyChord, IdentifiedChord } from '../utils/chordDetector';
 
 import { ActiveSocialSession, SocialSessionResults } from '../types';
 import { normalizeRoomCode } from './SocialView';
-import { getAppWebSocketUrl, getAppApiUrl, getOrCreateClientId } from '../utils/networkHelper';
+import { getAppWebSocketUrl, getAppApiUrl, getOrCreateClientId, getPublicShareBaseUrl } from '../utils/networkHelper';
 
 interface PianoViewProps {
   onBackToHome: () => void;
@@ -649,9 +649,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
   // Quick share helpers for Maestro inside PianoView
   const handleQuickCopyStudentLink = async () => {
     if (!socialSession?.roomId) return;
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const path = typeof window !== 'undefined' ? window.location.pathname : '';
-    const base = `${origin}${path}`.replace(/\/+$/, '');
+    const base = getPublicShareBaseUrl().replace(/\/+$/, '');
     const cleanRoom = normalizeRoomCode(socialSession.roomId, 'masterclass');
     const query = `room=${encodeURIComponent(cleanRoom)}&mode=masterclass&role=allievo`;
     const fullUrl = `${base}/?${query}#social?${query}`;
@@ -675,9 +673,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   const handleQuickShareWhatsApp = () => {
     if (!socialSession?.roomId) return;
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const path = typeof window !== 'undefined' ? window.location.pathname : '';
-    const base = `${origin}${path}`.replace(/\/+$/, '');
+    const base = getPublicShareBaseUrl().replace(/\/+$/, '');
     const cleanRoom = normalizeRoomCode(socialSession.roomId, 'masterclass');
     const short = cleanRoom.replace('MASTERCLASS-', '');
     const query = `room=${encodeURIComponent(cleanRoom)}&mode=masterclass&role=allievo`;

@@ -1,3 +1,5 @@
+import { getPublicShareBaseUrl } from './networkHelper';
+
 // Challenge Link & Social Sharing Engine for organic viral growth
 
 export interface ChallengeData {
@@ -10,7 +12,8 @@ export interface ChallengeData {
 export function generateChallengeUrl(songId: string, songTitle: string, challengerName: string, score: number): string {
   if (typeof window === 'undefined') return '';
 
-  const url = new URL(window.location.href);
+  const baseUrl = getPublicShareBaseUrl();
+  const url = new URL(baseUrl);
   url.searchParams.set('challenge', songId);
   url.searchParams.set('title', songTitle);
   url.searchParams.set('by', challengerName);

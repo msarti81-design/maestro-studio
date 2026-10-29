@@ -28,6 +28,7 @@ import { formatNoteLabel } from '../utils/noteFormatting';
 import { getSavedSheetSongs, saveCustomSheetSong, deleteCustomSheetSong } from '../utils/songStorage';
 import { downloadJson, downloadMidi, createMidiBlob } from '../utils/midiExport';
 import { parseMidiFile } from '../utils/midiParser';
+import { getPublicShareBaseUrl } from '../utils/networkHelper';
 import { LightweightSheetKeyboard } from './LightweightSheetKeyboard';
 import { ALL_PIANO_KEYS, ALL_WHITE_KEYS } from '../data/pianoKeys';
 import {
@@ -415,7 +416,7 @@ export const SheetComposerView: React.FC = () => {
   };
 
   const handleWhatsAppShareSong = (song: SheetSong) => {
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const baseUrl = getPublicShareBaseUrl().replace(/\/+$/, '');
     const shareUrl = `${baseUrl}/#sheet?title=${encodeURIComponent(song.title)}`;
     const text = `🎼 *VIRTUKEYS STUDIO SHEET*\n*${song.title}* (${song.key}, ${song.bpm} BPM)\n\nListen and play this sheet on VirtuKeys Studio!\n🔗 ${shareUrl}`;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
