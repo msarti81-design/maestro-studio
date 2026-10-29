@@ -644,7 +644,14 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const voiceAudioCtxRef = useRef<AudioContext | null>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const isMicMutedRef = useRef<boolean>(false);
   const lastEventTimestampRef = useRef<number>(Date.now() - 3000);
+
+  useEffect(() => {
+    isMicMutedRef.current = isMicMuted;
+  }, [isMicMuted]);
 
   // Quick share helpers for Maestro inside PianoView
   const handleQuickCopyStudentLink = async () => {
@@ -802,8 +809,23 @@ export const PianoView: React.FC<PianoViewProps> = ({
       }
     };
 
-    // Helper to play incoming remote WebRTC audio stream
+    // Helper to play incoming remote WebRTC audio stream with zero-latency Web Audio
     const playRemoteStream = (stream: MediaStream) => {
+      try {
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtxClass) {
+          if (!voiceAudioCtxRef.current) {
+            voiceAudioCtxRef.current = new AudioCtxClass();
+          }
+          const ctx = voiceAudioCtxRef.current;
+          if (ctx.state === 'suspended') {
+            ctx.resume().catch(() => {});
+          }
+          const source = ctx.createMediaStreamSource(stream);
+          source.connect(ctx.destination);
+        }
+      } catch (err) {}
+
       let audioEl = remoteAudioRef.current;
       if (!audioEl) {
         audioEl = document.getElementById('remote-voice-audio-element') as HTMLAudioElement;
@@ -819,19 +841,52 @@ export const PianoView: React.FC<PianoViewProps> = ({
       }
       audioEl.srcObject = stream;
       audioEl.volume = 1.0;
-      audioEl.play().catch((err) => {
-        console.warn('Audio auto-play notification:', err);
-      });
+      audioEl.play().catch(() => {});
     };
 
-    // Helper to play discrete audio chunks
+    // Helper to play discrete audio chunks with zero-gap Web Audio
     const playAudioChunk = (b64Data: string) => {
       if (!b64Data) return;
+      try {
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtxClass) {
+          if (!voiceAudioCtxRef.current) {
+            voiceAudioCtxRef.current = new AudioCtxClass();
+          }
+          const ctx = voiceAudioCtxRef.current;
+          if (ctx.state === 'suspended') {
+            ctx.resume().catch(() => {});
+          }
+          const base64Content = b64Data.includes(',') ? b64Data.split(',')[1] : b64Data;
+          const binaryString = window.atob(base64Content);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          ctx.decodeAudioData(
+            bytes.buffer.slice(0),
+            (buffer) => {
+              const source = ctx.createBufferSource();
+              source.buffer = buffer;
+              source.connect(ctx.destination);
+              source.start(0);
+            },
+            () => {
+              const audio = new Audio(b64Data);
+              audio.volume = 1.0;
+              audio.play().catch(() => {});
+            }
+          );
+          return;
+        }
+      } catch (e) {}
+
       try {
         const audio = new Audio(b64Data);
         audio.volume = 1.0;
         audio.play().catch(() => {});
-      } catch (e) {}
+      } catch (err) {}
     };
 
     // 2. HTTP Polling Fallback for Events & Presence (Every 1.5 seconds)
@@ -942,6 +997,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 iceServers: [
                   { urls: 'stun:stun.l.google.com:19302' },
                   { urls: 'stun:stun1.l.google.com:19302' },
+                  { urls: 'stun:stun2.l.google.com:19302' },
                 ],
               });
               peerConnectionRef.current = pc;
@@ -960,6 +1016,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
               };
             }
             await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+            if (pendingIceCandidatesRef.current.length > 0) {
+              for (const c of pendingIceCandidatesRef.current) {
+                try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
+              }
+              pendingIceCandidatesRef.current = [];
+            }
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             sendRoomEvent('webrtc:answer', { sdp: pc.localDescription });
@@ -967,13 +1029,22 @@ export const PianoView: React.FC<PianoViewProps> = ({
           else if (msg.type === 'webrtc:answer' && msg.sdp) {
             if (peerConnectionRef.current) {
               await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+              if (pendingIceCandidatesRef.current.length > 0) {
+                for (const c of pendingIceCandidatesRef.current) {
+                  try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
+                }
+                pendingIceCandidatesRef.current = [];
+              }
             }
           }
           else if (msg.type === 'webrtc:candidate' && msg.candidate) {
-            if (peerConnectionRef.current) {
+            const pc = peerConnectionRef.current;
+            if (pc && pc.remoteDescription && pc.remoteDescription.type) {
               try {
-                await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(msg.candidate));
+                await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
               } catch (iceErr) {}
+            } else {
+              pendingIceCandidatesRef.current.push(msg.candidate);
             }
           }
 
@@ -1147,6 +1218,43 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
       sendEvt('webrtc:offer', { sdp: pc.localDescription });
       sendEvt('piano:voice_status', { isActive: true, isMuted: false });
+
+      // 2. Continuous WebSocket Audio Chunk Streaming (GUARANTEED FALLBACK ACROSS 4G & FIREWALLS)
+      try {
+        let preferredMime = '';
+        if (typeof MediaRecorder !== 'undefined') {
+          const mimeCandidates = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/ogg;codecs=opus',
+            'audio/mp4',
+            'audio/aac',
+          ];
+          for (const m of mimeCandidates) {
+            if (MediaRecorder.isTypeSupported(m)) {
+              preferredMime = m;
+              break;
+            }
+          }
+          const mr = preferredMime ? new MediaRecorder(stream, { mimeType: preferredMime }) : new MediaRecorder(stream);
+          mediaRecorderRef.current = mr;
+          mr.ondataavailable = (recEvt) => {
+            if (recEvt.data && recEvt.data.size > 0 && !isMicMutedRef.current) {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const b64 = reader.result as string;
+                if (b64) {
+                  sendEvt('piano:audio_chunk', { audio: b64 });
+                }
+              };
+              reader.readAsDataURL(recEvt.data);
+            }
+          };
+          mr.start(500); // 500ms slices for responsive voice transmission
+        }
+      } catch (recErr) {
+        console.warn('MediaRecorder continuous streamer error:', recErr);
+      }
 
       showToast('🎙️ Vivavoce Attivo! Parla liberamente con il microfono');
     } catch (err: any) {
@@ -2508,10 +2616,21 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     )}
 
                     {peerVoiceActive && (
-                      <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded text-[9px] font-bold flex items-center gap-1 whitespace-nowrap animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                        <span>{peerMicMuted ? 'Student Muted' : 'Student Voice Active'}</span>
-                      </span>
+                      !isVoiceActive ? (
+                        <button
+                          onClick={startVoiceCall}
+                          className="px-2 py-0.5 bg-gradient-to-r from-cyan-400 to-teal-400 text-slate-950 font-black rounded text-[10px] flex items-center gap-1 shadow-lg animate-pulse cursor-pointer whitespace-nowrap"
+                          title="Clicca per attivare il microfono e parlare con l'Allievo"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping" />
+                          <span>🎙️ Allievo sta parlando! Rispondi</span>
+                        </button>
+                      ) : (
+                        <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded text-[9px] font-bold flex items-center gap-1 whitespace-nowrap animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                          <span>{peerMicMuted ? 'Student Muted' : 'Student Voice Active'}</span>
+                        </span>
+                      )
                     )}
                   </div>
 
@@ -2594,10 +2713,21 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     )}
 
                     {peerVoiceActive && (
-                      <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[9px] font-bold flex items-center gap-1 whitespace-nowrap animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                        <span>{peerMicMuted ? 'Teacher Muted' : 'Teacher Voice Active'}</span>
-                      </span>
+                      !isVoiceActive ? (
+                        <button
+                          onClick={startVoiceCall}
+                          className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded text-[10px] flex items-center gap-1 shadow-lg animate-pulse cursor-pointer whitespace-nowrap"
+                          title="Clicca per attivare il microfono e parlare con il Maestro"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping" />
+                          <span>🎙️ Maestro sta parlando! Rispondi</span>
+                        </button>
+                      ) : (
+                        <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[9px] font-bold flex items-center gap-1 whitespace-nowrap animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                          <span>{peerMicMuted ? 'Teacher Muted' : 'Teacher Voice Active'}</span>
+                        </span>
+                      )
                     )}
                   </div>
 
