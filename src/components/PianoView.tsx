@@ -922,6 +922,48 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 const isMut = evt.data?.isMuted ?? evt.isMuted;
                 setPeerVoiceActive(Boolean(isAct));
                 setPeerMicMuted(Boolean(isMut));
+              } else if (evt.type === 'webrtc:offer' && (evt.data?.sdp || evt.sdp)) {
+                const sdp = evt.data?.sdp || evt.sdp;
+                let pc = peerConnectionRef.current;
+                if (!pc) {
+                  pc = new RTCPeerConnection({
+                    iceServers: [
+                      { urls: 'stun:stun.l.google.com:19302' },
+                      { urls: 'stun:stun1.l.google.com:19302' },
+                      { urls: 'stun:stun2.l.google.com:19302' },
+                    ],
+                  });
+                  peerConnectionRef.current = pc;
+                  if (localVoiceStreamRef.current) {
+                    localVoiceStreamRef.current.getTracks().forEach((t) => pc!.addTrack(t, localVoiceStreamRef.current!));
+                  }
+                  pc.ontrack = (e) => {
+                    if (e.streams && e.streams[0]) {
+                      playRemoteStream(e.streams[0]);
+                    }
+                  };
+                  pc.onicecandidate = (e) => {
+                    if (e.candidate) {
+                      sendRoomEvent('webrtc:candidate', { candidate: e.candidate });
+                    }
+                  };
+                }
+                await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                sendRoomEvent('webrtc:answer', { sdp: pc.localDescription });
+              } else if (evt.type === 'webrtc:answer' && (evt.data?.sdp || evt.sdp)) {
+                const sdp = evt.data?.sdp || evt.sdp;
+                if (peerConnectionRef.current) {
+                  await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
+                }
+              } else if (evt.type === 'webrtc:candidate' && (evt.data?.candidate || evt.candidate)) {
+                const cand = evt.data?.candidate || evt.candidate;
+                if (peerConnectionRef.current) {
+                  try {
+                    await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(cand));
+                  } catch (e) {}
+                }
               }
             }
           }
@@ -1250,7 +1292,17 @@ export const PianoView: React.FC<PianoViewProps> = ({
               reader.readAsDataURL(recEvt.data);
             }
           };
-          mr.start(500); // 500ms slices for responsive voice transmission
+          mr.start(400);
+          // Periodic flush for Android WebView
+          const flushInterval = setInterval(() => {
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+              try {
+                mediaRecorderRef.current.requestData();
+              } catch (e) {}
+            } else {
+              clearInterval(flushInterval);
+            }
+          }, 400);
         }
       } catch (recErr) {
         console.warn('MediaRecorder continuous streamer error:', recErr);
