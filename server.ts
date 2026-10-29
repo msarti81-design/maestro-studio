@@ -124,6 +124,25 @@ async function startServer() {
     next();
   });
 
+  // --- API ROUTE: SYSTEM VERSION & SYNC STATUS ---
+  app.get(["/api/version", "/Song/api/version", "/song/api/version"], (req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.json({
+      success: true,
+      version: "1.0.157",
+      buildDate: "2026-10-29 14:35",
+      commit: "3013d77",
+      server: "freeserv.it/Song",
+      status: "online",
+      features: [
+        "Capacitor APK Production Sync",
+        "Glissando Anti-Crackling Audio Buffer",
+        "Waterfall Viewport Fit",
+        "Real-Time Masterclass Websockets & Polling"
+      ]
+    });
+  });
+
   const dataDir = path.join(__dirname, "data");
   const communitySongsFile = path.join(dataDir, "community_songs.json");
   const postcardsFile = path.join(dataDir, "musical_postcards.json");

@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Smartphone, Key, UserCheck, Copy, Check, X, AlertTriangle } from 'lucide-react';
 import { getDeviceId, getUsername, setUsername, getTransferCode, transferAccountWithCode } from '../utils/songStorage';
+import { APP_VERSION } from '../utils/versionInfo';
 
 interface DeviceIdentityModalProps {
   isOpen: boolean;
   onClose: () => void;
   onIdentityUpdated: (identity: { username: string; transferCode: string }) => void;
+  onOpenVersionModal?: () => void;
 }
 
 export const DeviceIdentityModal: React.FC<DeviceIdentityModalProps> = ({
   isOpen,
   onClose,
   onIdentityUpdated,
+  onOpenVersionModal,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'transfer'>('profile');
   const [currentName, setCurrentName] = useState('');
@@ -266,6 +269,22 @@ export const DeviceIdentityModal: React.FC<DeviceIdentityModalProps> = ({
             </div>
           </div>
         )}
+
+        {/* Bottom Version Note */}
+        <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
+          <span>Maestro Studio <strong className="text-amber-400 font-mono">v{APP_VERSION}</strong></span>
+          {onOpenVersionModal && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenVersionModal();
+              }}
+              className="text-[10px] text-amber-400 hover:text-amber-300 underline font-bold cursor-pointer"
+            >
+              Verifica Aggiornamenti
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

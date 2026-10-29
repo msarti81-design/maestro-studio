@@ -20,14 +20,21 @@ import {
 } from 'lucide-react';
 import { audioEngine } from '../utils/audioEngine';
 import { loadGamificationState } from '../utils/gamification';
+import { APP_VERSION } from '../utils/versionInfo';
 
 interface HomeViewProps {
   onSelectView: (view: ViewMode) => void;
   onInitAudio: () => void;
   onOpenScalesModal?: () => void;
+  onOpenVersionModal?: () => void;
 }
 
-export const HomeView: React.FC<HomeViewProps> = ({ onSelectView, onInitAudio, onOpenScalesModal }) => {
+export const HomeView: React.FC<HomeViewProps> = ({
+  onSelectView,
+  onInitAudio,
+  onOpenScalesModal,
+  onOpenVersionModal,
+}) => {
   const [isPlayingWelcome, setIsPlayingWelcome] = useState<boolean>(false);
   const [gamification] = useState(() => loadGamificationState());
   const [activeTabPreview, setActiveTabPreview] = useState<string | null>(null);
@@ -497,6 +504,17 @@ export const HomeView: React.FC<HomeViewProps> = ({ onSelectView, onInitAudio, o
             <Award className="w-3.5 h-3.5" />
             <span>Level {gamification.level}: {gamification.levelTitle}</span>
           </div>
+
+          {onOpenVersionModal && (
+            <button
+              onClick={onOpenVersionModal}
+              className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400 hover:text-amber-300 bg-slate-950/70 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+              title="Verifica versione Studio e allineamento server VPS"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>v{APP_VERSION}</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

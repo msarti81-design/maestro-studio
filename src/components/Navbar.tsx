@@ -3,6 +3,7 @@ import { ViewMode, StudioTheme } from '../types';
 import { Piano, BookOpen, Layers, Volume2, VolumeX, Home, Music, Users, ShieldCheck, Key, User, Disc, Timer, Palette } from 'lucide-react';
 import { getThemeClasses } from '../utils/themeHelper';
 import { midiEngine } from '../utils/midiEngine';
+import { APP_VERSION } from '../utils/versionInfo';
 
 interface NavbarProps {
   currentView: ViewMode | 'home';
@@ -17,6 +18,7 @@ interface NavbarProps {
   studioTheme: StudioTheme;
   onThemeChange: (theme: StudioTheme) => void;
   onOpenScalesModal: () => void;
+  onOpenVersionModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -32,6 +34,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   studioTheme,
   onThemeChange,
   onOpenScalesModal,
+  onOpenVersionModal,
 }) => {
   const theme = getThemeClasses(studioTheme);
 
@@ -67,6 +70,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden xs:inline-block text-[9px] uppercase tracking-widest font-extrabold text-amber-400/90 bg-amber-500/10 px-1 py-0.2 rounded border border-amber-500/20">
               STUDIO
             </span>
+            {onOpenVersionModal && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenVersionModal();
+                }}
+                className="hidden md:inline-flex items-center gap-1 text-[9px] font-mono font-bold text-slate-500 hover:text-amber-300 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 px-1.5 py-0.2 rounded transition-colors cursor-pointer ml-1"
+                title="Versione Studio: v1.0.157 - Clicca per dettagli aggiornamento"
+              >
+                <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                <span>v{APP_VERSION}</span>
+              </button>
+            )}
           </div>
 
           {/* Dancing Mini Equalizer Bars */}

@@ -15,6 +15,7 @@ import { RecordingsView } from './components/RecordingsView';
 import { DeviceIdentityModal } from './components/DeviceIdentityModal';
 import { MetronomeModal } from './components/MetronomeModal';
 import { ScalesPracticeModal } from './components/ScalesPracticeModal';
+import { VersionModal } from './components/VersionModal';
 import { getStoredUsername, verifyAndLockUsername } from './utils/deviceIdentity';
 import { audioEngine } from './utils/audioEngine';
 
@@ -142,6 +143,7 @@ export default function App() {
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState<boolean>(false);
   const [isMetronomeOpen, setIsMetronomeOpen] = useState<boolean>(false);
   const [isScalesModalOpen, setIsScalesModalOpen] = useState<boolean>(false);
+  const [isVersionModalOpen, setIsVersionModalOpen] = useState<boolean>(false);
   const [activeScaleExercise, setActiveScaleExercise] = useState<ScaleExercise | null>(null);
 
   // Auto-verify and lock username on device mount
@@ -231,6 +233,7 @@ export default function App() {
           studioTheme={studioTheme}
           onThemeChange={handleThemeChange}
           onOpenScalesModal={() => setIsScalesModalOpen(true)}
+          onOpenVersionModal={() => setIsVersionModalOpen(true)}
         />
       )}
 
@@ -240,6 +243,7 @@ export default function App() {
             onSelectView={(v) => handleSelectView(v)}
             onInitAudio={handleInitAudio}
             onOpenScalesModal={() => setIsScalesModalOpen(true)}
+            onOpenVersionModal={() => setIsVersionModalOpen(true)}
           />
         )}
         {currentView === 'piano' && (
@@ -283,6 +287,7 @@ export default function App() {
             setUsername(newIdentity.username);
           }
         }}
+        onOpenVersionModal={() => setIsVersionModalOpen(true)}
       />
 
       <MetronomeModal
@@ -299,6 +304,11 @@ export default function App() {
           handleSelectView('piano');
           setIsScalesModalOpen(false);
         }}
+      />
+
+      <VersionModal
+        isOpen={isVersionModalOpen}
+        onClose={() => setIsVersionModalOpen(false)}
       />
     </div>
   );
