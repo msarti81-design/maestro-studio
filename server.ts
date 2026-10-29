@@ -1006,7 +1006,7 @@ Return a JSON object containing:
   });
 
   const distPath = path.join(__dirname, "dist");
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV === "production" || fs.existsSync(distPath);
   if (isProd) {
     app.get(["/song", "/Song", "/piano", "/sheet", "/jam", "/ai", "/social"], (req, res, next) => {
       if (!req.originalUrl.endsWith("/")) {
@@ -1015,17 +1015,32 @@ Return a JSON object containing:
       next();
     });
 
-    app.use("/assets", express.static(path.join(distPath, "assets")));
-    app.use("/Song/assets", express.static(path.join(distPath, "assets")));
-    app.use("/song/assets", express.static(path.join(distPath, "assets")));
-    app.use("/Song", express.static(distPath));
-    app.use("/song", express.static(distPath));
-    app.use(express.static(distPath));
+    const staticOptions = {
+      setHeaders: (res: express.Response, filePath: string) => {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      }
+    };
+
+    app.use("/assets", express.static(path.join(distPath, "assets"), staticOptions));
+    app.use("/Song/assets", express.static(path.join(distPath, "assets"), staticOptions));
+    app.use("/song/assets", express.static(path.join(distPath, "assets"), staticOptions));
+    app.use("/Song", express.static(distPath, staticOptions));
+    app.use("/song", express.static(distPath, staticOptions));
+    app.use(express.static(distPath, staticOptions));
 
     app.get(["/song", "/song/*", "/Song", "/Song/*", "/piano", "/piano/*", "/sheet", "/sheet/*", "/jam", "/jam/*", "/ai", "/ai/*", "/social", "/social/*"], (req, res, next) => {
       if (path.extname(req.path)) {
         return next();
       }
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, "index.html"));
     });
 
@@ -1037,6 +1052,9 @@ Return a JSON object containing:
           return res.status(200).sendFile(file);
         }
       }
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, "index.html"));
     });
   } else {

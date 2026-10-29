@@ -23,6 +23,23 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+  app.use((req, res, next) => {
+    if (req.url.startsWith("/Song/")) {
+      req.url = req.url.substring(5);
+    } else if (req.url.startsWith("/song/")) {
+      req.url = req.url.substring(5);
+    }
+    next();
+  });
   const httpServer = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
   httpServer.on("upgrade", (request, socket, head) => {
@@ -59,6 +76,23 @@ async function startServer() {
       }
     }
     next();
+  });
+  app.get(["/api/version", "/Song/api/version", "/song/api/version"], (req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.json({
+      success: true,
+      version: "1.0.157",
+      buildDate: "2026-10-29 14:35",
+      commit: "3013d77",
+      server: "freeserv.it/Song",
+      status: "online",
+      features: [
+        "Capacitor APK Production Sync",
+        "Glissando Anti-Crackling Audio Buffer",
+        "Waterfall Viewport Fit",
+        "Real-Time Masterclass Websockets & Polling"
+      ]
+    });
   });
   const dataDir = path.join(__dirname, "data");
   const communitySongsFile = path.join(dataDir, "community_songs.json");
@@ -790,7 +824,7 @@ Return a JSON object containing:
     res.status(200).sendFile(path.join(__dirname, "update_song.py"));
   });
   const distPath = path.join(__dirname, "dist");
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV === "production" || fs.existsSync(distPath);
   if (isProd) {
     app.get(["/song", "/Song", "/piano", "/sheet", "/jam", "/ai", "/social"], (req, res, next) => {
       if (!req.originalUrl.endsWith("/")) {
@@ -798,16 +832,30 @@ Return a JSON object containing:
       }
       next();
     });
-    app.use("/assets", express.static(path.join(distPath, "assets")));
-    app.use("/Song/assets", express.static(path.join(distPath, "assets")));
-    app.use("/song/assets", express.static(path.join(distPath, "assets")));
-    app.use("/Song", express.static(distPath));
-    app.use("/song", express.static(distPath));
-    app.use(express.static(distPath));
+    const staticOptions = {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      }
+    };
+    app.use("/assets", express.static(path.join(distPath, "assets"), staticOptions));
+    app.use("/Song/assets", express.static(path.join(distPath, "assets"), staticOptions));
+    app.use("/song/assets", express.static(path.join(distPath, "assets"), staticOptions));
+    app.use("/Song", express.static(distPath, staticOptions));
+    app.use("/song", express.static(distPath, staticOptions));
+    app.use(express.static(distPath, staticOptions));
     app.get(["/song", "/song/*", "/Song", "/Song/*", "/piano", "/piano/*", "/sheet", "/sheet/*", "/jam", "/jam/*", "/ai", "/ai/*", "/social", "/social/*"], (req, res, next) => {
       if (path.extname(req.path)) {
         return next();
       }
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, "index.html"));
     });
     app.get("*", (req, res) => {
@@ -818,6 +866,9 @@ Return a JSON object containing:
           return res.status(200).sendFile(file);
         }
       }
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, "index.html"));
     });
   } else {
