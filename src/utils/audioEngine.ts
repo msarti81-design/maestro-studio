@@ -77,9 +77,9 @@ class AudioEngine {
 
   // Active voice tracker for strict polyphony & voice stealing (prevents audio freeze, crackling & overload during fast glissando)
   // Max 4 simultaneous voices in flight prevents audio quantum starvation and scratchy summing distortion
-  private readonly MAX_VOICES = 4;
+  private readonly MAX_VOICES = 5;
   private activeVoices: { note: string; time: number }[] = [];
-  private autoReleasedNotes = new Set<string>();
+  private autoReleasedNotes = new Map<string, number>();
   private noteLastTriggerTime = new Map<string, number>();
   private lastAnyNoteTime = 0;
   private lastBassNote: string | null = null;
@@ -108,8 +108,11 @@ class AudioEngine {
           if (rawCtx && (rawCtx.state === 'suspended' || (rawCtx.state as any) === 'interrupted')) {
             rawCtx.resume().catch(() => {});
           }
-          if (this.autoReleasedNotes.size > 30) {
-            this.autoReleasedNotes.clear();
+          const now = performance.now();
+          for (const [k, exp] of this.autoReleasedNotes.entries()) {
+            if (now > exp) {
+              this.autoReleasedNotes.delete(k);
+            }
           }
         } catch (e) {}
       }, 2000);
@@ -125,6 +128,7 @@ class AudioEngine {
     if (this.isInitialized && Tone.context.state === 'running') return;
 
     try {
+      Tone.context.lookAhead = 0.05; // 50ms buffer lookahead avoids audio thread starvation in WebView
       await Tone.start();
 
       const rawCtx = Tone.context.rawContext as AudioContext;
@@ -426,8 +430,8 @@ class AudioEngine {
           } else if (isInteractive) {
             if (isGlissando) {
               // Rapid swipe across keys: trigger with natural musical decay (0.28s)
-              // and mark as auto-released so subsequent touch-up does NOT double-trigger release
-              this.autoReleasedNotes.add(note);
+              // and suppress manual release for 600ms so subsequent touch-up events do NOT double-trigger release
+              this.autoReleasedNotes.set(note, performance.now() + 600);
               this.sampler.triggerAttackRelease(note, 0.28, audioNow, vel);
             } else {
               this.sampler.triggerAttack(note, audioNow, vel);
@@ -518,8 +522,8 @@ class AudioEngine {
     // 1. If this note was played during a fast glissando with triggerAttackRelease,
     // its acoustic decay is already scheduled smoothly by Tone.js!
     // Do NOT call triggerRelease again: double-scheduling creates GainNode ramp collisions and crackling!
-    if (this.autoReleasedNotes.has(note)) {
-      this.autoReleasedNotes.delete(note);
+    const suppressUntil = this.autoReleasedNotes.get(note);
+    if (suppressUntil && performance.now() < suppressUntil) {
       return;
     }
 
