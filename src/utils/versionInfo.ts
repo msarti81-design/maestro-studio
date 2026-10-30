@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.178';
-export const APP_BUILD_DATE = '30 Ottobre 2026 - 13:25';
-export const APP_COMMIT = '2f9a74c';
+export const APP_VERSION = '1.0.179';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 13:58';
+export const APP_COMMIT = '4a81f9b';
 export const APP_CHANGELOG = [
+  'Risolta la trasmissione vivavoce WebRTC: la traccia vocale viene ora agganciata e riprodotta correttamente su entrambi i dispositivi',
+  'Sblocco automatico permessi audio browser all avvio del microfono con supporto autoplay e traccia diretta',
   'Evidenziazione tasti allievo in colore distinto (Ciano/Celeste) sullo schermo del Maestro',
-  'Ripristino Vivavoce Full-Duplex bidirezionale con renegotiation WebRTC automatica all attivazione del microfono',
   'WebRTC DataChannel P2P Ultra-Veloce: note istantanee (<10ms) per glissando e passaggi rapidi',
-  'Audio pianoforte unidirezionale in Masterclass: suona solo lo studente verso il maestro',
 ];
 
 export interface ServerVersionInfo {

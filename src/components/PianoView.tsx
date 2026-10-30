@@ -73,6 +73,9 @@ const WEBRTC_ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:openrelay.metered.ca:80' },
     {
       urls: 'turn:openrelay.metered.ca:80',
@@ -90,7 +93,7 @@ const WEBRTC_ICE_SERVERS: RTCConfiguration = {
       credential: 'openrelayproject',
     },
   ],
-  iceCandidatePoolSize: 4,
+  iceCandidatePoolSize: 10,
 };
 
 const CHORD_PRESETS = [
@@ -831,14 +834,22 @@ export const PianoView: React.FC<PianoViewProps> = ({
       audioEl.id = 'remote-voice-audio-element';
       audioEl.autoplay = true;
       (audioEl as any).playsInline = true;
+      (audioEl as any).webkitPlaysInline = true;
       audioEl.style.display = 'none';
       document.body.appendChild(audioEl);
       remoteAudioRef.current = audioEl;
     }
-    audioEl.srcObject = stream;
+    if (audioEl.srcObject !== stream) {
+      audioEl.srcObject = stream;
+    }
     audioEl.muted = false;
     audioEl.volume = 1.0;
-    audioEl.play().catch(() => {});
+    const playPromise = audioEl.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn('[Voice Audio Play Error]', err);
+      });
+    }
   }, []);
 
   // Universal handler for incoming room messages (from WebRTC DataChannel, WebSocket, or HTTP poll)
@@ -885,8 +896,22 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
     // 1. Remote audio stream handler
     pc.ontrack = (event) => {
-      if (event.streams && event.streams[0]) {
-        playRemoteStream(event.streams[0]);
+      console.log('[WebRTC ontrack] Track received:', event.track.kind, event.track.id, event.streams);
+      if (event.track.kind === 'audio') {
+        let stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
+        if (!stream) {
+          stream = new MediaStream([event.track]);
+        } else if (!stream.getTracks().includes(event.track)) {
+          stream.addTrack(event.track);
+        }
+        playRemoteStream(stream);
+
+        event.track.onunmute = () => {
+          console.log('[WebRTC Track Unmuted] Remote voice track is unmuted!');
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.play().catch(() => {});
+          }
+        };
       }
     };
 
@@ -1246,8 +1271,31 @@ export const PianoView: React.FC<PianoViewProps> = ({
         return;
       }
 
+      // Unlock and un-mute remote audio element immediately during user gesture click!
+      if (!remoteAudioRef.current) {
+        let audioEl = document.getElementById('remote-voice-audio-element') as HTMLAudioElement;
+        if (!audioEl) {
+          audioEl = document.createElement('audio');
+          audioEl.id = 'remote-voice-audio-element';
+          audioEl.autoplay = true;
+          (audioEl as any).playsInline = true;
+          (audioEl as any).webkitPlaysInline = true;
+          audioEl.style.display = 'none';
+          document.body.appendChild(audioEl);
+        }
+        remoteAudioRef.current = audioEl;
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.muted = false;
+        remoteAudioRef.current.play().catch(() => {});
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
         video: false,
       });
 
@@ -1282,7 +1330,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       }
 
       if (pc.signalingState === 'stable') {
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({ offerToReceiveAudio: true });
         await pc.setLocalDescription(offer);
         sendRoomEvent('webrtc:offer', { sdp: pc.localDescription });
       }
