@@ -69,6 +69,30 @@ interface PianoViewProps {
 
 import { ALL_PIANO_KEYS, ALL_WHITE_KEYS } from '../data/pianoKeys';
 
+const WEBRTC_ICE_SERVERS: RTCConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:openrelay.metered.ca:80' },
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+  ],
+  iceCandidatePoolSize: 4,
+};
+
 const CHORD_PRESETS = [
   { name: 'DO Magg (C)', notes: ['C4', 'E4', 'G4'] },
   { name: 'LAm (Am)', notes: ['A3', 'C4', 'E4'] },
@@ -813,7 +837,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       }
     };
 
-    // Helper to handle incoming remote WebRTC audio stream (muted to avoid double-stream echo with PCM intercom)
+    // Helper to play incoming remote WebRTC audio stream with pure Opus sound
     const playRemoteStream = (stream: MediaStream) => {
       let audioEl = remoteAudioRef.current;
       if (!audioEl) {
@@ -822,7 +846,6 @@ export const PianoView: React.FC<PianoViewProps> = ({
       if (!audioEl) {
         audioEl = document.createElement('audio');
         audioEl.id = 'remote-voice-audio-element';
-        audioEl.muted = true; // Muted to eliminate dual-channel flanging echo with Web Audio PCM
         audioEl.autoplay = true;
         (audioEl as any).playsInline = true;
         audioEl.style.display = 'none';
@@ -830,6 +853,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
         remoteAudioRef.current = audioEl;
       }
       audioEl.srcObject = stream;
+      audioEl.muted = false;
+      audioEl.volume = 1.0;
+      audioEl.play().catch(() => {});
     };
 
     // Helper to play discrete audio chunks with zero-gap Web Audio
@@ -961,13 +987,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 const sdp = evt.data?.sdp || evt.sdp;
                 let pc = peerConnectionRef.current;
                 if (!pc) {
-                  pc = new RTCPeerConnection({
-                    iceServers: [
-                      { urls: 'stun:stun.l.google.com:19302' },
-                      { urls: 'stun:stun1.l.google.com:19302' },
-                      { urls: 'stun:stun2.l.google.com:19302' },
-                    ],
-                  });
+                  pc = new RTCPeerConnection(WEBRTC_ICE_SERVERS);
                   peerConnectionRef.current = pc;
                   if (localVoiceStreamRef.current) {
                     localVoiceStreamRef.current.getTracks().forEach((t) => pc!.addTrack(t, localVoiceStreamRef.current!));
@@ -1068,13 +1088,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
           else if (msg.type === 'webrtc:offer' && msg.sdp) {
             let pc = peerConnectionRef.current;
             if (!pc) {
-              pc = new RTCPeerConnection({
-                iceServers: [
-                  { urls: 'stun:stun.l.google.com:19302' },
-                  { urls: 'stun:stun1.l.google.com:19302' },
-                  { urls: 'stun:stun2.l.google.com:19302' },
-                ],
-              });
+              pc = new RTCPeerConnection(WEBRTC_ICE_SERVERS);
               peerConnectionRef.current = pc;
               if (localVoiceStreamRef.current) {
                 localVoiceStreamRef.current.getTracks().forEach((t) => pc!.addTrack(t, localVoiceStreamRef.current!));
@@ -1259,72 +1273,21 @@ export const PianoView: React.FC<PianoViewProps> = ({
         }
       };
 
-      // 1. Direct Web Audio PCM Intercom Streaming (Works on 100% of mobile devices and browsers)
+      // WebRTC PeerConnection setup with OpenRelay TURN and Google STUN
       try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtx) {
-          const capCtx = new AudioCtx();
-          if (capCtx.state === 'suspended') {
-            await capCtx.resume().catch(() => {});
-          }
-          voiceCaptureCtxRef.current = capCtx;
-          const source = capCtx.createMediaStreamSource(stream);
-          const processor = capCtx.createScriptProcessor(2048, 1, 1);
-          source.connect(processor);
-
-          // Silent gain dummy to keep processing active in mobile browsers
-          const dummyGain = capCtx.createGain();
-          dummyGain.gain.value = 0;
-          processor.connect(dummyGain);
-          dummyGain.connect(capCtx.destination);
-
-          processor.onaudioprocess = (e) => {
-            if (isMicMutedRef.current) return;
-            const input = e.inputBuffer.getChannelData(0);
-            let sum = 0;
-            for (let i = 0; i < input.length; i++) {
-              sum += Math.abs(input[i]);
-            }
-            const avg = sum / input.length;
-
-            // Software Acoustic Echo Cancellation (AEC):
-            // If remote voice was playing recently through our device speaker, raise threshold
-            // so our microphone does not pick up the speaker audio and bounce it back to the partner!
-            const isSpeakerActive = Date.now() - lastRemoteVoiceReceivedTimeRef.current < 450;
-            const threshold = isSpeakerActive ? 0.035 : 0.0035;
-            if (avg < threshold) return;
-
-            // Convert Float32 to Int16 PCM
-            const pcm16 = new Int16Array(input.length);
-            for (let i = 0; i < input.length; i++) {
-              const s = Math.max(-1, Math.min(1, input[i]));
-              pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            }
-            let binary = '';
-            const bytes = new Uint8Array(pcm16.buffer);
-            const chunkLen = bytes.byteLength;
-            for (let i = 0; i < chunkLen; i++) {
-              binary += String.fromCharCode(bytes[i]);
-            }
-            const b64 = window.btoa(binary);
-            sendEvt('piano:pcm_voice', { pcm: b64, sampleRate: capCtx.sampleRate });
-          };
-
-          voiceProcessorRef.current = processor;
+        let pc = peerConnectionRef.current;
+        if (!pc || pc.signalingState === 'closed') {
+          pc = new RTCPeerConnection(WEBRTC_ICE_SERVERS);
+          peerConnectionRef.current = pc;
         }
-      } catch (pcmErr) {
-        console.warn('PCM Voice capture error:', pcmErr);
-      }
 
-      // 2. WebRTC PeerConnection setup
-      try {
-        const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-          ],
+        stream.getTracks().forEach((track) => {
+          const senders = pc!.getSenders();
+          if (!senders.some((s) => s.track === track)) {
+            pc!.addTrack(track, stream);
+          }
         });
+
         pc.onconnectionstatechange = () => {
           if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
             try { pc.restartIce(); } catch (e) {}
@@ -1335,27 +1298,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
             try { pc.restartIce(); } catch (e) {}
           }
         };
-        peerConnectionRef.current = pc;
-
-        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
         pc.ontrack = (event) => {
           if (event.streams && event.streams[0]) {
-            let audioEl = remoteAudioRef.current;
-            if (!audioEl) {
-              audioEl = document.getElementById('remote-voice-audio-element') as HTMLAudioElement;
-            }
-            if (!audioEl) {
-              audioEl = document.createElement('audio');
-              audioEl.id = 'remote-voice-audio-element';
-              audioEl.muted = true; // Muted to eliminate dual-channel flanging echo with Web Audio PCM
-              audioEl.autoplay = true;
-              (audioEl as any).playsInline = true;
-              audioEl.style.display = 'none';
-              document.body.appendChild(audioEl);
-              remoteAudioRef.current = audioEl;
-            }
-            audioEl.srcObject = event.streams[0];
+            playRemoteStream(event.streams[0]);
           }
         };
 
@@ -1365,7 +1311,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
           }
         };
 
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({ offerToReceiveAudio: true });
         await pc.setLocalDescription(offer);
 
         sendEvt('webrtc:offer', { sdp: pc.localDescription });
@@ -1527,31 +1473,36 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
     const cleanRoomId = normalizeRoomCode(socialSession?.roomId || '', socialSession?.mode || 'masterclass');
 
-    // Send note event over WebSocket and HTTP POST fallback simultaneously
-    const clientSessionId = getOrCreateClientId();
-    const eventMsg = {
-      type: 'piano:key_event',
-      roomId: cleanRoomId,
-      sender: username,
-      senderId: clientSessionId,
-      note,
-      eventType: 'down',
-      channel: 'melody',
-    };
-
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && cleanRoomId) {
-      wsRef.current.send(JSON.stringify(eventMsg));
-    }
-    if (cleanRoomId) {
-      fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(eventMsg),
-      }).catch(() => {});
-    }
-
     const isTeacherRole = !isSimulatingStudentMode && (socialSession?.userRole === 'maestro' || (socialSession?.userRole as string) === 'teacher');
     const effectiveRole = isTeacherRole ? 'maestro' : 'student';
+    const isMasterclass = socialSession?.mode === 'masterclass';
+
+    // In Masterclass mode: ONLY the student broadcasts live notes to the teacher.
+    // The Maestro plays locally to compose phrases and passes them via "Invia Frase" or "Waterfall".
+    const shouldBroadcastNote = !isMasterclass || effectiveRole === 'student';
+
+    if (shouldBroadcastNote && cleanRoomId) {
+      const clientSessionId = getOrCreateClientId();
+      const eventMsg = {
+        type: 'piano:key_event',
+        roomId: cleanRoomId,
+        sender: username,
+        senderId: clientSessionId,
+        note,
+        eventType: 'down',
+        channel: 'melody',
+      };
+
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify(eventMsg));
+      } else {
+        fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventMsg),
+        }).catch(() => {});
+      }
+    }
 
     // Masterclass: If user is Maestro (and not simulating student), record note into current phrase (up to 100 notes!)
     if (socialSession?.mode === 'masterclass' && effectiveRole === 'maestro') {

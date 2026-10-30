@@ -130,16 +130,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.174",
-      buildDate: "2026-10-30 11:55",
-      commit: "5c802e1",
+      version: "1.0.175",
+      buildDate: "2026-10-30 12:12",
+      commit: "9d304f2",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Acoustic Echo Cancellation & Self-Feedback Prevention (No voice return)",
-        "Real-Time Web Audio PCM Voice Intercom",
-        "Fixed Masterclass Note Playback for Teacher and Student",
-        "Guaranteed Bidirectional Note Sync"
+        "Unidirectional Masterclass Piano Audio (Student -> Maestro only)",
+        "Maestro Phrasing & Waterfall Mode Exclusives",
+        "High-Definition WebRTC Opus Voice with OpenRelay TURN",
+        "Acoustic Echo Cancellation"
       ]
     });
   });

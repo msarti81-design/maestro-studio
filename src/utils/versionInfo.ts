@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.174';
-export const APP_BUILD_DATE = '30 Ottobre 2026 - 11:55';
-export const APP_COMMIT = '5c802e1';
+export const APP_VERSION = '1.0.175';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 12:12';
+export const APP_COMMIT = '9d304f2';
 export const APP_CHANGELOG = [
-  'Eliminazione eco e ritorno di voce (Acoustic Echo Cancellation software + esclusione mittente garantita)',
-  'Intercom vocale Web Audio PCM in tempo reale a zero errori (funziona su qualsiasi smartphone e tablet)',
-  'Ripristinato suono note in tempo reale in modalità Masterclass tra Maestro e Allievo',
-  'Sincronizzazione note bidirezionale garantita (WebSocket + HTTP POST simultanei)',
+  'Audio pianoforte unidirezionale: in Masterclass suona solo lo studente verso il maestro (il maestro passa con Invia Frase/Waterfall)',
+  'WebRTC Voice con OpenRelay TURN ad alta definizione senza congestione di rete né distorsioni',
+  'Eliminazione eco e ritorno di voce con esclusione mittente',
+  'Sincronizzazione note bidirezionale garantita',
 ];
 
 export interface ServerVersionInfo {
