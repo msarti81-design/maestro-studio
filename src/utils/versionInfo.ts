@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.176';
-export const APP_BUILD_DATE = '30 Ottobre 2026 - 12:35';
-export const APP_COMMIT = '4e712a8';
+export const APP_VERSION = '1.0.177';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 13:10';
+export const APP_COMMIT = '8b3c19e';
 export const APP_CHANGELOG = [
-  'Vivavoce Full-Duplex bidirezionale simultaneo: entrambi possono parlare e ascoltarsi nello stesso istante',
-  'Eliminata collisione offerte WebRTC glare e integrato replaceTrack per flusso voce continuo',
-  'Audio pianoforte unidirezionale: in Masterclass suona solo lo studente verso il maestro (il maestro passa con Invia Frase/Waterfall)',
-  'WebRTC Voice con OpenRelay TURN ad alta definizione senza congestione di rete né distorsioni',
+  'WebRTC DataChannel P2P Ultra-Veloce: note pianoforte istantanee (<10ms) per glissando e passaggi rapidi senza ritardi né note perse',
+  'Vivavoce Full-Duplex bidirezionale simultaneo con transceiver sendrecv e replaceTrack: entrambi possono parlare e ascoltarsi nello stesso istante',
+  'Audio pianoforte unidirezionale: in Masterclass il suono scorre solo dallo studente al maestro (il maestro invia note via Invia Frase o Waterfall)',
+  'WebRTC Voice con OpenRelay TURN e cancellazione eco acustica per conversazione cristallina a due vie',
 ];
 
 export interface ServerVersionInfo {

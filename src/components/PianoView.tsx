@@ -666,6 +666,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   const localVoiceStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const voiceAudioCtxRef = useRef<AudioContext | null>(null);
@@ -784,6 +785,234 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
   }, [connectedPeersCount, socialSession, isSimulatingStudentMode, instrument, showToast]);
 
+  // Helper to send room events via WebSocket if connected, or HTTP POST fallback
+  const sendRoomEvent = useCallback((type: string, payload: any) => {
+    if (!socialSession?.roomId) return;
+    const cleanRoomId = normalizeRoomCode(socialSession.roomId, socialSession.mode);
+    const clientSessionId = getOrCreateClientId();
+    const eventMsg = {
+      type,
+      roomId: cleanRoomId,
+      sender: username,
+      senderId: clientSessionId,
+      ...payload,
+    };
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(eventMsg));
+    } else {
+      fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventMsg),
+      }).catch(() => {});
+    }
+  }, [socialSession?.roomId, socialSession?.mode, username]);
+
+  // Helper to play incoming remote WebRTC audio stream with pure Opus sound
+  const playRemoteStream = useCallback((stream: MediaStream) => {
+    let audioEl = remoteAudioRef.current;
+    if (!audioEl) {
+      audioEl = document.getElementById('remote-voice-audio-element') as HTMLAudioElement;
+    }
+    if (!audioEl) {
+      audioEl = document.createElement('audio');
+      audioEl.id = 'remote-voice-audio-element';
+      audioEl.autoplay = true;
+      (audioEl as any).playsInline = true;
+      audioEl.style.display = 'none';
+      document.body.appendChild(audioEl);
+      remoteAudioRef.current = audioEl;
+    }
+    audioEl.srcObject = stream;
+    audioEl.muted = false;
+    audioEl.volume = 1.0;
+    audioEl.play().catch(() => {});
+  }, []);
+
+  // Universal handler for incoming room messages (from WebRTC DataChannel, WebSocket, or HTTP poll)
+  const handleIncomingMessage = useCallback((msg: any) => {
+    const clientSessionId = getOrCreateClientId();
+    const isSelf = msg.senderId === clientSessionId || (username && msg.sender === username);
+    if (isSelf) return;
+
+    // LIVE AUDIO & VISUAL PRESS FROM REMOTE PEER
+    if (msg.type === 'piano:key_event' && msg.note) {
+      audioEngine.playNote(msg.note, '8n', instrument);
+      setKeyVisual(msg.note, true);
+      setTimeout(() => setKeyVisual(msg.note, false), 220);
+    }
+    // TEACHER PHRASE ASSIGNED TO STUDENT
+    else if (msg.type === 'piano:teacher_phrase') {
+      applyIncomingTeacherPhrase(msg);
+    }
+    // STUDENT PROGRESS UPDATED
+    else if (msg.type === 'piano:phrase_progress') {
+      applyIncomingPhraseProgress(msg);
+    }
+    // LIVE VOICE STATUS UPDATE
+    else if (msg.type === 'piano:voice_status') {
+      setPeerVoiceActive(Boolean(msg.isActive));
+      setPeerMicMuted(Boolean(msg.isMuted));
+      if (msg.isActive) {
+        showToast(`🎙️ ${msg.sender || 'Interlocutore'} ha attivato il vivavoce audio!`);
+      }
+    }
+  }, [username, instrument, applyIncomingTeacherPhrase, applyIncomingPhraseProgress, showToast]);
+
+  // P2P WebRTC PeerConnection + DataChannel Setup (Full-Duplex sendrecv audio + Instant SCTP notes)
+  const getOrCreatePeerConnection = useCallback((isInitiator: boolean) => {
+    let pc = peerConnectionRef.current;
+    if (pc && pc.signalingState !== 'closed') {
+      return pc;
+    }
+
+    pc = new RTCPeerConnection(WEBRTC_ICE_SERVERS);
+    peerConnectionRef.current = pc;
+
+    // 1. Remote audio stream handler
+    pc.ontrack = (event) => {
+      if (event.streams && event.streams[0]) {
+        playRemoteStream(event.streams[0]);
+      }
+    };
+
+    // 2. ICE Candidates handler
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        sendRoomEvent('webrtc:candidate', { candidate: event.candidate });
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log('[WebRTC State]', pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        try { pc.restartIce(); } catch (e) {}
+      }
+    };
+
+    // 3. Pre-negotiate bidirectional sendrecv audio transceiver from moment zero
+    let audioTransceiver = pc.getTransceivers().find((t) => t.receiver.track.kind === 'audio');
+    if (!audioTransceiver) {
+      audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+    } else {
+      audioTransceiver.direction = 'sendrecv';
+    }
+
+    // If local mic is already active, attach it immediately to the transceiver sender
+    if (localVoiceStreamRef.current) {
+      const audioTrack = localVoiceStreamRef.current.getAudioTracks()[0];
+      if (audioTrack && audioTransceiver.sender) {
+        audioTransceiver.sender.replaceTrack(audioTrack).catch(() => {});
+      }
+    }
+
+    // 4. Setup ultra-fast P2P DataChannel for notes
+    const setupChannel = (channel: RTCDataChannel) => {
+      dataChannelRef.current = channel;
+      channel.onopen = () => {
+        console.log('[WebRTC DataChannel] P2P channel connected and ready for zero-latency piano events');
+      };
+      channel.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          handleIncomingMessage(data);
+        } catch (e) {}
+      };
+      channel.onclose = () => {
+        if (dataChannelRef.current === channel) {
+          dataChannelRef.current = null;
+        }
+      };
+      channel.onerror = (err) => {
+        console.warn('[WebRTC DataChannel] Error:', err);
+      };
+    };
+
+    if (isInitiator) {
+      try {
+        const dc = pc.createDataChannel('piano_events', { ordered: true });
+        setupChannel(dc);
+      } catch (e) {}
+    } else {
+      pc.ondatachannel = (e) => {
+        setupChannel(e.channel);
+      };
+    }
+
+    return pc;
+  }, [playRemoteStream, sendRoomEvent, handleIncomingMessage]);
+
+  const initiateWebRTC = useCallback(async () => {
+    try {
+      const pc = getOrCreatePeerConnection(true);
+      if (pc.signalingState !== 'stable') return;
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendRoomEvent('webrtc:offer', { sdp: pc.localDescription });
+    } catch (err) {
+      console.warn('[WebRTC Initiate] Error:', err);
+    }
+  }, [getOrCreatePeerConnection, sendRoomEvent]);
+
+  const handleRemoteOffer = useCallback(async (sdp: any) => {
+    try {
+      const pc = getOrCreatePeerConnection(false);
+      let audioTransceiver = pc.getTransceivers().find((t) => t.receiver.track.kind === 'audio');
+      if (!audioTransceiver) {
+        audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+      } else {
+        audioTransceiver.direction = 'sendrecv';
+      }
+      if (localVoiceStreamRef.current) {
+        const myTrack = localVoiceStreamRef.current.getAudioTracks()[0];
+        if (myTrack && audioTransceiver.sender) {
+          audioTransceiver.sender.replaceTrack(myTrack).catch(() => {});
+        }
+      }
+      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      if (pendingIceCandidatesRef.current.length > 0) {
+        for (const c of pendingIceCandidatesRef.current) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
+        }
+        pendingIceCandidatesRef.current = [];
+      }
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      sendRoomEvent('webrtc:answer', { sdp: pc.localDescription });
+    } catch (err) {
+      console.warn('[WebRTC handleRemoteOffer] Error:', err);
+    }
+  }, [getOrCreatePeerConnection, sendRoomEvent]);
+
+  const handleRemoteAnswer = useCallback(async (sdp: any) => {
+    try {
+      const pc = peerConnectionRef.current;
+      if (pc && pc.signalingState === 'have-local-offer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        if (pendingIceCandidatesRef.current.length > 0) {
+          for (const c of pendingIceCandidatesRef.current) {
+            try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
+          }
+          pendingIceCandidatesRef.current = [];
+        }
+      }
+    } catch (err) {
+      console.warn('[WebRTC handleRemoteAnswer] Error:', err);
+    }
+  }, []);
+
+  const handleRemoteCandidate = useCallback(async (candidate: any) => {
+    const pc = peerConnectionRef.current;
+    if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {}
+    } else {
+      pendingIceCandidatesRef.current.push(candidate);
+    }
+  }, []);
+
   // Real-time Dual-Channel Connection (WebSocket + HTTP Polling Fallback)
   useEffect(() => {
     if (!socialSession || !socialSession.roomId) return;
@@ -809,143 +1038,18 @@ export const PianoView: React.FC<PianoViewProps> = ({
         if (isMounted && Array.isArray(data.members)) {
           setConnectedPeersCount(data.members.length);
           setRoomMembers(data.members);
+          if (data.members.length >= 2 && (!peerConnectionRef.current || peerConnectionRef.current.signalingState === 'closed')) {
+            const isTeacherRole = !isSimulatingStudentMode && (socialSession.userRole === 'maestro' || (socialSession.userRole as string) === 'teacher');
+            if (isTeacherRole) {
+              initiateWebRTC();
+            }
+          }
         }
         if (isMounted && data.lastTeacherPhrase && (!teacherAssignedPhraseRef.current || teacherAssignedPhraseRef.current.length === 0)) {
           applyIncomingTeacherPhrase(data.lastTeacherPhrase);
         }
       })
       .catch(() => {});
-
-    // Helper to send room events via WebSocket if connected, or HTTP POST fallback
-    const sendRoomEvent = (type: string, payload: any) => {
-      const eventMsg = {
-        type,
-        roomId: cleanRoomId,
-        sender: username,
-        senderId: clientSessionId,
-        ...payload,
-      };
-
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify(eventMsg));
-      } else {
-        fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(eventMsg),
-        }).catch(() => {});
-      }
-    };
-
-    // Helper to play incoming remote WebRTC audio stream with pure Opus sound
-    const playRemoteStream = (stream: MediaStream) => {
-      let audioEl = remoteAudioRef.current;
-      if (!audioEl) {
-        audioEl = document.getElementById('remote-voice-audio-element') as HTMLAudioElement;
-      }
-      if (!audioEl) {
-        audioEl = document.createElement('audio');
-        audioEl.id = 'remote-voice-audio-element';
-        audioEl.autoplay = true;
-        (audioEl as any).playsInline = true;
-        audioEl.style.display = 'none';
-        document.body.appendChild(audioEl);
-        remoteAudioRef.current = audioEl;
-      }
-      audioEl.srcObject = stream;
-      audioEl.muted = false;
-      audioEl.volume = 1.0;
-      audioEl.play().catch(() => {});
-    };
-
-    // Helper to play discrete audio chunks with zero-gap Web Audio
-    const playAudioChunk = (b64Data: string) => {
-      if (!b64Data) return;
-      try {
-        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtxClass) {
-          if (!voiceAudioCtxRef.current) {
-            voiceAudioCtxRef.current = new AudioCtxClass();
-          }
-          const ctx = voiceAudioCtxRef.current;
-          if (ctx.state === 'suspended') {
-            ctx.resume().catch(() => {});
-          }
-          const base64Content = b64Data.includes(',') ? b64Data.split(',')[1] : b64Data;
-          const binaryString = window.atob(base64Content);
-          const len = binaryString.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          ctx.decodeAudioData(
-            bytes.buffer.slice(0),
-            (buffer) => {
-              const source = ctx.createBufferSource();
-              source.buffer = buffer;
-              source.connect(ctx.destination);
-              source.start(0);
-            },
-            () => {
-              const audio = new Audio(b64Data);
-              audio.volume = 1.0;
-              audio.play().catch(() => {});
-            }
-          );
-          return;
-        }
-      } catch (e) {}
-
-      try {
-        const audio = new Audio(b64Data);
-        audio.volume = 1.0;
-        audio.play().catch(() => {});
-      } catch (err) {}
-    };
-
-    // Helper to play raw PCM audio packets with zero codec failure and perfect mobile playback
-    const playPcmVoice = (b64Pcm: string, sampleRate = 44100) => {
-      if (!b64Pcm) return;
-      try {
-        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (!voiceAudioCtxRef.current && AudioCtxClass) {
-          voiceAudioCtxRef.current = new AudioCtxClass();
-        }
-        const ctx = voiceAudioCtxRef.current;
-        if (!ctx) return;
-        if (ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
-        }
-        const binary = window.atob(b64Pcm);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        const pcm16 = new Int16Array(bytes.buffer);
-        const float32 = new Float32Array(pcm16.length);
-        for (let i = 0; i < pcm16.length; i++) {
-          float32[i] = pcm16[i] / (pcm16[i] < 0 ? 0x8000 : 0x7FFF);
-        }
-        const buffer = ctx.createBuffer(1, float32.length, sampleRate || ctx.sampleRate);
-        buffer.copyToChannel(float32, 0);
-
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-
-        lastRemoteVoiceReceivedTimeRef.current = Date.now();
-        const voiceGain = ctx.createGain();
-        voiceGain.gain.value = 1.05; // Balanced natural volume to avoid speaker-to-mic acoustic feedback
-        source.connect(voiceGain);
-        voiceGain.connect(ctx.destination);
-
-        const now = ctx.currentTime;
-        const playTime = Math.max(now, nextVoicePlayTimeRef.current);
-        source.start(playTime);
-        nextVoicePlayTimeRef.current = playTime + buffer.duration;
-      } catch (e) {
-        console.warn('PCM Voice playback error:', e);
-      }
-    };
 
     // 2. HTTP Polling Fallback for Events & Presence (Every 1.5 seconds)
     const pollInterval = setInterval(async () => {
@@ -959,69 +1063,20 @@ export const PianoView: React.FC<PianoViewProps> = ({
             for (const evt of data.events) {
               lastEventTimestampRef.current = Math.max(lastEventTimestampRef.current, evt.timestamp);
               const isSelf = evt.senderId === clientSessionId || evt.data?.senderId === clientSessionId || (username && (evt.sender === username || evt.data?.sender === username));
-              if (isSelf) continue; // Don't echo self
+              if (isSelf) continue;
 
-              if (evt.type === 'piano:teacher_phrase') {
-                applyIncomingTeacherPhrase(evt.data || evt);
-              } else if (evt.type === 'piano:phrase_progress') {
-                applyIncomingPhraseProgress(evt.data || evt);
-              } else if (evt.type === 'piano:key_event' && evt.data?.note) {
-                if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-                  audioEngine.playNote(evt.data.note, '8n', instrument);
-                  setKeyVisual(evt.data.note, true);
-                  setTimeout(() => setKeyVisual(evt.data.note, false), 220);
-                }
-              } else if (evt.type === 'piano:pcm_voice' && (evt.data?.pcm || evt.pcm)) {
-                playPcmVoice(evt.data?.pcm || evt.pcm, evt.data?.sampleRate || evt.sampleRate);
-              } else if (evt.type === 'piano:audio_chunk' && (evt.data?.audio || evt.audio)) {
-                playAudioChunk(evt.data?.audio || evt.audio);
-              } else if (evt.type === 'piano:voice_status') {
-                const isAct = evt.data?.isActive ?? evt.isActive;
-                const isMut = evt.data?.isMuted ?? evt.isMuted;
-                setPeerVoiceActive(Boolean(isAct));
-                setPeerMicMuted(Boolean(isMut));
-              } else if (evt.type === 'webrtc:offer' && (evt.data?.sdp || evt.sdp)) {
-                const sdp = evt.data?.sdp || evt.sdp;
-                let pc = peerConnectionRef.current;
-                if (!pc || pc.signalingState === 'closed') {
-                  pc = new RTCPeerConnection(WEBRTC_ICE_SERVERS);
-                  peerConnectionRef.current = pc;
-                }
-                pc.ontrack = (e) => {
-                  if (e.streams && e.streams[0]) {
-                    playRemoteStream(e.streams[0]);
-                  }
-                };
-                pc.onicecandidate = (e) => {
-                  if (e.candidate) {
-                    sendRoomEvent('webrtc:candidate', { candidate: e.candidate });
-                  }
-                };
-                if (localVoiceStreamRef.current) {
-                  const myTrack = localVoiceStreamRef.current.getAudioTracks()[0];
-                  const sender = pc.getSenders().find((s) => s.track?.kind === 'audio' || s.track === null);
-                  if (sender) {
-                    sender.replaceTrack(myTrack).catch(() => {});
-                  } else {
-                    pc.addTrack(myTrack, localVoiceStreamRef.current);
-                  }
-                }
-                await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                sendRoomEvent('webrtc:answer', { sdp: pc.localDescription });
+              if (evt.type === 'webrtc:offer' && (evt.data?.sdp || evt.sdp)) {
+                handleRemoteOffer(evt.data?.sdp || evt.sdp);
               } else if (evt.type === 'webrtc:answer' && (evt.data?.sdp || evt.sdp)) {
-                const sdp = evt.data?.sdp || evt.sdp;
-                if (peerConnectionRef.current) {
-                  await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
-                }
+                handleRemoteAnswer(evt.data?.sdp || evt.sdp);
               } else if (evt.type === 'webrtc:candidate' && (evt.data?.candidate || evt.candidate)) {
-                const cand = evt.data?.candidate || evt.candidate;
-                if (peerConnectionRef.current) {
-                  try {
-                    await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(cand));
-                  } catch (e) {}
+                handleRemoteCandidate(evt.data?.candidate || evt.candidate);
+              } else if (evt.type === 'piano:key_event') {
+                if ((!dataChannelRef.current || dataChannelRef.current.readyState !== 'open') && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) {
+                  handleIncomingMessage(evt.data || evt);
                 }
+              } else {
+                handleIncomingMessage(evt.data || evt);
               }
             }
           }
@@ -1033,216 +1088,143 @@ export const PianoView: React.FC<PianoViewProps> = ({
           if (isMounted && Array.isArray(stateData.members)) {
             setConnectedPeersCount(stateData.members.length);
             setRoomMembers(stateData.members);
+            if (stateData.members.length >= 2 && (!peerConnectionRef.current || peerConnectionRef.current.signalingState === 'closed')) {
+              const isTeacherRole = !isSimulatingStudentMode && (socialSession.userRole === 'maestro' || (socialSession.userRole as string) === 'teacher');
+              if (isTeacherRole) {
+                initiateWebRTC();
+              }
+            }
           }
         }
       } catch (e) {}
     }, 1500);
 
-    // 3. WebSocket Real-Time Connection
+    // 3. WebSocket Real-Time Connection with Auto-Reconnect
     const wsUrl = getAppWebSocketUrl();
+    let reconnectTimer: any = null;
 
-    try {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+    const connectWebSocket = () => {
+      if (!isMounted) return;
+      try {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
-      ws.onopen = () => {
-        ws.send(
-          JSON.stringify({
-            type: 'room:join',
-            roomId: cleanRoomId,
-            username,
-            role: socialSession.userRole,
-            mode: socialSession.mode,
-            clientId: clientSessionId,
-          })
-        );
-      };
+        ws.onopen = () => {
+          ws.send(
+            JSON.stringify({
+              type: 'room:join',
+              roomId: cleanRoomId,
+              username,
+              role: socialSession.userRole,
+              mode: socialSession.mode,
+              clientId: clientSessionId,
+            })
+          );
+        };
 
-      ws.onmessage = async (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          const isSelf = msg.senderId === clientSessionId || (username && msg.sender === username);
-          if (isSelf) return;
+        ws.onmessage = async (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            const isSelf = msg.senderId === clientSessionId || (username && msg.sender === username);
+            if (isSelf) return;
 
-          // LIVE ROOM MEMBERS UPDATE
-          if (msg.type === 'room:state' && Array.isArray(msg.members)) {
-            setConnectedPeersCount(msg.members.length);
-            setRoomMembers(msg.members);
-          }
-
-          // LIVE AUDIO & VISUAL PRESS FROM REMOTE PEER
-          else if (msg.type === 'piano:key_event' && msg.note) {
-            audioEngine.playNote(msg.note, '8n', instrument);
-            setKeyVisual(msg.note, true);
-            setTimeout(() => setKeyVisual(msg.note, false), 220);
-          }
-
-          // TEACHER PHRASE ASSIGNED TO STUDENT
-          else if (msg.type === 'piano:teacher_phrase') {
-            applyIncomingTeacherPhrase(msg);
-          }
-
-          // STUDENT PROGRESS UPDATED
-          else if (msg.type === 'piano:phrase_progress') {
-            applyIncomingPhraseProgress(msg);
-          }
-
-          // LIVE VOICE WEBRTC SIGNALING
-          else if (msg.type === 'webrtc:offer' && msg.sdp) {
-            let pc = peerConnectionRef.current;
-            if (!pc || pc.signalingState === 'closed') {
-              pc = new RTCPeerConnection(WEBRTC_ICE_SERVERS);
-              peerConnectionRef.current = pc;
-            }
-
-            pc.ontrack = (evt) => {
-              if (evt.streams && evt.streams[0]) {
-                playRemoteStream(evt.streams[0]);
-              }
-            };
-            pc.onicecandidate = (evt) => {
-              if (evt.candidate) {
-                sendRoomEvent('webrtc:candidate', { candidate: evt.candidate });
-              }
-            };
-
-            if (localVoiceStreamRef.current) {
-              const myTrack = localVoiceStreamRef.current.getAudioTracks()[0];
-              const sender = pc.getSenders().find((s) => s.track?.kind === 'audio' || s.track === null);
-              if (sender) {
-                sender.replaceTrack(myTrack).catch(() => {});
-              } else {
-                pc.addTrack(myTrack, localVoiceStreamRef.current);
-              }
-            }
-
-            await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-            if (pendingIceCandidatesRef.current.length > 0) {
-              for (const c of pendingIceCandidatesRef.current) {
-                try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
-              }
-              pendingIceCandidatesRef.current = [];
-            }
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            sendRoomEvent('webrtc:answer', { sdp: pc.localDescription });
-          }
-          else if (msg.type === 'webrtc:answer' && msg.sdp) {
-            if (peerConnectionRef.current) {
-              await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-              if (pendingIceCandidatesRef.current.length > 0) {
-                for (const c of pendingIceCandidatesRef.current) {
-                  try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
+            // Live room members update
+            if (msg.type === 'room:state' && Array.isArray(msg.members)) {
+              setConnectedPeersCount(msg.members.length);
+              setRoomMembers(msg.members);
+              if (msg.members.length >= 2 && (!peerConnectionRef.current || peerConnectionRef.current.signalingState === 'closed')) {
+                const isTeacherRole = !isSimulatingStudentMode && (socialSession.userRole === 'maestro' || (socialSession.userRole as string) === 'teacher');
+                if (isTeacherRole) {
+                  initiateWebRTC();
                 }
-                pendingIceCandidatesRef.current = [];
               }
             }
-          }
-          else if (msg.type === 'webrtc:candidate' && msg.candidate) {
-            const pc = peerConnectionRef.current;
-            if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-              try {
-                await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-              } catch (iceErr) {}
-            } else {
-              pendingIceCandidatesRef.current.push(msg.candidate);
+            // Live voice WebRTC signaling
+            else if (msg.type === 'webrtc:offer' && msg.sdp) {
+              handleRemoteOffer(msg.sdp);
             }
-          }
-
-          // LIVE VOICE STATUS UPDATE
-          else if (msg.type === 'piano:voice_status') {
-            setPeerVoiceActive(Boolean(msg.isActive));
-            setPeerMicMuted(Boolean(msg.isMuted));
-            if (msg.isActive) {
-              showToast(`🎙️ ${msg.sender || 'Interlocutore'} ha attivato il vivavoce audio!`);
+            else if (msg.type === 'webrtc:answer' && msg.sdp) {
+              handleRemoteAnswer(msg.sdp);
             }
-          }
+            else if (msg.type === 'webrtc:candidate' && msg.candidate) {
+              handleRemoteCandidate(msg.candidate);
+            }
+            // All other room events (piano keys, teacher phrase, progress, voice status)
+            else {
+              handleIncomingMessage(msg);
+            }
+          } catch (e) {}
+        };
 
-          // PCM LIVE VOICE INTERCOM PLAYBACK (ZERO CODEC FAILURE)
-          else if (msg.type === 'piano:pcm_voice' && msg.pcm) {
-            playPcmVoice(msg.pcm, msg.sampleRate);
+        ws.onclose = () => {
+          if (isMounted) {
+            reconnectTimer = setTimeout(connectWebSocket, 2000);
           }
+        };
 
-          // FALLBACK LIVE AUDIO CHUNK PLAYBACK
-          else if (msg.type === 'piano:audio_chunk' && msg.audio) {
-            playAudioChunk(msg.audio);
-          }
-        } catch (e) {}
-      };
+        ws.onerror = () => {
+          try { ws.close(); } catch (e) {}
+        };
+      } catch (e) {
+        if (isMounted) {
+          reconnectTimer = setTimeout(connectWebSocket, 3000);
+        }
+      }
+    };
 
-      return () => {
-        isMounted = false;
-        clearInterval(pollInterval);
-        ws.close();
+    connectWebSocket();
+
+    return () => {
+      isMounted = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      clearInterval(pollInterval);
+      if (wsRef.current) {
+        wsRef.current.close();
         wsRef.current = null;
-        if (localVoiceStreamRef.current) {
-          localVoiceStreamRef.current.getTracks().forEach((t) => t.stop());
-          localVoiceStreamRef.current = null;
-        }
-        if (peerConnectionRef.current) {
-          peerConnectionRef.current.close();
-          peerConnectionRef.current = null;
-        }
-        if (mediaRecorderRef.current) {
-          try { mediaRecorderRef.current.stop(); } catch (e) {}
-          mediaRecorderRef.current = null;
-        }
-      };
-    } catch (e) {}
-  }, [socialSession, username, instrument, showToast, createMasterclassWaterfallSong, applyIncomingTeacherPhrase, applyIncomingPhraseProgress]);
+      }
+      if (localVoiceStreamRef.current) {
+        localVoiceStreamRef.current.getTracks().forEach((t) => t.stop());
+        localVoiceStreamRef.current = null;
+      }
+      if (dataChannelRef.current) {
+        dataChannelRef.current.close();
+        dataChannelRef.current = null;
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+      if (mediaRecorderRef.current) {
+        try { mediaRecorderRef.current.stop(); } catch (e) {}
+        mediaRecorderRef.current = null;
+      }
+    };
+  }, [socialSession, username, initiateWebRTC, handleRemoteOffer, handleRemoteAnswer, handleRemoteCandidate, handleIncomingMessage, applyIncomingTeacherPhrase, isSimulatingStudentMode]);
 
-  // Voice Call Helpers
+  // Voice Call Helpers (Full-Duplex WebRTC with sendrecv Transceiver)
   const stopVoiceCall = useCallback(() => {
-    if (voiceProcessorRef.current) {
-      try {
-        voiceProcessorRef.current.disconnect();
-      } catch (e) {}
-      voiceProcessorRef.current = null;
-    }
-    if (voiceCaptureCtxRef.current) {
-      try {
-        voiceCaptureCtxRef.current.close();
-      } catch (e) {}
-      voiceCaptureCtxRef.current = null;
-    }
     if (localVoiceStreamRef.current) {
       localVoiceStreamRef.current.getTracks().forEach((t) => t.stop());
       localVoiceStreamRef.current = null;
     }
-    if (mediaRecorderRef.current) {
-      try { mediaRecorderRef.current.stop(); } catch (e) {}
-      mediaRecorderRef.current = null;
+    const pc = peerConnectionRef.current;
+    if (pc && pc.signalingState !== 'closed') {
+      const transceivers = pc.getTransceivers();
+      const audioTransceiver = transceivers.find((t) => t.receiver.track.kind === 'audio');
+      if (audioTransceiver && audioTransceiver.sender) {
+        audioTransceiver.sender.replaceTrack(null).catch(() => {});
+      } else {
+        const sender = pc.getSenders().find((s) => s.track?.kind === 'audio');
+        if (sender) sender.replaceTrack(null).catch(() => {});
+      }
     }
-    if (peerConnectionRef.current) {
-      try { peerConnectionRef.current.close(); } catch (e) {}
-      peerConnectionRef.current = null;
-    }
+    // KEEP peerConnectionRef and dataChannelRef ALIVE! Do NOT close them so piano notes flow seamlessly.
     setIsVoiceActive(false);
     setIsMicMuted(false);
 
-    const cleanRoom = normalizeRoomCode(socialSession?.roomId || '', socialSession?.mode || 'masterclass');
-    const clientSessionId = getOrCreateClientId();
-    const statusPayload = {
-      type: 'piano:voice_status',
-      roomId: cleanRoom,
-      sender: username,
-      senderId: clientSessionId,
-      isActive: false,
-      isMuted: true,
-    };
-
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(statusPayload));
-    } else {
-      fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoom)}/event`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(statusPayload),
-      }).catch(() => {});
-    }
-
-    showToast('🎙️ Vivavoce disattivato');
-  }, [socialSession, username, showToast]);
+    sendRoomEvent('piano:voice_status', { isActive: false, isMuted: true });
+    showToast('🎙️ Microfono disattivato');
+  }, [sendRoomEvent, showToast]);
 
   const startVoiceCall = useCallback(async () => {
     try {
@@ -1260,80 +1242,43 @@ export const PianoView: React.FC<PianoViewProps> = ({
       setIsVoiceActive(true);
       setIsMicMuted(false);
 
-      const cleanRoom = normalizeRoomCode(socialSession?.roomId || '', socialSession?.mode || 'masterclass');
-      const clientSessionId = getOrCreateClientId();
+      const micTrack = stream.getAudioTracks()[0];
+      let pc = peerConnectionRef.current;
 
-      const sendEvt = (type: string, payload: any) => {
-        const eventMsg = {
-          type,
-          roomId: cleanRoom,
-          sender: username,
-          senderId: clientSessionId,
-          ...payload,
-        };
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify(eventMsg));
+      if (!pc || pc.signalingState === 'closed') {
+        pc = getOrCreatePeerConnection(true);
+        const transceivers = pc.getTransceivers();
+        const audioTransceiver = transceivers.find((t) => t.receiver.track.kind === 'audio');
+        if (audioTransceiver && audioTransceiver.sender) {
+          await audioTransceiver.sender.replaceTrack(micTrack);
+        }
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendRoomEvent('webrtc:offer', { sdp: pc.localDescription });
+      } else {
+        // Transceiver is already negotiated with direction sendrecv!
+        // Instant track replacement sends audio without negotiation glare or renegotiation failure!
+        const transceivers = pc.getTransceivers();
+        const audioTransceiver = transceivers.find((t) => t.receiver.track.kind === 'audio');
+        if (audioTransceiver && audioTransceiver.sender) {
+          await audioTransceiver.sender.replaceTrack(micTrack);
         } else {
-          fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoom)}/event`), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(eventMsg),
-          }).catch(() => {});
-        }
-      };
-
-      // WebRTC PeerConnection setup with OpenRelay TURN and Google STUN
-      try {
-        let pc = peerConnectionRef.current;
-        if (!pc || pc.signalingState === 'closed') {
-          pc = new RTCPeerConnection(WEBRTC_ICE_SERVERS);
-          peerConnectionRef.current = pc;
-        }
-
-        pc.ontrack = (event) => {
-          if (event.streams && event.streams[0]) {
-            playRemoteStream(event.streams[0]);
+          const existingAudioSender = pc.getSenders().find((s) => s.track?.kind === 'audio' || !s.track);
+          if (existingAudioSender) {
+            await existingAudioSender.replaceTrack(micTrack);
+          } else {
+            pc.addTrack(micTrack, stream);
           }
-        };
-
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            sendEvt('webrtc:candidate', { candidate: event.candidate });
-          }
-        };
-
-        pc.onconnectionstatechange = () => {
-          if (pc?.connectionState === 'disconnected' || pc?.connectionState === 'failed') {
-            try { pc.restartIce(); } catch (e) {}
-          }
-        };
-
-        const myAudioTrack = stream.getAudioTracks()[0];
-        const senders = pc.getSenders();
-        const existingAudioSender = senders.find((s) => s.track?.kind === 'audio' || s.track === null);
-
-        if (existingAudioSender) {
-          await existingAudioSender.replaceTrack(myAudioTrack);
-        } else {
-          pc.addTrack(myAudioTrack, stream);
         }
-
-        // Only create offer if connection has no remote description yet or if stable without sender
-        if (!pc.remoteDescription || (pc.signalingState === 'stable' && !existingAudioSender)) {
-          const offer = await pc.createOffer({ offerToReceiveAudio: true });
-          await pc.setLocalDescription(offer);
-          sendEvt('webrtc:offer', { sdp: pc.localDescription });
-        }
-      } catch (webrtcErr) {
-        console.warn('WebRTC voice setup error:', webrtcErr);
       }
 
-      sendEvt('piano:voice_status', { isActive: true, isMuted: false });
-      showToast('🎙️ Vivavoce Attivo! Parla liberamente con il microfono');
+      sendRoomEvent('piano:voice_status', { isActive: true, isMuted: false });
+      showToast('🎙️ Vivavoce Attivo! Entrambi potete parlare e ascoltarvi contemporaneamente');
     } catch (err: any) {
+      console.warn('getUserMedia error:', err);
       showToast('⚠️ Permesso microfono negato o non disponibile');
     }
-  }, [socialSession, username, showToast]);
+  }, [getOrCreatePeerConnection, sendRoomEvent, showToast]);
 
   const toggleMicMute = useCallback(() => {
     if (localVoiceStreamRef.current) {
@@ -1342,32 +1287,14 @@ export const PianoView: React.FC<PianoViewProps> = ({
         audioTrack.enabled = !audioTrack.enabled;
         const newMuted = !audioTrack.enabled;
         setIsMicMuted(newMuted);
-
-        const cleanRoom = normalizeRoomCode(socialSession?.roomId || '', socialSession?.mode || 'masterclass');
-        const clientSessionId = getOrCreateClientId();
-        const statusPayload = {
-          type: 'piano:voice_status',
-          roomId: cleanRoom,
-          sender: username,
-          senderId: clientSessionId,
+        sendRoomEvent('piano:voice_status', {
           isActive: isVoiceActive,
           isMuted: newMuted,
-        };
-
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify(statusPayload));
-        } else {
-          fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoom)}/event`), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(statusPayload),
-          }).catch(() => {});
-        }
-
-        showToast(newMuted ? '🔇 Microfono disattivato (Muto)' : '🎙️ Microfono attivo');
+        });
+        showToast(newMuted ? '🔇 Microfono silenziato (Muto)' : '🎙️ Microfono attivo');
       }
     }
-  }, [isVoiceActive, socialSession, username, showToast]);
+  }, [isVoiceActive, sendRoomEvent, showToast]);
 
   const handleSendTeacherPhrase = (openWaterfall: boolean = false, displayMode: 'arcade' | 'learn' = 'arcade') => {
     if (recordedMasterclassNotes.length === 0) return;
@@ -1375,33 +1302,32 @@ export const PianoView: React.FC<PianoViewProps> = ({
     const simpleNotes = recordedMasterclassNotes.map((item) => item.note);
     const cleanRoomId = normalizeRoomCode(socialSession?.roomId || '', socialSession?.mode || 'masterclass');
 
-    // 1. Send via WebSocket
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'piano:teacher_phrase',
-          roomId: cleanRoomId,
-          notes: simpleNotes,
-          phraseData: recordedMasterclassNotes,
-          openWaterfall,
-          displayMode,
-          sender: username,
-        })
-      );
+    const phrasePayload = {
+      type: 'piano:teacher_phrase',
+      roomId: cleanRoomId,
+      notes: simpleNotes,
+      phraseData: recordedMasterclassNotes,
+      openWaterfall,
+      displayMode,
+      sender: username,
+    };
+    const phraseJson = JSON.stringify(phrasePayload);
+
+    // 1. Send via DataChannel if connected (P2P instant delivery)
+    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+      try { dataChannelRef.current.send(phraseJson); } catch (e) {}
     }
 
-    // 2. Send via HTTP event fallback
+    // 2. Send via WebSocket
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(phraseJson);
+    }
+
+    // 3. Send via HTTP event fallback
     fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'piano:teacher_phrase',
-        sender: username,
-        notes: simpleNotes,
-        phraseData: recordedMasterclassNotes,
-        openWaterfall,
-        displayMode,
-      }),
+      body: phraseJson,
     }).catch(() => {});
 
     if (openWaterfall) {
@@ -1500,15 +1426,30 @@ export const PianoView: React.FC<PianoViewProps> = ({
         note,
         eventType: 'down',
         channel: 'melody',
+        timestamp: Date.now(),
       };
+      const json = JSON.stringify(eventMsg);
+      let sentP2P = false;
 
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify(eventMsg));
-      } else {
+      // 1. Instant P2P WebRTC DataChannel (<10ms, handles rapid glissando without dropping or queuing)
+      if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+        try {
+          dataChannelRef.current.send(json);
+          sentP2P = true;
+        } catch (e) {
+          sentP2P = false;
+        }
+      }
+
+      // 2. Real-time WebSocket fallback
+      if (!sentP2P && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(json);
+      } else if (!sentP2P) {
+        // 3. HTTP POST fallback only when both DataChannel and WebSocket are down
         fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(eventMsg),
+          body: json,
         }).catch(() => {});
       }
     }
@@ -1541,32 +1482,32 @@ export const PianoView: React.FC<PianoViewProps> = ({
             showToast('🎉 Perfetto! Hai replicato tutte le note con successo!');
           }
 
-          // WebSocket progress
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(
-              JSON.stringify({
-                type: 'piano:phrase_progress',
-                roomId: cleanRoomId,
-                currentIndex: nextIdx,
-                totalNotes: targetPhrase.length,
-                completed: isDone,
-                sender: username,
-              })
-            );
+          const progressPayload = {
+            type: 'piano:phrase_progress',
+            roomId: cleanRoomId,
+            currentIndex: nextIdx,
+            totalNotes: targetPhrase.length,
+            completed: isDone,
+            sender: username,
+          };
+          const progressJson = JSON.stringify(progressPayload);
+
+          // 1. DataChannel P2P progress
+          if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+            try { dataChannelRef.current.send(progressJson); } catch (e) {}
           }
 
-          // HTTP fallback progress
-          fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'piano:phrase_progress',
-              sender: username,
-              currentIndex: nextIdx,
-              totalNotes: targetPhrase.length,
-              completed: isDone,
-            }),
-          }).catch(() => {});
+          // 2. WebSocket progress
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(progressJson);
+          } else {
+            // 3. HTTP fallback progress
+            fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: progressJson,
+            }).catch(() => {});
+          }
         }
       }
     }
