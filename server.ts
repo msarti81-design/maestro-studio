@@ -25,6 +25,7 @@ interface RoomEvent {
   id: string;
   type: string;
   sender: string;
+  senderId?: string;
   timestamp: number;
   data: any;
 }
@@ -129,16 +130,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.173",
-      buildDate: "2026-10-30 11:25",
-      commit: "6f501c9",
+      version: "1.0.174",
+      buildDate: "2026-10-30 11:55",
+      commit: "5c802e1",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Real-Time Web Audio PCM Voice Intercom (Zero Codec Failure Across Mobile)",
+        "Acoustic Echo Cancellation & Self-Feedback Prevention (No voice return)",
+        "Real-Time Web Audio PCM Voice Intercom",
         "Fixed Masterclass Note Playback for Teacher and Student",
-        "Guaranteed Bidirectional Note Sync (WebSocket + HTTP POST simultaneous)",
-        "Voice Auto-Connect on Peer Activity"
+        "Guaranteed Bidirectional Note Sync"
       ]
     });
   });
@@ -905,12 +906,14 @@ Return a JSON object containing:
     try {
       const rId = String(req.params.roomId || "").trim().toUpperCase();
       const { type, sender, data } = req.body;
+      const sId = String(req.body.senderId || (data && data.senderId) || "").trim();
       const room = getOrCreateRoom(rId);
 
       const eventItem: RoomEvent = {
         id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         type,
         sender: sender || "Anonymous",
+        senderId: sId,
         timestamp: Date.now(),
         data: data || req.body,
       };
@@ -925,10 +928,11 @@ Return a JSON object containing:
         room.lastStudentProgress = data || req.body;
       }
 
-      // Also broadcast to WebSocket clients
-      broadcastToRoom(room, "", {
+      // Also broadcast to WebSocket clients EXCLUDING the sender!
+      broadcastToRoom(room, sId, {
         type,
         sender,
+        senderId: sId,
         ...(data || req.body),
       });
 

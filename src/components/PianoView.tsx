@@ -648,6 +648,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const voiceCaptureCtxRef = useRef<AudioContext | null>(null);
   const voiceProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const nextVoicePlayTimeRef = useRef<number>(0);
+  const lastRemoteVoiceReceivedTimeRef = useRef<number>(0);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const isMicMutedRef = useRef<boolean>(false);
   const lastEventTimestampRef = useRef<number>(Date.now() - 3000);
@@ -812,23 +813,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
       }
     };
 
-    // Helper to play incoming remote WebRTC audio stream with zero-latency Web Audio
+    // Helper to handle incoming remote WebRTC audio stream (muted to avoid double-stream echo with PCM intercom)
     const playRemoteStream = (stream: MediaStream) => {
-      try {
-        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtxClass) {
-          if (!voiceAudioCtxRef.current) {
-            voiceAudioCtxRef.current = new AudioCtxClass();
-          }
-          const ctx = voiceAudioCtxRef.current;
-          if (ctx.state === 'suspended') {
-            ctx.resume().catch(() => {});
-          }
-          const source = ctx.createMediaStreamSource(stream);
-          source.connect(ctx.destination);
-        }
-      } catch (err) {}
-
       let audioEl = remoteAudioRef.current;
       if (!audioEl) {
         audioEl = document.getElementById('remote-voice-audio-element') as HTMLAudioElement;
@@ -836,6 +822,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       if (!audioEl) {
         audioEl = document.createElement('audio');
         audioEl.id = 'remote-voice-audio-element';
+        audioEl.muted = true; // Muted to eliminate dual-channel flanging echo with Web Audio PCM
         audioEl.autoplay = true;
         (audioEl as any).playsInline = true;
         audioEl.style.display = 'none';
@@ -843,8 +830,6 @@ export const PianoView: React.FC<PianoViewProps> = ({
         remoteAudioRef.current = audioEl;
       }
       audioEl.srcObject = stream;
-      audioEl.volume = 1.0;
-      audioEl.play().catch(() => {});
     };
 
     // Helper to play discrete audio chunks with zero-gap Web Audio
@@ -921,8 +906,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
         const source = ctx.createBufferSource();
         source.buffer = buffer;
 
+        lastRemoteVoiceReceivedTimeRef.current = Date.now();
         const voiceGain = ctx.createGain();
-        voiceGain.gain.value = 1.6; // High voice volume
+        voiceGain.gain.value = 1.05; // Balanced natural volume to avoid speaker-to-mic acoustic feedback
         source.connect(voiceGain);
         voiceGain.connect(ctx.destination);
 
@@ -946,7 +932,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
           if (Array.isArray(data.events)) {
             for (const evt of data.events) {
               lastEventTimestampRef.current = Math.max(lastEventTimestampRef.current, evt.timestamp);
-              if (evt.senderId === clientSessionId) continue; // Don't echo self
+              const isSelf = evt.senderId === clientSessionId || evt.data?.senderId === clientSessionId || (username && (evt.sender === username || evt.data?.sender === username));
+              if (isSelf) continue; // Don't echo self
 
               if (evt.type === 'piano:teacher_phrase') {
                 applyIncomingTeacherPhrase(evt.data || evt);
@@ -1051,7 +1038,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
       ws.onmessage = async (event) => {
         try {
           const msg = JSON.parse(event.data);
-          if (msg.senderId === clientSessionId) return;
+          const isSelf = msg.senderId === clientSessionId || (username && msg.sender === username);
+          if (isSelf) return;
 
           // LIVE ROOM MEMBERS UPDATE
           if (msg.type === 'room:state' && Array.isArray(msg.members)) {
@@ -1298,8 +1286,13 @@ export const PianoView: React.FC<PianoViewProps> = ({
               sum += Math.abs(input[i]);
             }
             const avg = sum / input.length;
-            // Voice Activity Detection / Silence threshold
-            if (avg < 0.002) return;
+
+            // Software Acoustic Echo Cancellation (AEC):
+            // If remote voice was playing recently through our device speaker, raise threshold
+            // so our microphone does not pick up the speaker audio and bounce it back to the partner!
+            const isSpeakerActive = Date.now() - lastRemoteVoiceReceivedTimeRef.current < 450;
+            const threshold = isSpeakerActive ? 0.035 : 0.0035;
+            if (avg < threshold) return;
 
             // Convert Float32 to Int16 PCM
             const pcm16 = new Int16Array(input.length);
@@ -1355,6 +1348,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             if (!audioEl) {
               audioEl = document.createElement('audio');
               audioEl.id = 'remote-voice-audio-element';
+              audioEl.muted = true; // Muted to eliminate dual-channel flanging echo with Web Audio PCM
               audioEl.autoplay = true;
               (audioEl as any).playsInline = true;
               audioEl.style.display = 'none';
@@ -1362,8 +1356,6 @@ export const PianoView: React.FC<PianoViewProps> = ({
               remoteAudioRef.current = audioEl;
             }
             audioEl.srcObject = event.streams[0];
-            audioEl.volume = 1.0;
-            audioEl.play().catch(() => {});
           }
         };
 

@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.173';
-export const APP_BUILD_DATE = '30 Ottobre 2026 - 11:25';
-export const APP_COMMIT = '6f501c9';
+export const APP_VERSION = '1.0.174';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 11:55';
+export const APP_COMMIT = '5c802e1';
 export const APP_CHANGELOG = [
+  'Eliminazione eco e ritorno di voce (Acoustic Echo Cancellation software + esclusione mittente garantita)',
   'Intercom vocale Web Audio PCM in tempo reale a zero errori (funziona su qualsiasi smartphone e tablet)',
   'Ripristinato suono note in tempo reale in modalità Masterclass tra Maestro e Allievo',
-  'Sincronizzazione note bidirezionale garantita (WebSocket + HTTP POST simultanei) e Auto-connect vocale tra dispositivi',
-  'Eliminazione definitiva del crackle sui bassi veloci (HPF a 40Hz, gain bilanciato x1.5 e velocity scaling ottimizzato)',
+  'Sincronizzazione note bidirezionale garantita (WebSocket + HTTP POST simultanei)',
 ];
 
 export interface ServerVersionInfo {
