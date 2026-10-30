@@ -129,14 +129,14 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.170",
-      buildDate: "2026-10-30 06:20",
-      commit: "5b204e6",
+      version: "1.0.171",
+      buildDate: "2026-10-30 06:31",
+      commit: "8c301f7",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "High-Pass Filter at 35Hz & Anti-Crackle Master Chain for Clean Fast Bass",
-        "Extreme Maximum Loudness (Gain x2.8, Sampler +6dB, Compressor -20dB, Limiter -0.2dB)",
+        "Definitive Anti-Crackle Fix (40Hz HPF, Gain x1.5, Optimized Low Velocity Scaling)",
+        "High-Pass Filter at 40Hz & Anti-Crackle Master Chain",
         "Professional Mastering Chain",
         "Dual-Stream Voice Engine (WebSocket + WebRTC)"
       ]

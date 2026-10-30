@@ -162,24 +162,24 @@ class AudioEngine {
     if (this.masterGain) return;
 
     try {
-      // 1. High-Pass Filter at 35Hz to eliminate sub-bass mud, speaker excursion, and crackle on fast low notes
+      // 1. High-Pass Filter at 40Hz to eliminate sub-bass speaker distortion on fast low notes
       this.subFilter = new Tone.Filter({
-        frequency: 35,
+        frequency: 40,
         type: "highpass",
         rolloff: -12,
       });
 
-      // 2. Professional Mastering Chain for high loudness without clipping or distortion
+      // 2. Clean, powerful Mastering Chain (Smooth Compressor + Limiter)
       this.masterCompressor = new Tone.Compressor({
-        threshold: -20,
-        ratio: 5,
-        attack: 0.005,
-        release: 0.20,
+        threshold: -16,
+        ratio: 4,
+        attack: 0.01,
+        release: 0.25,
       });
 
-      this.masterLimiter = new Tone.Limiter(-0.2);
+      this.masterLimiter = new Tone.Limiter(-0.3);
 
-      this.masterGain = new Tone.Gain(2.8);
+      this.masterGain = new Tone.Gain(1.5);
 
       this.masterGain.connect(this.subFilter);
       this.subFilter.connect(this.masterCompressor);
@@ -202,8 +202,8 @@ class AudioEngine {
         attack: 0.005,
         release: 0.30,
       });
-      // High +6dB volume for loud, clean, crackle-free studio presence
-      this.sampler.volume.value = 6;
+      // Clean +3dB volume for loud, crystal-clear, crackle-free studio presence
+      this.sampler.volume.value = 3;
 
       if (this.masterGain) {
         this.sampler.connect(this.masterGain);
@@ -223,7 +223,7 @@ class AudioEngine {
         envelope: { attack: 0.01, decay: 0.4, sustain: 0.05, release: 0.25 },
       });
       this.synthFallback.maxPolyphony = 4;
-      this.synthFallback.volume.value = 6;
+      this.synthFallback.volume.value = 3;
 
       if (this.masterGain) {
         this.synthFallback.connect(this.masterGain);
@@ -358,7 +358,7 @@ class AudioEngine {
 
   private calculateAcousticVelocity(midi: number): number {
     if (midi <= 45) {
-      return 0.88 - ((midi - 21) / 24) * 0.04;
+      return 0.75 - ((midi - 21) / 24) * 0.05;
     } else if (midi <= 72) {
       return 0.82 - ((midi - 46) / 26) * 0.08;
     } else {
