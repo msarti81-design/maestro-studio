@@ -129,15 +129,15 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.169",
-      buildDate: "2026-10-30 06:00",
-      commit: "4a103d5",
+      version: "1.0.170",
+      buildDate: "2026-10-30 06:20",
+      commit: "5b204e6",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Extreme Maximum Loudness (Gain x4.0, Sampler +14dB, Compressor -28dB, Limiter 0.0dB)",
-        "Professional Mastering Chain (Ultra-Aggressive Compressor + Brickwall Limiter)",
-        "Master Audio Volume & Gain Boost",
+        "High-Pass Filter at 35Hz & Anti-Crackle Master Chain for Clean Fast Bass",
+        "Extreme Maximum Loudness (Gain x2.8, Sampler +6dB, Compressor -20dB, Limiter -0.2dB)",
+        "Professional Mastering Chain",
         "Dual-Stream Voice Engine (WebSocket + WebRTC)"
       ]
     });

@@ -162,19 +162,27 @@ class AudioEngine {
     if (this.masterGain) return;
 
     try {
-      // Maximum Possible Loudness Chain (Ultra-Aggressive Compressor + Brickwall Limiter + 4x Gain)
-      this.masterCompressor = new Tone.Compressor({
-        threshold: -28,
-        ratio: 8,
-        attack: 0.001,
-        release: 0.10,
+      // 1. High-Pass Filter at 35Hz to eliminate sub-bass mud, speaker excursion, and crackle on fast low notes
+      this.subFilter = new Tone.Filter({
+        frequency: 35,
+        type: "highpass",
+        rolloff: -12,
       });
 
-      this.masterLimiter = new Tone.Limiter(0.0);
+      // 2. Professional Mastering Chain for high loudness without clipping or distortion
+      this.masterCompressor = new Tone.Compressor({
+        threshold: -20,
+        ratio: 5,
+        attack: 0.005,
+        release: 0.20,
+      });
 
-      this.masterGain = new Tone.Gain(4.0);
+      this.masterLimiter = new Tone.Limiter(-0.2);
 
-      this.masterGain.connect(this.masterCompressor);
+      this.masterGain = new Tone.Gain(2.8);
+
+      this.masterGain.connect(this.subFilter);
+      this.subFilter.connect(this.masterCompressor);
       this.masterCompressor.connect(this.masterLimiter);
       this.masterLimiter.toDestination();
 
@@ -191,11 +199,11 @@ class AudioEngine {
       this.sampler = new Tone.Sampler({
         urls: SALAMANDER_SAMPLES,
         baseUrl: "https://tonejs.github.io/audio/salamander/",
-        attack: 0.003,
+        attack: 0.005,
         release: 0.30,
       });
-      // Extreme +14dB volume matching native app loudness
-      this.sampler.volume.value = 14;
+      // High +6dB volume for loud, clean, crackle-free studio presence
+      this.sampler.volume.value = 6;
 
       if (this.masterGain) {
         this.sampler.connect(this.masterGain);
@@ -215,7 +223,7 @@ class AudioEngine {
         envelope: { attack: 0.01, decay: 0.4, sustain: 0.05, release: 0.25 },
       });
       this.synthFallback.maxPolyphony = 4;
-      this.synthFallback.volume.value = 14;
+      this.synthFallback.volume.value = 6;
 
       if (this.masterGain) {
         this.synthFallback.connect(this.masterGain);
