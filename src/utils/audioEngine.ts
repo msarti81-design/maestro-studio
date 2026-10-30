@@ -69,6 +69,8 @@ class AudioEngine {
   private equalizer: Tone.EQ3 | null = null;
   private reverb: Tone.Freeverb | null = null;
   private masterGain: Tone.Gain | null = null;
+  private masterCompressor: Tone.Compressor | null = null;
+  private masterLimiter: Tone.Limiter | null = null;
 
   // Jam Band drums
   private drumSynth: Tone.MembraneSynth | null = null;
@@ -160,11 +162,21 @@ class AudioEngine {
     if (this.masterGain) return;
 
     try {
-      // 1. Master Output Gain optimized for rich, full-bodied studio volume
-      this.masterGain = new Tone.Gain(0.95);
+      // Professional Mastering Chain (Compressor + Limiter) for high native app loudness & punch
+      this.masterCompressor = new Tone.Compressor({
+        threshold: -16,
+        ratio: 4,
+        attack: 0.003,
+        release: 0.25,
+      });
 
-      // Connect Directly to Destination
-      this.masterGain.toDestination();
+      this.masterLimiter = new Tone.Limiter(-0.3);
+
+      this.masterGain = new Tone.Gain(1.25);
+
+      this.masterGain.connect(this.masterCompressor);
+      this.masterCompressor.connect(this.masterLimiter);
+      this.masterLimiter.toDestination();
 
       this.isInitialized = true;
     } catch (e) {
@@ -179,11 +191,11 @@ class AudioEngine {
       this.sampler = new Tone.Sampler({
         urls: SALAMANDER_SAMPLES,
         baseUrl: "https://tonejs.github.io/audio/salamander/",
-        attack: 0.008, // 8ms micro-fade completely eliminates any start-of-sample attack click or pop
+        attack: 0.008,
         release: 0.30,
       });
-      // Optimized -2dB volume for rich, powerful studio presence
-      this.sampler.volume.value = -2;
+      // Loud +2dB volume for powerful native app presence
+      this.sampler.volume.value = 2;
 
       if (this.masterGain) {
         this.sampler.connect(this.masterGain);
@@ -203,7 +215,7 @@ class AudioEngine {
         envelope: { attack: 0.01, decay: 0.4, sustain: 0.05, release: 0.25 },
       });
       this.synthFallback.maxPolyphony = 4;
-      this.synthFallback.volume.value = -2;
+      this.synthFallback.volume.value = 2;
 
       if (this.masterGain) {
         this.synthFallback.connect(this.masterGain);
