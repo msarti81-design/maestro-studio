@@ -823,7 +823,15 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
   }, [socialSession?.roomId, socialSession?.mode, username]);
 
-  // Helper to play incoming remote WebRTC audio stream with pure Opus sound
+  // Helper to get the active negotiated audio transceiver (preferring mid !== null per WebRTC Unified Plan)
+  const getActiveAudioTransceiver = useCallback((pc: RTCPeerConnection): RTCRtpTransceiver | undefined => {
+    const audioTransceivers = pc
+      .getTransceivers()
+      .filter((t) => t.receiver?.track?.kind === 'audio' || t.sender?.track?.kind === 'audio');
+    return audioTransceivers.find((t) => t.mid !== null) || audioTransceivers[0];
+  }, []);
+
+  // Helper to play incoming remote WebRTC audio stream and sync all remote audio receiver tracks
   const playRemoteStream = useCallback((stream: MediaStream) => {
     let audioEl = remoteAudioRef.current;
     if (!audioEl) {
@@ -849,6 +857,62 @@ export const PianoView: React.FC<PianoViewProps> = ({
       playPromise.catch((err) => {
         console.warn('[Voice Audio Play Error]', err);
       });
+    }
+  }, []);
+
+  const syncRemoteAudioTracks = useCallback((pc?: RTCPeerConnection | null) => {
+    const activePc = pc || peerConnectionRef.current;
+    if (!activePc || activePc.signalingState === 'closed') return;
+
+    const audioReceivers = activePc.getReceivers().filter((r) => r.track && r.track.kind === 'audio');
+    if (audioReceivers.length === 0) return;
+
+    let audioEl = remoteAudioRef.current;
+    if (!audioEl) {
+      audioEl = document.getElementById('remote-voice-audio-element') as HTMLAudioElement;
+    }
+    if (!audioEl) {
+      audioEl = document.createElement('audio');
+      audioEl.id = 'remote-voice-audio-element';
+      audioEl.autoplay = true;
+      (audioEl as any).playsInline = true;
+      (audioEl as any).webkitPlaysInline = true;
+      audioEl.style.display = 'none';
+      document.body.appendChild(audioEl);
+      remoteAudioRef.current = audioEl;
+    }
+
+    let currentStream = audioEl.srcObject as MediaStream | null;
+    if (!currentStream || !(currentStream instanceof MediaStream)) {
+      currentStream = new MediaStream();
+      audioEl.srcObject = currentStream;
+    }
+
+    let tracksChanged = false;
+    for (const receiver of audioReceivers) {
+      const track = receiver.track;
+      if (track && !currentStream.getTracks().some((t) => t.id === track.id)) {
+        currentStream.addTrack(track);
+        tracksChanged = true;
+      }
+      if (track) {
+        track.onunmute = () => {
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.muted = false;
+            remoteAudioRef.current.volume = 1.0;
+            remoteAudioRef.current.play().catch(() => {});
+          }
+        };
+      }
+    }
+
+    if (tracksChanged) {
+      audioEl.srcObject = currentStream;
+    }
+    audioEl.muted = false;
+    audioEl.volume = 1.0;
+    if (audioEl.paused) {
+      audioEl.play().catch(() => {});
     }
   }, []);
 
@@ -879,10 +943,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
       setPeerVoiceActive(Boolean(msg.isActive));
       setPeerMicMuted(Boolean(msg.isMuted));
       if (msg.isActive) {
+        syncRemoteAudioTracks();
         showToast(`🎙️ ${msg.sender || 'Interlocutore'} ha attivato il vivavoce audio!`);
       }
     }
-  }, [username, instrument, applyIncomingTeacherPhrase, applyIncomingPhraseProgress, showToast]);
+  }, [username, instrument, isSimulatingStudentMode, socialSession?.userRole, applyIncomingTeacherPhrase, applyIncomingPhraseProgress, syncRemoteAudioTracks, showToast]);
 
   // P2P WebRTC PeerConnection + DataChannel Setup (Full-Duplex sendrecv audio + Instant SCTP notes)
   const getOrCreatePeerConnection = useCallback((isInitiator: boolean) => {
@@ -898,19 +963,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
     pc.ontrack = (event) => {
       console.log('[WebRTC ontrack] Track received:', event.track.kind, event.track.id, event.streams);
       if (event.track.kind === 'audio') {
-        let stream = (event.streams && event.streams[0]) ? event.streams[0] : null;
-        if (!stream) {
-          stream = new MediaStream([event.track]);
-        } else if (!stream.getTracks().includes(event.track)) {
-          stream.addTrack(event.track);
-        }
-        playRemoteStream(stream);
-
+        syncRemoteAudioTracks(pc);
         event.track.onunmute = () => {
           console.log('[WebRTC Track Unmuted] Remote voice track is unmuted!');
-          if (remoteAudioRef.current) {
-            remoteAudioRef.current.play().catch(() => {});
-          }
+          syncRemoteAudioTracks(pc);
         };
       }
     };
@@ -923,25 +979,30 @@ export const PianoView: React.FC<PianoViewProps> = ({
     };
 
     pc.onconnectionstatechange = () => {
-      console.log('[WebRTC State]', pc.connectionState);
-      if (pc.connectionState === 'failed') {
+      console.log('[WebRTC State]', pc?.connectionState);
+      if (pc?.connectionState === 'connected') {
+        syncRemoteAudioTracks(pc);
+      } else if (pc?.connectionState === 'failed') {
         try { pc.restartIce(); } catch (e) {}
       }
     };
 
-    // 3. Pre-negotiate bidirectional sendrecv audio transceiver from moment zero
-    let audioTransceiver = pc.getTransceivers().find((t) => t.receiver.track.kind === 'audio');
-    if (!audioTransceiver) {
-      audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
-    } else {
-      audioTransceiver.direction = 'sendrecv';
-    }
+    // 3. Only pre-create the audio transceiver on the Initiator!
+    // On the Responder (isInitiator === false), setRemoteDescription(offer) will automatically
+    // create the transceiver with mid !== null matching the Offer's m=audio section.
+    if (isInitiator) {
+      let audioTransceiver = getActiveAudioTransceiver(pc);
+      if (!audioTransceiver) {
+        audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+      } else {
+        audioTransceiver.direction = 'sendrecv';
+      }
 
-    // If local mic is already active, attach it immediately to the transceiver sender
-    if (localVoiceStreamRef.current) {
-      const audioTrack = localVoiceStreamRef.current.getAudioTracks()[0];
-      if (audioTrack && audioTransceiver.sender) {
-        audioTransceiver.sender.replaceTrack(audioTrack).catch(() => {});
+      if (localVoiceStreamRef.current) {
+        const audioTrack = localVoiceStreamRef.current.getAudioTracks()[0];
+        if (audioTrack && audioTransceiver.sender) {
+          audioTransceiver.sender.replaceTrack(audioTrack).catch(() => {});
+        }
       }
     }
 
@@ -979,13 +1040,22 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
 
     return pc;
-  }, [playRemoteStream, sendRoomEvent, handleIncomingMessage]);
+  }, [getActiveAudioTransceiver, syncRemoteAudioTracks, sendRoomEvent, handleIncomingMessage]);
 
   const initiateWebRTC = useCallback(async () => {
     try {
-      const pc = getOrCreatePeerConnection(true);
+      let pc = peerConnectionRef.current;
+      if (pc && (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected')) {
+        try { pc.close(); } catch (e) {}
+        peerConnectionRef.current = null;
+      }
+      pc = getOrCreatePeerConnection(true);
+      if (pc.signalingState === 'have-local-offer' && pc.localDescription) {
+        sendRoomEvent('webrtc:offer', { sdp: pc.localDescription });
+        return;
+      }
       if (pc.signalingState !== 'stable') return;
-      const offer = await pc.createOffer();
+      const offer = await pc.createOffer({ offerToReceiveAudio: true });
       await pc.setLocalDescription(offer);
       sendRoomEvent('webrtc:offer', { sdp: pc.localDescription });
     } catch (err) {
@@ -996,32 +1066,48 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const handleRemoteOffer = useCallback(async (sdp: any) => {
     try {
       const pc = getOrCreatePeerConnection(false);
-      let audioTransceiver = pc.getTransceivers().find((t) => t.receiver.track.kind === 'audio');
-      if (!audioTransceiver) {
-        audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
-      } else {
-        audioTransceiver.direction = 'sendrecv';
+
+      // Handle offer collision (Perfect Negotiation rollback)
+      if (pc.signalingState !== 'stable') {
+        try {
+          await pc.setLocalDescription({ type: 'rollback' } as any);
+        } catch (e) {}
       }
-      if (localVoiceStreamRef.current) {
-        const myTrack = localVoiceStreamRef.current.getAudioTracks()[0];
-        if (myTrack && audioTransceiver.sender) {
-          audioTransceiver.sender.replaceTrack(myTrack).catch(() => {});
+
+      // 1. Set Remote Description FIRST so WebRTC associates the Offer's m=audio transceiver (mid !== null)
+      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+
+      // 2. Configure the associated audio transceiver as bidirectional sendrecv and attach local mic if active
+      const audioTransceiver = getActiveAudioTransceiver(pc);
+      if (audioTransceiver) {
+        audioTransceiver.direction = 'sendrecv';
+        if (localVoiceStreamRef.current) {
+          const myTrack = localVoiceStreamRef.current.getAudioTracks()[0];
+          if (myTrack && audioTransceiver.sender) {
+            await audioTransceiver.sender.replaceTrack(myTrack).catch(() => {});
+          }
         }
       }
-      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+
+      // 3. Flush queued ICE candidates
       if (pendingIceCandidatesRef.current.length > 0) {
         for (const c of pendingIceCandidatesRef.current) {
           try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
         }
         pendingIceCandidatesRef.current = [];
       }
+
+      // 4. Create and send Answer with a=sendrecv
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       sendRoomEvent('webrtc:answer', { sdp: pc.localDescription });
+
+      // 5. Ensure remote audio track is bound and playing
+      syncRemoteAudioTracks(pc);
     } catch (err) {
       console.warn('[WebRTC handleRemoteOffer] Error:', err);
     }
-  }, [getOrCreatePeerConnection, sendRoomEvent]);
+  }, [getOrCreatePeerConnection, getActiveAudioTransceiver, sendRoomEvent, syncRemoteAudioTracks]);
 
   const handleRemoteAnswer = useCallback(async (sdp: any) => {
     try {
@@ -1034,11 +1120,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
           }
           pendingIceCandidatesRef.current = [];
         }
+        syncRemoteAudioTracks(pc);
       }
     } catch (err) {
       console.warn('[WebRTC handleRemoteAnswer] Error:', err);
     }
-  }, []);
+  }, [syncRemoteAudioTracks]);
 
   const handleRemoteCandidate = useCallback(async (candidate: any) => {
     const pc = peerConnectionRef.current;
@@ -1059,6 +1146,18 @@ export const PianoView: React.FC<PianoViewProps> = ({
     const cleanRoomId = normalizeRoomCode(socialSession.roomId, socialSession.mode);
     const clientSessionId = getOrCreateClientId();
 
+    const shouldInitiateWebRTCNow = () => {
+      const pc = peerConnectionRef.current;
+      if (!pc) return true;
+      return (
+        pc.signalingState === 'closed' ||
+        pc.connectionState === 'failed' ||
+        pc.connectionState === 'disconnected' ||
+        pc.connectionState === 'closed' ||
+        pc.signalingState === 'have-local-offer'
+      );
+    };
+
     // 1. Initial HTTP Registration
     fetch(getAppApiUrl('/api/room/join'), {
       method: 'POST',
@@ -1076,7 +1175,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         if (isMounted && Array.isArray(data.members)) {
           setConnectedPeersCount(data.members.length);
           setRoomMembers(data.members);
-          if (data.members.length >= 2 && (!peerConnectionRef.current || peerConnectionRef.current.signalingState === 'closed')) {
+          if (data.members.length >= 2 && shouldInitiateWebRTCNow()) {
             const isTeacherRole = !isSimulatingStudentMode && (socialSession.userRole === 'maestro' || (socialSession.userRole as string) === 'teacher');
             if (isTeacherRole) {
               initiateWebRTC();
@@ -1126,7 +1225,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
           if (isMounted && Array.isArray(stateData.members)) {
             setConnectedPeersCount(stateData.members.length);
             setRoomMembers(stateData.members);
-            if (stateData.members.length >= 2 && (!peerConnectionRef.current || peerConnectionRef.current.signalingState === 'closed')) {
+            if (stateData.members.length >= 2 && shouldInitiateWebRTCNow()) {
               const isTeacherRole = !isSimulatingStudentMode && (socialSession.userRole === 'maestro' || (socialSession.userRole as string) === 'teacher');
               if (isTeacherRole) {
                 initiateWebRTC();
@@ -1170,7 +1269,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             if (msg.type === 'room:state' && Array.isArray(msg.members)) {
               setConnectedPeersCount(msg.members.length);
               setRoomMembers(msg.members);
-              if (msg.members.length >= 2 && (!peerConnectionRef.current || peerConnectionRef.current.signalingState === 'closed')) {
+              if (msg.members.length >= 2 && shouldInitiateWebRTCNow()) {
                 const isTeacherRole = !isSimulatingStudentMode && (socialSession.userRole === 'maestro' || (socialSession.userRole as string) === 'teacher');
                 if (isTeacherRole) {
                   initiateWebRTC();
@@ -1247,8 +1346,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
     const pc = peerConnectionRef.current;
     if (pc && pc.signalingState !== 'closed') {
-      const transceivers = pc.getTransceivers();
-      const audioTransceiver = transceivers.find((t) => t.receiver.track.kind === 'audio');
+      const audioTransceiver = getActiveAudioTransceiver(pc);
       if (audioTransceiver && audioTransceiver.sender) {
         audioTransceiver.sender.replaceTrack(null).catch(() => {});
       } else {
@@ -1262,7 +1360,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
     sendRoomEvent('piano:voice_status', { isActive: false, isMuted: true });
     showToast('🎙️ Microfono disattivato');
-  }, [sendRoomEvent, showToast]);
+  }, [getActiveAudioTransceiver, sendRoomEvent, showToast]);
 
   const startVoiceCall = useCallback(async () => {
     try {
@@ -1306,27 +1404,26 @@ export const PianoView: React.FC<PianoViewProps> = ({
       const micTrack = stream.getAudioTracks()[0];
       let pc = peerConnectionRef.current;
 
-      if (!pc || pc.signalingState === 'closed') {
+      if (!pc || pc.signalingState === 'closed' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         pc = getOrCreatePeerConnection(true);
       }
 
-      const transceivers = pc.getTransceivers();
-      let audioTransceiver = transceivers.find((t) => t.receiver.track.kind === 'audio');
+      let audioTransceiver = getActiveAudioTransceiver(pc);
       if (!audioTransceiver) {
-        audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+        audioTransceiver = pc.addTransceiver(micTrack, { direction: 'sendrecv', streams: [stream] });
       } else {
         audioTransceiver.direction = 'sendrecv';
-      }
-
-      if (audioTransceiver.sender) {
-        await audioTransceiver.sender.replaceTrack(micTrack);
-      } else {
-        const existingAudioSender = pc.getSenders().find((s) => s.track?.kind === 'audio' || !s.track);
-        if (existingAudioSender) {
-          await existingAudioSender.replaceTrack(micTrack);
+        if (audioTransceiver.sender) {
+          await audioTransceiver.sender.replaceTrack(micTrack);
         } else {
           pc.addTrack(micTrack, stream);
         }
+      }
+
+      if (pc.signalingState === 'have-local-offer') {
+        try {
+          await pc.setLocalDescription({ type: 'rollback' } as any);
+        } catch (e) {}
       }
 
       if (pc.signalingState === 'stable') {
@@ -1335,13 +1432,14 @@ export const PianoView: React.FC<PianoViewProps> = ({
         sendRoomEvent('webrtc:offer', { sdp: pc.localDescription });
       }
 
+      syncRemoteAudioTracks(pc);
       sendRoomEvent('piano:voice_status', { isActive: true, isMuted: false });
       showToast('🎙️ Vivavoce Attivo! Entrambi potete parlare e ascoltarvi contemporaneamente');
     } catch (err: any) {
       console.warn('getUserMedia error:', err);
       showToast('⚠️ Permesso microfono negato o non disponibile');
     }
-  }, [getOrCreatePeerConnection, sendRoomEvent, showToast]);
+  }, [getOrCreatePeerConnection, getActiveAudioTransceiver, syncRemoteAudioTracks, sendRoomEvent, showToast]);
 
   const toggleMicMute = useCallback(() => {
     if (localVoiceStreamRef.current) {
@@ -1466,6 +1564,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
     const note = getTransposedNote(baseNote);
     audioEngine.playNote(note, '8n', instrument);
     window.dispatchEvent(new CustomEvent('piano:noteplayed', { detail: { note } }));
+
+    if (remoteAudioRef.current && remoteAudioRef.current.paused && remoteAudioRef.current.srcObject) {
+      remoteAudioRef.current.play().catch(() => {});
+    }
 
     notesCountRef.current = (notesCountRef.current || 0) + 1;
 

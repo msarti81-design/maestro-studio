@@ -130,13 +130,13 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.179",
-      buildDate: "2026-10-30 13:58",
-      commit: "4a81f9b",
+      version: "1.0.180",
+      buildDate: "2026-10-30 14:50",
+      commit: "7e34a1c",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Full-Duplex WebRTC voice fix with stream fallback & autoplay unlock on microphone click",
+        "WebRTC Unified Plan Fix: full-duplex symmetric voice transceiver matching (mid !== null) + receiver sync",
         "Student note highlighting in distinct cyan/emerald color on Maestro screen",
         "WebRTC DataChannel P2P Ultra-Fast Note Delivery (<10ms for glissando)",
         "Unidirectional Masterclass Piano Audio (Student -> Maestro only)"

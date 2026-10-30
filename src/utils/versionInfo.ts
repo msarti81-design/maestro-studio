@@ -1,9 +1,9 @@
-export const APP_VERSION = '1.0.179';
-export const APP_BUILD_DATE = '30 Ottobre 2026 - 13:58';
-export const APP_COMMIT = '4a81f9b';
+export const APP_VERSION = '1.0.180';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 14:50';
+export const APP_COMMIT = '7e34a1c';
 export const APP_CHANGELOG = [
-  'Risolta la trasmissione vivavoce WebRTC: la traccia vocale viene ora agganciata e riprodotta correttamente su entrambi i dispositivi',
-  'Sblocco automatico permessi audio browser all avvio del microfono con supporto autoplay e traccia diretta',
+  'WebRTC Unified Plan Fix: rimosso transceiver duplicato (mid: null) sul lato ricevente per garantire voce Full-Duplex simmetrica tra Maestro e Allievo',
+  'Sincronizzazione diretta dei receiver audio WebRTC (getReceivers) e Perfect Negotiation con rollback automatico',
   'Evidenziazione tasti allievo in colore distinto (Ciano/Celeste) sullo schermo del Maestro',
   'WebRTC DataChannel P2P Ultra-Veloce: note istantanee (<10ms) per glissando e passaggi rapidi',
 ];
