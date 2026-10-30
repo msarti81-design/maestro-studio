@@ -1,0 +1,34 @@
+name: Build and Bundle dist
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build project with high memory limit
+      run: |
+        export NODE_OPTIONS="--max-old-space-size=4096"
+        npm run build
+
+    - name: Commit built dist to repository
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "🤖 Auto-build production dist via GitHub Actions"
+        file_pattern: "dist/*"
+        skip_ci: true
