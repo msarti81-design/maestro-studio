@@ -1,69 +1,45 @@
 #!/bin/bash
-# ==============================================================================
-# Maestro Studio - Automated Deployment Script for Aruba Cloud VPS / Ubuntu
-# Configures Node.js, PM2, Nginx, and proxy routing for freeserv.it/Song
-# ==============================================================================
+echo "=========================================================="
+echo "  MAESTRO STUDIO: SYNC & UPDATE FROM GITHUB MAIN          "
+echo "=========================================================="
 
-echo "=== [1/5] Updating system packages & installing dependencies ==="
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl git build-essential nginx
-
-echo "=== [2/5] Installing Node.js 20 LTS ==="
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-
-echo "=== [3/5] Setting up application directory ==="
-APP_DIR="/var/www/maestro-studio"
-sudo mkdir -p $APP_DIR
-sudo chown -R $USER:$USER $APP_DIR
-
-# Copy current project files to APP_DIR if running inside project
-if [ -f "package.json" ]; then
-    cp -r . $APP_DIR/
+# 1. Determine workspace directory
+if [ -f "server.ts" ] || [ -f "package.json" ]; then
+    APP_DIR="$(pwd)"
+elif [ -d "/var/www/maestro-studio" ]; then
+    APP_DIR="/var/www/maestro-studio"
+elif [ -d "/root/maestro-studio" ]; then
+    APP_DIR="/root/maestro-studio"
+elif [ -d "/home/maestro-studio" ]; then
+    APP_DIR="/home/maestro-studio"
+else
+    APP_DIR="$(pwd)"
 fi
 
-cd $APP_DIR
-npm install
+cd "$APP_DIR" || exit 1
+echo "=== Working directory: $(pwd) ==="
 
-echo "=== [4/5] Configuring Nginx reverse proxy for /Song ==="
-# Create Nginx configuration snippet routing /Song to port 3000
-NGINX_CONF="/etc/nginx/sites-available/freeserv"
+# 2. Pull latest clean code & precompiled dist from GitHub
+echo "=== [1/3] Fetching latest build & code from GitHub main ==="
+git fetch origin main || git fetch --all
+git reset --hard origin/main || git pull origin main --ff-only
 
-sudo bash -c "cat > $NGINX_CONF" << 'EOF'
-server {
-    listen 80;
-    server_name freeserv.it www.freeserv.it;
+# 3. Ensure dependencies are present
+echo "=== [2/3] Verifying npm dependencies ==="
+if [ ! -d "node_modules" ]; then
+    npm install --omit=dev --no-audit --no-fund || npm install --no-audit --no-fund
+fi
 
-    location /Song {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
+# 4. Restart server process
+echo "=== [3/3] Restarting node server ==="
+if command -v pm2 &> /dev/null; then
+    pm2 restart all || pm2 restart server || pm2 start "npm start" --name "maestro-studio"
+elif command -v systemctl &> /dev/null; then
+    systemctl restart maestro-studio || systemctl restart song || true
+else
+    echo "PM2 or systemctl not found. Please restart node server manually if needed."
+fi
 
-    location /song {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-EOF
-
-sudo ln -sf /etc/nginx/sites-available/freeserv /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl restart nginx
-
-echo "=== [5/5] Starting application with PM2 ==="
-sudo npm install -g pm2
-pm2 delete maestro-studio 2>/dev/null || true
-PORT=3000 pm2 start server.ts --interpreter tsx --name "maestro-studio"
-pm2 startup
-pm2 save
-
-echo "=============================================================================="
-echo " Deployment Complete! Maestro Studio is now running on freeserv.it/Song"
-echo "=============================================================================="
+echo "=========================================================="
+echo "  SUCCESS! MAESTRO STUDIO UPDATED TO LATEST VERSION       "
+echo "=========================================================="
