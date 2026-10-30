@@ -129,15 +129,15 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.157",
-      buildDate: "2026-10-29 14:35",
-      commit: "3013d77",
+      version: "1.0.165",
+      buildDate: "2026-10-30 00:15",
+      commit: "207350f",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Capacitor APK Production Sync",
+        "Dual-Stream Voice Engine (WebSocket + WebRTC)",
+        "Android WebView Automatic Microphone Permission Grant",
         "Glissando Anti-Crackling Audio Buffer",
-        "Waterfall Viewport Fit",
         "Real-Time Masterclass Websockets & Polling"
       ]
     });

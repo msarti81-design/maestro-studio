@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.157';
-export const APP_BUILD_DATE = '29 Ottobre 2026 - 14:35';
-export const APP_COMMIT = '3013d77';
+export const APP_VERSION = '1.0.165';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 00:15';
+export const APP_COMMIT = '207350f';
 export const APP_CHANGELOG = [
-  'Fix connessione WebSocket & API per APK Android su freeserv.it',
+  'Doppio canale vocale robusto: WebSocket audio chunk streaming + Web Audio API decode',
+  'Gestione automatica permessi microfono Android WebView (onPermissionRequest)',
+  'Fix fallback WebRTC signaling via HTTP polling loop',
   'Motore audio professionale Tone.js: soppressione crackling e saturazione nei glissando rapidi',
-  'Grafica Waterfall a cascata: testi e countdown compatti integrati nello spazio nero senza tagli',
-  'Normalizzazione codici stanza Masterclass (es. 542, M-542, MASTERCLASS-542)',
 ];
 
 export interface ServerVersionInfo {
