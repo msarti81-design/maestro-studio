@@ -160,10 +160,10 @@ class AudioEngine {
     if (this.masterGain) return;
 
     try {
-      // 1. Master Output Gain with conservative 0.50 level for pristine acoustic piano sound
-      this.masterGain = new Tone.Gain(0.50);
+      // 1. Master Output Gain optimized for rich, full-bodied studio volume
+      this.masterGain = new Tone.Gain(0.95);
 
-      // Connect Directly to Destination (Zero EQ/Reverb coloring or phase distortion)
+      // Connect Directly to Destination
       this.masterGain.toDestination();
 
       this.isInitialized = true;
@@ -182,8 +182,8 @@ class AudioEngine {
         attack: 0.008, // 8ms micro-fade completely eliminates any start-of-sample attack click or pop
         release: 0.30,
       });
-      // Conservative -10dB volume ensures 100% distortion-free playback even on mobile speakers
-      this.sampler.volume.value = -10;
+      // Optimized -2dB volume for rich, powerful studio presence
+      this.sampler.volume.value = -2;
 
       if (this.masterGain) {
         this.sampler.connect(this.masterGain);
@@ -203,7 +203,7 @@ class AudioEngine {
         envelope: { attack: 0.01, decay: 0.4, sustain: 0.05, release: 0.25 },
       });
       this.synthFallback.maxPolyphony = 4;
-      this.synthFallback.volume.value = -10;
+      this.synthFallback.volume.value = -2;
 
       if (this.masterGain) {
         this.synthFallback.connect(this.masterGain);
@@ -303,8 +303,7 @@ class AudioEngine {
 
   private applyVolumeToGain() {
     const normalized = Math.max(0, Math.min(100, this.volumePercent)) / 100;
-    // Map smoothly with +3.5 dB dynamic headroom to prevent DAC clipping
-    const gainValue = normalized === 0 ? 0 : Math.pow(normalized, 1.2) * 0.72;
+    const gainValue = normalized === 0 ? 0 : Math.pow(normalized, 0.9) * 0.95;
 
     if (this.masterGain) {
       this.masterGain.gain.rampTo(gainValue, 0.02);

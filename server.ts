@@ -129,16 +129,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.165",
-      buildDate: "2026-10-30 00:15",
-      commit: "207350f",
+      version: "1.0.166",
+      buildDate: "2026-10-30 05:15",
+      commit: "38401a2",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "Master Audio Volume & Gain Boost (+3dB)",
         "Dual-Stream Voice Engine (WebSocket + WebRTC)",
         "Android WebView Automatic Microphone Permission Grant",
-        "Glissando Anti-Crackling Audio Buffer",
-        "Real-Time Masterclass Websockets & Polling"
+        "Glissando Anti-Crackling Audio Buffer"
       ]
     });
   });

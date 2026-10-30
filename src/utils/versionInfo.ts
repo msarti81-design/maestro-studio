@@ -1,10 +1,10 @@
-export const APP_VERSION = '1.0.165';
-export const APP_BUILD_DATE = '30 Ottobre 2026 - 00:15';
-export const APP_COMMIT = '207350f';
+export const APP_VERSION = '1.0.166';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 05:15';
+export const APP_COMMIT = '38401a2';
 export const APP_CHANGELOG = [
+  'Potenziamento volume generale e presenza sonora (+3dB master gain & sampler volume boost)',
   'Doppio canale vocale robusto: WebSocket audio chunk streaming + Web Audio API decode',
   'Gestione automatica permessi microfono Android WebView (onPermissionRequest)',
-  'Fix fallback WebRTC signaling via HTTP polling loop',
   'Motore audio professionale Tone.js: soppressione crackling e saturazione nei glissando rapidi',
 ];
 
