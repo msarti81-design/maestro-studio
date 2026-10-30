@@ -81,15 +81,15 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.171",
-      buildDate: "2026-10-30 06:31",
-      commit: "8c301f7",
+      version: "1.0.172",
+      buildDate: "2026-10-30 11:05",
+      commit: "1f402a8",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Definitive Anti-Crackle Fix (40Hz HPF, Gain x1.5, Optimized Low Velocity Scaling)",
+        "Guaranteed Bidirectional Note Sync (WebSocket + HTTP POST simultaneous)",
+        "Voice Auto-Connect on Peer Activity",
         "High-Pass Filter at 40Hz & Anti-Crackle Master Chain",
-        "Professional Mastering Chain",
         "Dual-Stream Voice Engine (WebSocket + WebRTC)"
       ]
     });

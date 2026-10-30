@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.171';
-export const APP_BUILD_DATE = '30 Ottobre 2026 - 06:31';
-export const APP_COMMIT = '8c301f7';
+export const APP_VERSION = '1.0.172';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 11:05';
+export const APP_COMMIT = '1f402a8';
 export const APP_CHANGELOG = [
+  'Sincronizzazione note bidirezionale garantita (WebSocket + HTTP POST simultanei) e Auto-connect vocale tra dispositivi',
   'Eliminazione definitiva del crackle sui bassi veloci (HPF a 40Hz, gain bilanciato x1.5 e velocity scaling ottimizzato)',
   'Filtro High-Pass a 35Hz e anti-crackle master chain per eliminare la distorsione sui bassi veloci',
   'Volume estremo al massimo limite (Gain x4.0, Sampler +14dB, Compressor -28dB per eguagliare Perfect Piano)',
-  'Massimo volume e punch (Compressor aggressivo -24dB, Gain x2.5 e Sampler +8dB pari alle app native)',
 ];
 
 export interface ServerVersionInfo {

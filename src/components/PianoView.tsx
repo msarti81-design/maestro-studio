@@ -922,6 +922,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 const isMut = evt.data?.isMuted ?? evt.isMuted;
                 setPeerVoiceActive(Boolean(isAct));
                 setPeerMicMuted(Boolean(isMut));
+                if (isAct && !localVoiceStreamRef.current) {
+                  startVoiceCall().catch(() => {});
+                }
               } else if (evt.type === 'webrtc:offer' && (evt.data?.sdp || evt.sdp)) {
                 const sdp = evt.data?.sdp || evt.sdp;
                 let pc = peerConnectionRef.current;
@@ -1096,6 +1099,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
             setPeerMicMuted(Boolean(msg.isMuted));
             if (msg.isActive) {
               showToast(`🎙️ ${msg.sender || 'Interlocutore'} ha attivato il vivavoce audio!`);
+              if (!localVoiceStreamRef.current) {
+                startVoiceCall().catch(() => {});
+              }
             }
           }
 
@@ -1461,17 +1467,27 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
     const cleanRoomId = normalizeRoomCode(socialSession?.roomId || '', socialSession?.mode || 'masterclass');
 
-    // Send note event over WebSocket if connected in a room
+    // Send note event over WebSocket and HTTP POST fallback simultaneously
+    const clientSessionId = getOrCreateClientId();
+    const eventMsg = {
+      type: 'piano:key_event',
+      roomId: cleanRoomId,
+      sender: username,
+      senderId: clientSessionId,
+      note,
+      eventType: 'down',
+      channel: 'melody',
+    };
+
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && cleanRoomId) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'piano:key_event',
-          roomId: cleanRoomId,
-          note,
-          eventType: 'down',
-          channel: 'melody',
-        })
-      );
+      wsRef.current.send(JSON.stringify(eventMsg));
+    }
+    if (cleanRoomId) {
+      fetch(getAppApiUrl(`/api/room/${encodeURIComponent(cleanRoomId)}/event`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventMsg),
+      }).catch(() => {});
     }
 
     const isTeacherRole = !isSimulatingStudentMode && (socialSession?.userRole === 'maestro' || (socialSession?.userRole as string) === 'teacher');
