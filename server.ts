@@ -129,16 +129,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.167",
-      buildDate: "2026-10-30 05:25",
-      commit: "74201b3",
+      version: "1.0.168",
+      buildDate: "2026-10-30 05:50",
+      commit: "91802c4",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Professional Mastering Chain (Compressor + Limiter) for Native App Loudness",
-        "Master Audio Volume & Gain Boost (+5dB)",
-        "Dual-Stream Voice Engine (WebSocket + WebRTC)",
-        "Android WebView Automatic Microphone Permission Grant"
+        "Maximum Loudness & Punch (Aggressive Compressor -24dB, Gain x2.5, Sampler +8dB)",
+        "Professional Mastering Chain (Compressor + Limiter)",
+        "Master Audio Volume & Gain Boost",
+        "Dual-Stream Voice Engine (WebSocket + WebRTC)"
       ]
     });
   });

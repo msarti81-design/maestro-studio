@@ -162,17 +162,17 @@ class AudioEngine {
     if (this.masterGain) return;
 
     try {
-      // Professional Mastering Chain (Compressor + Limiter) for high native app loudness & punch
+      // Aggressive Mastering Chain (Aggressive Compressor + Limiter) for maximum native app loudness & punch
       this.masterCompressor = new Tone.Compressor({
-        threshold: -16,
-        ratio: 4,
-        attack: 0.003,
-        release: 0.25,
+        threshold: -24,
+        ratio: 6,
+        attack: 0.001,
+        release: 0.15,
       });
 
-      this.masterLimiter = new Tone.Limiter(-0.3);
+      this.masterLimiter = new Tone.Limiter(-0.1);
 
-      this.masterGain = new Tone.Gain(1.25);
+      this.masterGain = new Tone.Gain(2.5);
 
       this.masterGain.connect(this.masterCompressor);
       this.masterCompressor.connect(this.masterLimiter);
@@ -191,11 +191,11 @@ class AudioEngine {
       this.sampler = new Tone.Sampler({
         urls: SALAMANDER_SAMPLES,
         baseUrl: "https://tonejs.github.io/audio/salamander/",
-        attack: 0.008,
+        attack: 0.005,
         release: 0.30,
       });
-      // Loud +2dB volume for powerful native app presence
-      this.sampler.volume.value = 2;
+      // Maximum +8dB volume for ultimate native app loudness
+      this.sampler.volume.value = 8;
 
       if (this.masterGain) {
         this.sampler.connect(this.masterGain);
@@ -215,7 +215,7 @@ class AudioEngine {
         envelope: { attack: 0.01, decay: 0.4, sustain: 0.05, release: 0.25 },
       });
       this.synthFallback.maxPolyphony = 4;
-      this.synthFallback.volume.value = 2;
+      this.synthFallback.volume.value = 8;
 
       if (this.masterGain) {
         this.synthFallback.connect(this.masterGain);

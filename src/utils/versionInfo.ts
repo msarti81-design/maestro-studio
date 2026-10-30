@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.167';
-export const APP_BUILD_DATE = '30 Ottobre 2026 - 05:25';
-export const APP_COMMIT = '74201b3';
+export const APP_VERSION = '1.0.168';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 05:50';
+export const APP_COMMIT = '91802c4';
 export const APP_CHANGELOG = [
+  'Massimo volume e punch (Compressor aggressivo -24dB, Gain x2.5 e Sampler +8dB pari alle app native)',
   'Catena di mastering professionale (Compressor + Limiter) per volume e punch pari alle app native',
   'Potenziamento volume generale e presenza sonora (+5dB boost)',
   'Doppio canale vocale robusto: WebSocket audio chunk streaming + Web Audio API decode',
-  'Gestione automatica permessi microfono Android WebView (onPermissionRequest)',
 ];
 
 export interface ServerVersionInfo {
