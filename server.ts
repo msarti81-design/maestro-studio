@@ -130,16 +130,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.175",
-      buildDate: "2026-10-30 12:12",
-      commit: "9d304f2",
+      version: "1.0.176",
+      buildDate: "2026-10-30 12:35",
+      commit: "4e712a8",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "Full-Duplex Simultaneous Bidirectional Voice Call (Both can talk at once)",
+        "Zero-Glare WebRTC replaceTrack architecture",
         "Unidirectional Masterclass Piano Audio (Student -> Maestro only)",
-        "Maestro Phrasing & Waterfall Mode Exclusives",
-        "High-Definition WebRTC Opus Voice with OpenRelay TURN",
-        "Acoustic Echo Cancellation"
+        "High-Definition WebRTC Opus Voice with OpenRelay TURN"
       ]
     });
   });
