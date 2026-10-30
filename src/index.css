@@ -45,6 +45,18 @@ body,
   border-color: #78350f !important;
 }
 
+.key-white.key-pressed-student {
+  background-color: #38bdf8 !important; /* Cyan / Sky Blue for student notes on Maestro screen */
+  color: #020617 !important;
+  border-color: #0284c7 !important;
+}
+
+.key-black.key-pressed-student {
+  background-color: #0284c7 !important;
+  color: #ffffff !important;
+  border-color: #0369a1 !important;
+}
+
 .mini-pressed-active {
   background-color: #fbbf24 !important;
 }

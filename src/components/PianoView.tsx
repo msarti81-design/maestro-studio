@@ -437,11 +437,19 @@ export const PianoView: React.FC<PianoViewProps> = ({
     return `${noteName}${newOctave}`;
   }, [octaveShift]);
 
-  const setKeyVisual = (note: string, active: boolean) => {
+  const setKeyVisual = (note: string, active: boolean, isStudent = false) => {
     const keyEl = keyNodesMapRef.current.get(note);
     if (keyEl) {
-      if (active) keyEl.classList.add('key-pressed-active');
-      else keyEl.classList.remove('key-pressed-active');
+      if (active) {
+        if (isStudent) {
+          keyEl.classList.add('key-pressed-student');
+        } else {
+          keyEl.classList.add('key-pressed-active');
+        }
+      } else {
+        keyEl.classList.remove('key-pressed-active');
+        keyEl.classList.remove('key-pressed-student');
+      }
     }
   };
 
@@ -451,7 +459,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
       audioEngine.releaseNote(getTransposedNote(note));
     });
     currentlyPressedNotesRef.current.clear();
-    keyNodesMapRef.current.forEach((el) => el.classList.remove('key-pressed-active'));
+    keyNodesMapRef.current.forEach((el) => {
+      el.classList.remove('key-pressed-active');
+      el.classList.remove('key-pressed-student');
+    });
   }, [getTransposedNote]);
 
   // Masterclass & Multi-user Real-time WebSocket state
@@ -839,8 +850,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
     // LIVE AUDIO & VISUAL PRESS FROM REMOTE PEER
     if (msg.type === 'piano:key_event' && msg.note) {
       audioEngine.playNote(msg.note, '8n', instrument);
-      setKeyVisual(msg.note, true);
-      setTimeout(() => setKeyVisual(msg.note, false), 220);
+      const isTeacherRole = !isSimulatingStudentMode && (socialSession?.userRole === 'maestro' || (socialSession?.userRole as string) === 'teacher');
+      const isStudentNote = isTeacherRole && (msg.role === 'student' || msg.role === 'allievo' || !msg.role || msg.sender !== username);
+      setKeyVisual(msg.note, true, isStudentNote);
+      setTimeout(() => setKeyVisual(msg.note, false, isStudentNote), 220);
     }
     // TEACHER PHRASE ASSIGNED TO STUDENT
     else if (msg.type === 'piano:teacher_phrase') {
@@ -1247,29 +1260,31 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
       if (!pc || pc.signalingState === 'closed') {
         pc = getOrCreatePeerConnection(true);
-        const transceivers = pc.getTransceivers();
-        const audioTransceiver = transceivers.find((t) => t.receiver.track.kind === 'audio');
-        if (audioTransceiver && audioTransceiver.sender) {
-          await audioTransceiver.sender.replaceTrack(micTrack);
+      }
+
+      const transceivers = pc.getTransceivers();
+      let audioTransceiver = transceivers.find((t) => t.receiver.track.kind === 'audio');
+      if (!audioTransceiver) {
+        audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+      } else {
+        audioTransceiver.direction = 'sendrecv';
+      }
+
+      if (audioTransceiver.sender) {
+        await audioTransceiver.sender.replaceTrack(micTrack);
+      } else {
+        const existingAudioSender = pc.getSenders().find((s) => s.track?.kind === 'audio' || !s.track);
+        if (existingAudioSender) {
+          await existingAudioSender.replaceTrack(micTrack);
+        } else {
+          pc.addTrack(micTrack, stream);
         }
+      }
+
+      if (pc.signalingState === 'stable') {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         sendRoomEvent('webrtc:offer', { sdp: pc.localDescription });
-      } else {
-        // Transceiver is already negotiated with direction sendrecv!
-        // Instant track replacement sends audio without negotiation glare or renegotiation failure!
-        const transceivers = pc.getTransceivers();
-        const audioTransceiver = transceivers.find((t) => t.receiver.track.kind === 'audio');
-        if (audioTransceiver && audioTransceiver.sender) {
-          await audioTransceiver.sender.replaceTrack(micTrack);
-        } else {
-          const existingAudioSender = pc.getSenders().find((s) => s.track?.kind === 'audio' || !s.track);
-          if (existingAudioSender) {
-            await existingAudioSender.replaceTrack(micTrack);
-          } else {
-            pc.addTrack(micTrack, stream);
-          }
-        }
       }
 
       sendRoomEvent('piano:voice_status', { isActive: true, isMuted: false });

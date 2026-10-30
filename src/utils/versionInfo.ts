@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.177';
-export const APP_BUILD_DATE = '30 Ottobre 2026 - 13:10';
-export const APP_COMMIT = '8b3c19e';
+export const APP_VERSION = '1.0.178';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 13:25';
+export const APP_COMMIT = '2f9a74c';
 export const APP_CHANGELOG = [
-  'WebRTC DataChannel P2P Ultra-Veloce: note pianoforte istantanee (<10ms) per glissando e passaggi rapidi senza ritardi né note perse',
-  'Vivavoce Full-Duplex bidirezionale simultaneo con transceiver sendrecv e replaceTrack: entrambi possono parlare e ascoltarsi nello stesso istante',
-  'Audio pianoforte unidirezionale: in Masterclass il suono scorre solo dallo studente al maestro (il maestro invia note via Invia Frase o Waterfall)',
-  'WebRTC Voice con OpenRelay TURN e cancellazione eco acustica per conversazione cristallina a due vie',
+  'Evidenziazione tasti allievo in colore distinto (Ciano/Celeste) sullo schermo del Maestro',
+  'Ripristino Vivavoce Full-Duplex bidirezionale con renegotiation WebRTC automatica all attivazione del microfono',
+  'WebRTC DataChannel P2P Ultra-Veloce: note istantanee (<10ms) per glissando e passaggi rapidi',
+  'Audio pianoforte unidirezionale in Masterclass: suona solo lo studente verso il maestro',
 ];
 
 export interface ServerVersionInfo {
