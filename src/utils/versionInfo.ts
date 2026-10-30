@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.168';
-export const APP_BUILD_DATE = '30 Ottobre 2026 - 05:50';
-export const APP_COMMIT = '91802c4';
+export const APP_VERSION = '1.0.169';
+export const APP_BUILD_DATE = '30 Ottobre 2026 - 06:00';
+export const APP_COMMIT = '4a103d5';
 export const APP_CHANGELOG = [
+  'Volume estremo al massimo limite (Gain x4.0, Sampler +14dB, Compressor -28dB per eguagliare Perfect Piano)',
   'Massimo volume e punch (Compressor aggressivo -24dB, Gain x2.5 e Sampler +8dB pari alle app native)',
   'Catena di mastering professionale (Compressor + Limiter) per volume e punch pari alle app native',
   'Potenziamento volume generale e presenza sonora (+5dB boost)',
-  'Doppio canale vocale robusto: WebSocket audio chunk streaming + Web Audio API decode',
 ];
 
 export interface ServerVersionInfo {
