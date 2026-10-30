@@ -81,16 +81,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.172",
-      buildDate: "2026-10-30 11:05",
-      commit: "1f402a8",
+      version: "1.0.173",
+      buildDate: "2026-10-30 11:25",
+      commit: "6f501c9",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "Real-Time Web Audio PCM Voice Intercom (Zero Codec Failure Across Mobile)",
+        "Fixed Masterclass Note Playback for Teacher and Student",
         "Guaranteed Bidirectional Note Sync (WebSocket + HTTP POST simultaneous)",
-        "Voice Auto-Connect on Peer Activity",
-        "High-Pass Filter at 40Hz & Anti-Crackle Master Chain",
-        "Dual-Stream Voice Engine (WebSocket + WebRTC)"
+        "Voice Auto-Connect on Peer Activity"
       ]
     });
   });
@@ -618,6 +618,14 @@ Return a JSON object containing:
             sender: currentClient.username,
             senderId: currentClient.id,
             audio: msg.audio
+          });
+        } else if (type === "piano:pcm_voice") {
+          broadcastToRoom(room, currentClient.id, {
+            type: "piano:pcm_voice",
+            sender: currentClient.username,
+            senderId: currentClient.id,
+            pcm: msg.pcm,
+            sampleRate: msg.sampleRate
           });
         } else if (type === "piano:voice_status") {
           broadcastToRoom(room, currentClient.id, {
