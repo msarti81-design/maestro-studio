@@ -593,8 +593,8 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
         const playheadX = Math.round(width * 0.25);
         const staffLineSpacing = Math.min(13, Math.max(8, Math.floor(height / 18)));
-        const trebleCenterY = Math.round(height * 0.35);
-        const bassCenterY = Math.round(height * 0.68);
+        const trebleCenterY = Math.round(height * 0.42);
+        const bassCenterY = Math.round(height * 0.76);
 
         // Draw Treble Staff (5 lines)
         ctx.strokeStyle = '#334155';
@@ -855,7 +855,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   return (
     <div
       ref={containerRef}
-      className={`relative w-full ${viewMode === 'sheet' ? 'h-36 sm:h-44 shrink-0 bg-white text-slate-900 border-b border-slate-300 shadow-md' : 'flex-1 bg-slate-950 text-white'} flex flex-col overflow-hidden select-none px-1 sm:px-2`}
+      className={`relative w-full ${viewMode === 'sheet' ? 'h-40 sm:h-48 shrink-0 bg-white text-slate-900 border-b border-slate-300 shadow-md' : 'flex-1 bg-slate-950 text-white'} flex flex-col overflow-hidden select-none px-1 sm:px-2`}
     >
       {/* HUD Header Bar - Sleek Single Row */}
       <div className="absolute top-1 left-2 right-2 z-20 flex items-center justify-between text-xs pointer-events-auto flex-nowrap gap-1">
