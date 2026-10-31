@@ -3128,6 +3128,13 @@ export const PianoView: React.FC<PianoViewProps> = ({
         activeGuidanceTip={activeScaleExercise?.tips ? activeScaleExercise.tips[scaleActiveIdx % activeScaleExercise.tips.length] : (songGuidance?.tip || null)}
         guidanceHand={activeScaleExercise?.hand || songGuidance?.hand || 'right'}
         studentPressedNotesRef={studentPressedNotesRef}
+        className={
+          showWaterfall && activeSong
+            ? masterclassViewMode === 'sheet'
+              ? 'w-full flex-1 min-h-[160px] select-none touch-none relative'
+              : 'w-full h-[180px] sm:h-[220px] md:h-[260px] shrink-0 select-none touch-none relative'
+            : 'w-full flex-1 min-h-0 select-none touch-none relative'
+        }
       />
 
       {/* OPTIONS MODAL */}

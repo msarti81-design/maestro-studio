@@ -214,6 +214,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   playbackSpeedRef.current = playbackSpeed;
 
   const currentTimeRef = useRef<number>(0);
+  const sheetPageStartTimeRef = useRef<number>(0);
   const lastUiUpdateTimeRef = useRef<number>(0);
   const animationFrameRef = useRef<number | null>(null);
 
@@ -591,7 +592,31 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
 
-        const playheadX = Math.round(width * 0.25);
+        const startX = 45; // Start position after clef
+        const triggerX = Math.max(startX + 120, width - 65); // Trigger threshold near right edge
+        const usableWidth = triggerX - startX;
+        const pixelsPerSecondX = 110 * playbackSpeedRef.current;
+        const maxTimeSpanPerPage = usableWidth / pixelsPerSecondX;
+
+        // Auto-calculate current page start time
+        let pageStartTime = sheetPageStartTimeRef.current;
+        const timeInPage = visualTime - pageStartTime;
+
+        // Reset page window if rewound, reset, or playhead passed triggerX
+        if (timeInPage < -0.1 || timeInPage > maxTimeSpanPerPage * 1.5) {
+          pageStartTime = Math.max(0, visualTime - 0.1);
+          sheetPageStartTimeRef.current = pageStartTime;
+        } else {
+          const rawPlayheadX = startX + timeInPage * pixelsPerSecondX;
+          if (rawPlayheadX >= triggerX) {
+            pageStartTime = Math.max(0, visualTime - 0.15);
+            sheetPageStartTimeRef.current = pageStartTime;
+          }
+        }
+
+        const activeBaseTime = sheetPageStartTimeRef.current;
+        const playheadX = startX + (visualTime - activeBaseTime) * pixelsPerSecondX;
+
         const staffLineSpacing = Math.min(13, Math.max(8, Math.floor(height / 18)));
         const trebleCenterY = Math.round(height * 0.42);
         const bassCenterY = Math.round(height * 0.76);
@@ -627,6 +652,25 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         ctx.stroke();
         ctx.setLineDash([]);
 
+        // Draw Measure / Bar Lines on the staff (stanghette di battuta)
+        const bpm = songRef.current.bpm || 100;
+        const measureDuration = (60 / bpm) * 4;
+        const firstMeasureIdx = Math.floor(activeBaseTime / measureDuration);
+        const lastMeasureIdx = Math.ceil((activeBaseTime + maxTimeSpanPerPage + 1) / measureDuration);
+
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.2;
+        for (let m = firstMeasureIdx; m <= lastMeasureIdx; m++) {
+          const mTime = m * measureDuration;
+          const mx = startX + (mTime - activeBaseTime) * pixelsPerSecondX;
+          if (mx >= startX && mx <= width - 15) {
+            ctx.beginPath();
+            ctx.moveTo(mx, trebleCenterY - 2 * staffLineSpacing);
+            ctx.lineTo(mx, bassCenterY + 2 * staffLineSpacing);
+            ctx.stroke();
+          }
+        }
+
         // Draw Clef symbols on left
         ctx.fillStyle = '#0f172a';
         ctx.font = `bold ${Math.round(staffLineSpacing * 1.5)}px sans-serif`;
@@ -635,7 +679,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         ctx.fillText('𝄞', 10, trebleCenterY);
         ctx.fillText('𝄢', 10, bassCenterY);
 
-        // Draw vertical Red Playhead Line
+        // Draw vertical Red Sweeping Playhead Line
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
@@ -643,17 +687,20 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         ctx.lineTo(playheadX, height - 5);
         ctx.stroke();
 
-        // Pixels per second for horizontal scrolling
-        const pixelsPerSecondX = 110 * playbackSpeedRef.current;
+        // Draw Playhead Top Indicator
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(playheadX, 6, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
         const notes = songRef.current.notes;
         const len = notes.length;
 
         for (let i = 0; i < len; i++) {
           const n = notes[i];
-          const timeDiff = n.time - visualTime;
-          const x = playheadX + timeDiff * pixelsPerSecondX;
+          const x = startX + (n.time - activeBaseTime) * pixelsPerSecondX;
 
-          if (x < -50 || x > width + 50) continue;
+          if (x < -20 || x > width + 40) continue;
 
           const notePos = getNoteStaffY(n.note, trebleCenterY, bassCenterY, staffLineSpacing);
           const radius = Math.max(4.5, Math.round(staffLineSpacing * 0.4));
@@ -817,6 +864,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
   const handleReset = () => {
     currentTimeRef.current = 0;
+    sheetPageStartTimeRef.current = 0;
     setCurrentTime(0);
     lastFrameTimeRef.current = null;
     songPlaybackState.currentTime = 0;
