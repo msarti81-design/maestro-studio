@@ -585,15 +585,18 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
       ctx.fillRect(0, 0, width, height);
 
       if (viewModeRef.current === 'sheet') {
-        // --- RENDER SCROLLING SHEET MUSIC (GRAND STAFF - PENTAGRAMMA SCORREVOLE) ---
+        // --- RENDER COMPACT TRADITIONAL SHEET MUSIC (WHITE BACKGROUND GRAND STAFF) ---
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
         const playheadX = Math.round(width * 0.25);
-        const staffLineSpacing = Math.min(18, Math.max(10, Math.floor(height / 14)));
-        const trebleCenterY = Math.round(height * 0.32);
-        const bassCenterY = Math.round(height * 0.72);
+        const staffLineSpacing = Math.min(13, Math.max(8, Math.floor(height / 18)));
+        const trebleCenterY = Math.round(height * 0.35);
+        const bassCenterY = Math.round(height * 0.68);
 
         // Draw Treble Staff (5 lines)
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 1.2;
         for (let l = -2; l <= 2; l++) {
           const ly = trebleCenterY + l * staffLineSpacing;
           ctx.beginPath();
@@ -612,34 +615,34 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         }
 
         // Draw Middle C Ledger Line reference in between
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.strokeStyle = '#94a3b8';
         ctx.lineWidth = 1;
         const middleCY = (trebleCenterY + 2 * staffLineSpacing + bassCenterY - 2 * staffLineSpacing) / 2;
         ctx.beginPath();
-        ctx.setLineDash([4, 4]);
+        ctx.setLineDash([3, 3]);
         ctx.moveTo(0, middleCY);
         ctx.lineTo(width, middleCY);
         ctx.stroke();
         ctx.setLineDash([]);
 
         // Draw Clef symbols on left
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.font = `bold ${Math.round(staffLineSpacing * 1.6)}px sans-serif`;
+        ctx.fillStyle = '#0f172a';
+        ctx.font = `bold ${Math.round(staffLineSpacing * 1.5)}px sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText('𝄞', 12, trebleCenterY);
-        ctx.fillText('𝄢', 12, bassCenterY);
+        ctx.fillText('𝄞', 10, trebleCenterY);
+        ctx.fillText('𝄢', 10, bassCenterY);
 
-        // Draw vertical Gold Playhead Line
-        ctx.strokeStyle = '#f59e0b';
-        ctx.lineWidth = 3;
+        // Draw vertical Red Playhead Line
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.moveTo(playheadX, 10);
-        ctx.lineTo(playheadX, height - 10);
+        ctx.moveTo(playheadX, 5);
+        ctx.lineTo(playheadX, height - 5);
         ctx.stroke();
 
         // Pixels per second for horizontal scrolling
-        const pixelsPerSecondX = 120 * playbackSpeedRef.current;
+        const pixelsPerSecondX = 110 * playbackSpeedRef.current;
         const notes = songRef.current.notes;
         const len = notes.length;
 
@@ -648,24 +651,24 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           const timeDiff = n.time - visualTime;
           const x = playheadX + timeDiff * pixelsPerSecondX;
 
-          if (x < -60 || x > width + 60) continue;
+          if (x < -50 || x > width + 50) continue;
 
           const notePos = getNoteStaffY(n.note, trebleCenterY, bassCenterY, staffLineSpacing);
-          const radius = Math.max(5, Math.round(staffLineSpacing * 0.42));
+          const radius = Math.max(4.5, Math.round(staffLineSpacing * 0.4));
 
           const isHit = hitNotesSetRef.current.has(i);
           const isWaiting = waitingNoteIndexRef.current === i;
 
-          let noteColor = notePos.isTreble ? '#0284c7' : '#10b981';
-          if (isHit) noteColor = '#475569';
+          let noteColor = notePos.isTreble ? '#0284c7' : '#059669';
+          if (isHit) noteColor = '#94a3b8';
           if (isWaiting) noteColor = '#f59e0b';
 
           if (notePos.hasLedger) {
-            ctx.strokeStyle = isHit ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)';
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = isHit ? '#cbd5e1' : '#334155';
+            ctx.lineWidth = 1.2;
             ctx.beginPath();
-            ctx.moveTo(x - radius * 1.5, notePos.y);
-            ctx.lineTo(x + radius * 1.5, notePos.y);
+            ctx.moveTo(x - radius * 1.4, notePos.y);
+            ctx.lineTo(x + radius * 1.4, notePos.y);
             ctx.stroke();
           }
 
@@ -676,28 +679,28 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           ctx.ellipse(0, 0, radius * 1.2, radius, 0, 0, Math.PI * 2);
           ctx.fillStyle = noteColor;
           ctx.fill();
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 1.2;
           ctx.strokeStyle = isWaiting ? '#ffffff' : '#0f172a';
           ctx.stroke();
           ctx.restore();
 
           ctx.strokeStyle = noteColor;
-          ctx.lineWidth = 1.8;
+          ctx.lineWidth = 1.5;
           ctx.beginPath();
           if (notePos.y > (notePos.isTreble ? trebleCenterY : bassCenterY)) {
-            ctx.moveTo(x + radius * 1.1, notePos.y);
-            ctx.lineTo(x + radius * 1.1, notePos.y - staffLineSpacing * 2.2);
+            ctx.moveTo(x + radius * 1.0, notePos.y);
+            ctx.lineTo(x + radius * 1.0, notePos.y - staffLineSpacing * 2.0);
           } else {
-            ctx.moveTo(x - radius * 1.1, notePos.y);
-            ctx.lineTo(x - radius * 1.1, notePos.y + staffLineSpacing * 2.2);
+            ctx.moveTo(x - radius * 1.0, notePos.y);
+            ctx.lineTo(x - radius * 1.0, notePos.y + staffLineSpacing * 2.0);
           }
           ctx.stroke();
 
-          ctx.fillStyle = isWaiting ? '#f59e0b' : 'rgba(255,255,255,0.85)';
-          ctx.font = `bold 10px monospace`;
+          ctx.fillStyle = isWaiting ? '#b45309' : '#1e293b';
+          ctx.font = `bold 9px monospace`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'bottom';
-          ctx.fillText(n.note, x, notePos.y - radius - 6);
+          ctx.fillText(n.note, x, notePos.y - radius - 4);
         }
       } else {
         // --- RENDER FALLING NOTES WATERFALL (CASCATA) ---
