@@ -81,14 +81,14 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.178",
-      buildDate: "2026-10-30 13:25",
-      commit: "2f9a74c",
+      version: "1.0.181",
+      buildDate: "2026-10-31 08:50",
+      commit: "8f41b2e",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Student note highlighting in distinct cyan/emerald color on Maestro screen",
-        "Full-Duplex Bidirectional Voice Call with WebRTC renegotiation on microphone activation",
+        "Student note highlighting in distinct cyan color (#38bdf8) on Maestro screen (CanvasPiano & MiniMapKeyboard)",
+        "WebRTC Unified Plan Fix: full-duplex symmetric voice transceiver matching (mid !== null) + receiver sync",
         "WebRTC DataChannel P2P Ultra-Fast Note Delivery (<10ms for glissando)",
         "Unidirectional Masterclass Piano Audio (Student -> Maestro only)"
       ]
