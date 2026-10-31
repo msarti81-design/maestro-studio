@@ -1,7 +1,8 @@
-export const APP_VERSION = '1.0.190';
-export const APP_BUILD_DATE = '31 Ottobre 2026 - 10:35';
-export const APP_COMMIT = 'b3d4e2f';
+export const APP_VERSION = '1.0.191';
+export const APP_BUILD_DATE = '31 Ottobre 2026 - 11:15';
+export const APP_COMMIT = 'c4e5f6a';
 export const APP_CHANGELOG = [
+  'Codice stanza personalizzato e dinamico (rimosso default fisso 190), con persistenza stabile in localStorage per il Maestro',
   'Rilevamento disconnessione automatica in tempo reale: notifica a video immediata e ritorno assistito alla scheda Social quando uno dei partecipanti si disconnette',
   'WebRTC Unified Plan Fix: rimosso transceiver duplicato (mid: null) sul lato ricevente per garantire voce Full-Duplex simmetrica',
   'Evidenziazione tasti allievo in colore distinto (Ciano/Celeste) sullo schermo del Maestro',

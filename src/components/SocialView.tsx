@@ -341,21 +341,37 @@ export const SocialView: React.FC<SocialViewProps> = ({
     return 'maestro';
   });
 
-  // Per-mode state dictionary for auto-assigned hosted room codes
+  // Per-mode state dictionary for auto-assigned hosted room codes (persisted in localStorage)
   const [hostedRoomCodes, setHostedRoomCodes] = useState<Record<SocialRoomMode, string>>(() => {
+    let saved: Record<string, string> = {};
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('maestro_hosted_rooms_v2');
+        if (raw) saved = JSON.parse(raw);
+      } catch (e) {}
+    }
     const defaultCodes: Record<SocialRoomMode, string> = {
-      masterclass: generateRandomRoomCode('masterclass'),
-      battle: generateRandomRoomCode('battle'),
-      duet: generateRandomRoomCode('duet'),
-      pianobar: generateRandomRoomCode('pianobar'),
-      relay: generateRandomRoomCode('relay'),
-      guess: generateRandomRoomCode('guess'),
+      masterclass: saved.masterclass || generateRandomRoomCode('masterclass'),
+      battle: saved.battle || generateRandomRoomCode('battle'),
+      duet: saved.duet || generateRandomRoomCode('duet'),
+      pianobar: saved.pianobar || generateRandomRoomCode('pianobar'),
+      relay: saved.relay || generateRandomRoomCode('relay'),
+      guess: saved.guess || generateRandomRoomCode('guess'),
     };
     if (initialInvite.current && initialInvite.current.userRole === 'maestro') {
       defaultCodes[initialInvite.current.mode] = initialInvite.current.roomId;
     }
     return defaultCodes;
   });
+
+  // Save hosted room codes to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('maestro_hosted_rooms_v2', JSON.stringify(hostedRoomCodes));
+      } catch (e) {}
+    }
+  }, [hostedRoomCodes]);
 
   // Per-mode input field for joining an existing room code
   const [joinInputs, setJoinInputs] = useState<Record<SocialRoomMode, string>>(() => {
@@ -548,7 +564,15 @@ export const SocialView: React.FC<SocialViewProps> = ({
 
   const handleRegenerateHostedCode = (mode: SocialRoomMode) => {
     const newCode = generateRandomRoomCode(mode);
-    setHostedRoomCodes((prev) => ({ ...prev, [mode]: newCode }));
+    setHostedRoomCodes((prev) => {
+      const updated = { ...prev, [mode]: newCode };
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('maestro_hosted_rooms_v2', JSON.stringify(updated));
+        } catch (e) {}
+      }
+      return updated;
+    });
     setJoinInputs((prev) => ({ ...prev, [mode]: '' }));
   };
 
@@ -868,14 +892,23 @@ export const SocialView: React.FC<SocialViewProps> = ({
                 {/* Room code box */}
                 <div className="bg-slate-900 border border-amber-500/30 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      Automatically Assigned Room Code:
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">
+                        Permanent Teacher Room Code:
+                      </span>
+                      <button
+                        onClick={() => handleRegenerateHostedCode('masterclass')}
+                        className="text-[10px] text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 font-bold cursor-pointer transition-all"
+                        title="Generate a new room code"
+                      >
+                        ↺ New Code
+                      </button>
+                    </div>
                     <div className="text-2xl font-black font-mono text-amber-400 tracking-wider">
                       {hostedRoomCodes.masterclass}
                     </div>
                     <span className="text-[10px] text-slate-400">
-                      The student can also type just the number: <strong className="text-amber-300">{hostedRoomCodes.masterclass.replace('MASTERCLASS-', '')}</strong>
+                      Saved on this device. The student can type: <strong className="text-amber-300">{hostedRoomCodes.masterclass.replace('MASTERCLASS-', '')}</strong>
                     </span>
                   </div>
 
