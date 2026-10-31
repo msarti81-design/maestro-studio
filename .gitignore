@@ -9,4 +9,3 @@ coverage/
 *.tar.gz
 public/assets/
 .aistudio/
-dist/
