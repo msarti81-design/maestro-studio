@@ -31,6 +31,7 @@ interface FallingNotesWaterfallProps {
   onClose: () => void;
   lastPlayedNote?: { note: string; timestamp: number } | null;
   initialPlayMode?: 'learn' | 'arcade' | 'fingering' | 'demo';
+  initialViewMode?: 'waterfall' | 'sheet';
   isMasterclassMode?: boolean;
   onMasterclassFinished?: () => void;
   onActiveGuidanceChange?: (guidance: { note: string | null; finger: number | null; tip?: string | null; hand?: 'right' | 'left' } | null) => void;
@@ -42,12 +43,45 @@ interface KeyPosition {
   type: 'white' | 'black';
 }
 
+function getNoteStaffY(noteName: string, trebleCenterY: number, bassCenterY: number, staffLineSpacing: number): { y: number; isTreble: boolean; hasLedger: boolean } {
+  const match = noteName.match(/^([A-G])([#b]?)(-?[0-9])$/);
+  if (!match) return { y: trebleCenterY, isTreble: true, hasLedger: false };
+  const [, letter, accidental, octaveStr] = match;
+  const octave = parseInt(octaveStr, 10);
+  const noteLetters = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  const letterIdx = noteLetters.indexOf(letter);
+  const semitones = [0, 2, 4, 5, 7, 9, 11][letterIdx];
+  const midi = (octave + 1) * 12 + semitones + (accidental === '#' ? 1 : accidental === 'b' ? -1 : 0);
+
+  const stepH = staffLineSpacing / 2;
+
+  if (midi >= 60) {
+    const diatonicSteps = midiToDiatonicOffset(midi) - midiToDiatonicOffset(64);
+    const y = trebleCenterY - diatonicSteps * stepH;
+    const hasLedger = midi === 60;
+    return { y, isTreble: true, hasLedger };
+  } else {
+    const diatonicSteps = midiToDiatonicOffset(midi) - midiToDiatonicOffset(43);
+    const y = bassCenterY - diatonicSteps * stepH;
+    const hasLedger = midi === 60;
+    return { y, isTreble: false, hasLedger };
+  }
+}
+
+function midiToDiatonicOffset(midi: number): number {
+  const octave = Math.floor(midi / 12) - 1;
+  const semitone = midi % 12;
+  const semitoneToStep = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
+  return octave * 7 + semitoneToStep[semitone];
+}
+
 export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React.memo(({
   song,
   keys,
   getTransposedNote,
   onClose,
   initialPlayMode = 'arcade',
+  initialViewMode = 'waterfall',
   isMasterclassMode = false,
   onMasterclassFinished,
   onActiveGuidanceChange,
@@ -58,6 +92,10 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const songDuration = useMemo(() => Math.max(...song.notes.map((n) => n.time + n.duration), 5), [song.notes]);
 
   const [playMode, setPlayMode] = useState<'learn' | 'arcade' | 'fingering' | 'demo'>(initialPlayMode);
+  const [viewMode, setViewMode] = useState<'waterfall' | 'sheet'>(initialViewMode);
+  const viewModeRef = useRef<'waterfall' | 'sheet'>(viewMode);
+  viewModeRef.current = viewMode;
+
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -546,89 +584,206 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
       ctx.fillStyle = '#080d1a';
       ctx.fillRect(0, 0, width, height);
 
-      // Vertical lane guides - Batched single-path fill for zero GPU overhead
-      const currentNumWhiteKeys = numWhiteKeysRef.current;
-      const whiteWidth = width / Math.max(1, currentNumWhiteKeys);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
-      ctx.beginPath();
-      for (let i = 0; i < currentNumWhiteKeys; i += 2) {
-        ctx.rect(i * whiteWidth, 0, whiteWidth, hitLineY);
-      }
-      ctx.fill();
+      if (viewModeRef.current === 'sheet') {
+        // --- RENDER SCROLLING SHEET MUSIC (GRAND STAFF - PENTAGRAMMA SCORREVOLE) ---
+        const playheadX = Math.round(width * 0.25);
+        const staffLineSpacing = Math.min(18, Math.max(10, Math.floor(height / 14)));
+        const trebleCenterY = Math.round(height * 0.32);
+        const bassCenterY = Math.round(height * 0.72);
 
-      // Smooth 3.8s travel speed for falling notes
-      const travelTime = 3.8;
-      const pixelsPerSecond = hitLineY / travelTime;
-      const keyPosMap = keyPositionsMapRef.current;
-
-      const notes = songRef.current.notes;
-      const len = notes.length;
-
-      for (let i = 0; i < len; i++) {
-        const n = notes[i];
-        const timeToHit = n.time - visualTime;
-        const yBottom = hitLineY - timeToHit * pixelsPerSecond;
-        const noteHeight = Math.max(14, (n.duration || 0.4) * pixelsPerSecond * 0.75);
-        const yTop = yBottom - noteHeight;
-
-        if (yTop > height || yBottom < 0) continue;
-
-        const isHit = hitNotesSetRef.current.has(i);
-        const isWaiting = waitingNoteIndexRef.current === i;
-        const keyPos = keyPosMap.get(n.note);
-
-        if (!keyPos) continue;
-
-        const noteWidth = Math.max(4, keyPos.width - 2);
-        const noteX = keyPos.x + 1;
-
-        if (isHit && playModeRef.current !== 'demo') {
-          ctx.fillStyle = 'rgba(71, 85, 105, 0.25)';
-          ctx.fillRect(noteX, yTop, noteWidth, noteHeight);
-        } else if (isWaiting) {
-          ctx.fillStyle = '#f59e0b';
-          ctx.fillRect(noteX, yTop, noteWidth, noteHeight);
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(noteX, yTop, noteWidth, noteHeight);
-        } else {
-          let noteFillColor = keyPos.type === 'black' ? '#a855f7' : '#0284c7';
-          if (selectedHandRef.current === 'left') {
-            noteFillColor = keyPos.type === 'black' ? '#059669' : '#10b981';
-          } else if (selectedHandRef.current === 'both') {
-            const midiNum = noteNameToMidiNumber(n.note);
-            if (midiNum < 60) {
-              noteFillColor = '#10b981'; // Emerald for LH
-            } else {
-              noteFillColor = '#06b6d4'; // Cyan for RH
-            }
-          }
-          ctx.fillStyle = noteFillColor;
-          ctx.fillRect(noteX, yTop, noteWidth, noteHeight);
+        // Draw Treble Staff (5 lines)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1.5;
+        for (let l = -2; l <= 2; l++) {
+          const ly = trebleCenterY + l * staffLineSpacing;
+          ctx.beginPath();
+          ctx.moveTo(0, ly);
+          ctx.lineTo(width, ly);
+          ctx.stroke();
         }
 
-        // --- DRAW FINGER NUMBER BADGE ON NOTE BLOCK (Solo Modalità Diteggiatura) ---
-        if (playModeRef.current === 'fingering') {
-          const fingerNum = songFingeringRef.current[i] || 1;
-          const badgeD = Math.min(18, Math.min(noteWidth - 2, noteHeight - 2));
-          if (badgeD >= 9) {
-            const bX = noteX + noteWidth / 2;
-            const bY = yTop + noteHeight / 2;
-            const fingerColor = FINGER_METADATA[fingerNum]?.color || '#f59e0b';
+        // Draw Bass Staff (5 lines)
+        for (let l = -2; l <= 2; l++) {
+          const ly = bassCenterY + l * staffLineSpacing;
+          ctx.beginPath();
+          ctx.moveTo(0, ly);
+          ctx.lineTo(width, ly);
+          ctx.stroke();
+        }
 
+        // Draw Middle C Ledger Line reference in between
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 1;
+        const middleCY = (trebleCenterY + 2 * staffLineSpacing + bassCenterY - 2 * staffLineSpacing) / 2;
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.moveTo(0, middleCY);
+        ctx.lineTo(width, middleCY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw Clef symbols on left
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = `bold ${Math.round(staffLineSpacing * 1.6)}px sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('𝄞', 12, trebleCenterY);
+        ctx.fillText('𝄢', 12, bassCenterY);
+
+        // Draw vertical Gold Playhead Line
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(playheadX, 10);
+        ctx.lineTo(playheadX, height - 10);
+        ctx.stroke();
+
+        // Pixels per second for horizontal scrolling
+        const pixelsPerSecondX = 120 * playbackSpeedRef.current;
+        const notes = songRef.current.notes;
+        const len = notes.length;
+
+        for (let i = 0; i < len; i++) {
+          const n = notes[i];
+          const timeDiff = n.time - visualTime;
+          const x = playheadX + timeDiff * pixelsPerSecondX;
+
+          if (x < -60 || x > width + 60) continue;
+
+          const notePos = getNoteStaffY(n.note, trebleCenterY, bassCenterY, staffLineSpacing);
+          const radius = Math.max(5, Math.round(staffLineSpacing * 0.42));
+
+          const isHit = hitNotesSetRef.current.has(i);
+          const isWaiting = waitingNoteIndexRef.current === i;
+
+          let noteColor = notePos.isTreble ? '#0284c7' : '#10b981';
+          if (isHit) noteColor = '#475569';
+          if (isWaiting) noteColor = '#f59e0b';
+
+          if (notePos.hasLedger) {
+            ctx.strokeStyle = isHit ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.6)';
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.arc(bX, bY, badgeD / 2, 0, Math.PI * 2);
-            ctx.fillStyle = isHit ? 'rgba(15, 23, 42, 0.4)' : '#0f172a';
-            ctx.fill();
-            ctx.lineWidth = isWaiting ? 2 : 1.2;
-            ctx.strokeStyle = isWaiting ? '#ffffff' : fingerColor;
+            ctx.moveTo(x - radius * 1.5, notePos.y);
+            ctx.lineTo(x + radius * 1.5, notePos.y);
             ctx.stroke();
+          }
 
-            ctx.fillStyle = isHit ? '#94a3b8' : '#ffffff';
-            ctx.font = `bold ${Math.max(8, Math.round(badgeD * 0.7))}px sans-serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(String(fingerNum), bX, bY + 0.5);
+          ctx.save();
+          ctx.translate(x, notePos.y);
+          ctx.rotate(-0.2);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, radius * 1.2, radius, 0, 0, Math.PI * 2);
+          ctx.fillStyle = noteColor;
+          ctx.fill();
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = isWaiting ? '#ffffff' : '#0f172a';
+          ctx.stroke();
+          ctx.restore();
+
+          ctx.strokeStyle = noteColor;
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          if (notePos.y > (notePos.isTreble ? trebleCenterY : bassCenterY)) {
+            ctx.moveTo(x + radius * 1.1, notePos.y);
+            ctx.lineTo(x + radius * 1.1, notePos.y - staffLineSpacing * 2.2);
+          } else {
+            ctx.moveTo(x - radius * 1.1, notePos.y);
+            ctx.lineTo(x - radius * 1.1, notePos.y + staffLineSpacing * 2.2);
+          }
+          ctx.stroke();
+
+          ctx.fillStyle = isWaiting ? '#f59e0b' : 'rgba(255,255,255,0.85)';
+          ctx.font = `bold 10px monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(n.note, x, notePos.y - radius - 6);
+        }
+      } else {
+        // --- RENDER FALLING NOTES WATERFALL (CASCATA) ---
+        // Vertical lane guides - Batched single-path fill for zero GPU overhead
+        const currentNumWhiteKeys = numWhiteKeysRef.current;
+        const whiteWidth = width / Math.max(1, currentNumWhiteKeys);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+        ctx.beginPath();
+        for (let i = 0; i < currentNumWhiteKeys; i += 2) {
+          ctx.rect(i * whiteWidth, 0, whiteWidth, hitLineY);
+        }
+        ctx.fill();
+
+        // Smooth 3.8s travel speed for falling notes
+        const travelTime = 3.8;
+        const pixelsPerSecond = hitLineY / travelTime;
+        const keyPosMap = keyPositionsMapRef.current;
+
+        const notes = songRef.current.notes;
+        const len = notes.length;
+
+        for (let i = 0; i < len; i++) {
+          const n = notes[i];
+          const timeToHit = n.time - visualTime;
+          const yBottom = hitLineY - timeToHit * pixelsPerSecond;
+          const noteHeight = Math.max(14, (n.duration || 0.4) * pixelsPerSecond * 0.75);
+          const yTop = yBottom - noteHeight;
+
+          if (yTop > height || yBottom < 0) continue;
+
+          const isHit = hitNotesSetRef.current.has(i);
+          const isWaiting = waitingNoteIndexRef.current === i;
+          const keyPos = keyPosMap.get(n.note);
+
+          if (!keyPos) continue;
+
+          const noteWidth = Math.max(4, keyPos.width - 2);
+          const noteX = keyPos.x + 1;
+
+          if (isHit && playModeRef.current !== 'demo') {
+            ctx.fillStyle = 'rgba(71, 85, 105, 0.25)';
+            ctx.fillRect(noteX, yTop, noteWidth, noteHeight);
+          } else if (isWaiting) {
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(noteX, yTop, noteWidth, noteHeight);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(noteX, yTop, noteWidth, noteHeight);
+          } else {
+            let noteFillColor = keyPos.type === 'black' ? '#a855f7' : '#0284c7';
+            if (selectedHandRef.current === 'left') {
+              noteFillColor = keyPos.type === 'black' ? '#059669' : '#10b981';
+            } else if (selectedHandRef.current === 'both') {
+              const midiNum = noteNameToMidiNumber(n.note);
+              if (midiNum < 60) {
+                noteFillColor = '#10b981';
+              } else {
+                noteFillColor = '#06b6d4';
+              }
+            }
+            ctx.fillStyle = noteFillColor;
+            ctx.fillRect(noteX, yTop, noteWidth, noteHeight);
+          }
+
+          if (playModeRef.current === 'fingering') {
+            const fingerNum = songFingeringRef.current[i] || 1;
+            const badgeD = Math.min(18, Math.min(noteWidth - 2, noteHeight - 2));
+            if (badgeD >= 9) {
+              const bX = noteX + noteWidth / 2;
+              const bY = yTop + noteHeight / 2;
+              const fingerColor = FINGER_METADATA[fingerNum]?.color || '#f59e0b';
+
+              ctx.beginPath();
+              ctx.arc(bX, bY, badgeD / 2, 0, Math.PI * 2);
+              ctx.fillStyle = isHit ? 'rgba(15, 23, 42, 0.4)' : '#0f172a';
+              ctx.fill();
+              ctx.lineWidth = isWaiting ? 2 : 1.2;
+              ctx.strokeStyle = isWaiting ? '#ffffff' : fingerColor;
+              ctx.stroke();
+
+              ctx.fillStyle = isHit ? '#94a3b8' : '#ffffff';
+              ctx.font = `bold ${Math.max(8, Math.round(badgeD * 0.7))}px sans-serif`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(String(fingerNum), bX, bY + 0.5);
+            }
           }
         }
       }
@@ -749,6 +904,22 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
               <span className="hidden xs:inline">{label}</span>
             </button>
           ))}
+
+          {/* View Mode Toggle: Waterfall vs Sheet Music Staff */}
+          <button
+            onClick={() => {
+              const next = viewMode === 'waterfall' ? 'sheet' : 'waterfall';
+              setViewMode(next);
+            }}
+            className={`px-2 py-0.5 text-[9px] sm:text-[10px] font-black rounded flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap ${
+              viewMode === 'sheet'
+                ? 'bg-gradient-to-r from-emerald-500 to-cyan-400 text-slate-950 shadow-md ring-1 ring-emerald-300'
+                : 'bg-slate-800 text-slate-300 hover:text-white'
+            }`}
+            title="Cambia visualizzazione tra note in caduta (Cascata) e pentagramma scorrevole (Spartito)"
+          >
+            <span>{viewMode === 'sheet' ? '🎼 Spartito' : '🎹 Cascata'}</span>
+          </button>
 
           {/* Quick Info: Standard Fingering Rules button */}
           <button

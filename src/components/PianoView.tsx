@@ -669,6 +669,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
   }, []);
 
   const [masterclassPlayMode, setMasterclassPlayMode] = useState<'arcade' | 'learn'>('arcade');
+  const [masterclassViewMode, setMasterclassViewMode] = useState<'waterfall' | 'sheet'>('waterfall');
 
   // Voice Audio Communication State (Maestro ↔ Allievo Live Voice Audio)
   const [isVoiceActive, setIsVoiceActive] = useState<boolean>(false);
@@ -775,10 +776,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
       if (msg.openWaterfall) {
         const mode = msg.displayMode === 'learn' ? 'learn' : 'arcade';
         setMasterclassPlayMode(mode);
+        const vMode = msg.displayMode === 'sheet' ? 'sheet' : 'waterfall';
+        setMasterclassViewMode(vMode);
         const song = createMasterclassWaterfallSong(receivedPhrase, `Teacher Phrase (${receivedPhrase.length} notes)`);
         setActiveSong(song);
         setShowWaterfall(true);
-        showToast(`🎮 The Teacher sent you a phrase of ${receivedPhrase.length} notes (Waterfall ${mode === 'learn' ? 'Learn' : 'Arcade'})!`);
+        showToast(`🎼 The Teacher sent you a phrase in ${vMode === 'sheet' ? 'Spartito (Pentagramma)' : 'Cascata'} (${mode})!`);
       } else {
         showToast(`🎼 Teacher ${msg.sender || ''} sent you a phrase of ${receivedPhrase.length} notes!`);
       }
@@ -1479,7 +1482,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
   }, [isVoiceActive, sendRoomEvent, showToast]);
 
-  const handleSendTeacherPhrase = (openWaterfall: boolean = false, displayMode: 'arcade' | 'learn' = 'arcade') => {
+  const handleSendTeacherPhrase = (openWaterfall: boolean = false, displayMode: 'arcade' | 'learn' | 'sheet' = 'arcade') => {
     if (recordedMasterclassNotes.length === 0) return;
 
     const simpleNotes = recordedMasterclassNotes.map((item) => item.note);
@@ -1514,7 +1517,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }).catch(() => {});
 
     if (openWaterfall) {
-      showToast(`🎮 Frase inviata all'allievo in versione Caduta ${displayMode === 'learn' ? 'Impara' : 'Arcade'}!`);
+      const modeLabel = displayMode === 'sheet' ? 'Spartito (Pentagramma)' : displayMode === 'learn' ? 'Impara' : 'Arcade';
+      showToast(`🎼 Frase inviata all'allievo in modalità ${modeLabel}!`);
     } else {
       showToast(`Frase di ${recordedMasterclassNotes.length} note inviata all'allievo!`);
     }
@@ -2770,6 +2774,15 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     <span>🎯 SEND LEARN WATERFALL</span>
                   </button>
 
+                  <button
+                    onClick={() => handleSendTeacherPhrase(true, 'sheet')}
+                    disabled={recordedMasterclassNotes.length === 0}
+                    className="px-2.5 py-1 bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-500 hover:brightness-110 disabled:opacity-40 text-slate-950 font-black rounded-lg shadow-lg flex items-center gap-1 text-[10px] cursor-pointer whitespace-nowrap animate-pulse"
+                    title="Invia all'allievo come pentagramma scorrevole a tempo (Spartito)"
+                  >
+                    <span>🎼 INVIA SPARTITO</span>
+                  </button>
+
                   {recordedMasterclassNotes.length > 0 && (
                     <button
                       onClick={() => handleOpenLocalPhraseWaterfall(recordedMasterclassNotes, 'arcade')}
@@ -3018,6 +3031,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             keys={GAMEPLAY_KEYS}
             getTransposedNote={getTransposedNote}
             initialPlayMode={masterclassPlayMode}
+            initialViewMode={masterclassViewMode}
             isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
             onActiveGuidanceChange={setSongGuidance}
             onMasterclassFinished={() => {
