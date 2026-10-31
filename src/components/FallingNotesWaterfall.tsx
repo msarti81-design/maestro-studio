@@ -855,21 +855,21 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   return (
     <div
       ref={containerRef}
-      className={`relative w-full ${viewMode === 'sheet' ? 'h-40 sm:h-48 shrink-0 bg-white text-slate-900 border-b border-slate-300 shadow-md' : 'flex-1 bg-slate-950 text-white'} flex flex-col overflow-hidden select-none px-1 sm:px-2`}
+      className={`relative w-full ${viewMode === 'sheet' ? 'h-32 sm:h-38 shrink-0 bg-white text-slate-900 border-b border-slate-300 shadow-md' : 'flex-1 bg-slate-950 text-white'} flex flex-col overflow-hidden select-none px-1 sm:px-2`}
     >
       {/* HUD Header Bar - Sleek Single Row */}
       <div className="absolute top-1 left-2 right-2 z-20 flex items-center justify-between text-xs pointer-events-auto flex-nowrap gap-1">
         {/* Song Info */}
-        <div className={`flex items-center gap-1.5 ${viewMode === 'sheet' ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-900/90 border-slate-800 text-white'} border rounded-lg px-2 py-0.5 backdrop-blur-md shrink-0`}>
-          <div className="w-2 h-2 rounded-full bg-cyan-500 animate-ping" />
-          <span className={`font-extrabold ${viewMode === 'sheet' ? 'text-slate-900' : 'text-white'} truncate max-w-[110px] sm:max-w-[180px] text-[11px]`}>
+        <div className={`flex items-center gap-1.5 ${viewMode === 'sheet' ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-900/90 border-slate-800 text-white'} border rounded-lg px-2 py-0.5 backdrop-blur-md shrink-0 max-w-[30vw]`}>
+          <div className="w-2 h-2 rounded-full bg-cyan-500 animate-ping shrink-0" />
+          <span className={`font-extrabold ${viewMode === 'sheet' ? 'text-slate-900' : 'text-white'} truncate text-[11px]`}>
             {song.title}
           </span>
-          <span className="text-[9px] text-slate-500 hidden md:inline">&bull; {song.author}</span>
+          <span className="text-[9px] text-slate-500 hidden md:inline shrink-0">&bull; {song.author}</span>
         </div>
 
         {/* Mode Selector & Controls - Single Row */}
-        <div className={`flex items-center gap-1 ${viewMode === 'sheet' ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-900/95 border-slate-800 text-white'} border rounded-lg p-0.5 backdrop-blur-md flex-nowrap shrink-0 overflow-x-auto scrollbar-none`}>
+        <div className={`flex items-center gap-1 ${viewMode === 'sheet' ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-900/95 border-slate-800 text-white'} border rounded-lg p-0.5 backdrop-blur-md flex-nowrap shrink-0 overflow-x-auto scrollbar-thin max-w-[62vw] sm:max-w-[72vw]`}>
           {([
             { id: 'learn', label: 'Impara', icon: '🎯' },
             { id: 'fingering', label: 'Dita', icon: '🖐️' },
