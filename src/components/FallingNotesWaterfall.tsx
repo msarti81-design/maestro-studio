@@ -617,9 +617,9 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         const activeBaseTime = sheetPageStartTimeRef.current;
         const playheadX = startX + (visualTime - activeBaseTime) * pixelsPerSecondX;
 
-        const staffLineSpacing = Math.min(13, Math.max(8, Math.floor(height / 18)));
-        const trebleCenterY = Math.round(height * 0.42);
-        const bassCenterY = Math.round(height * 0.76);
+        const staffLineSpacing = Math.min(10, Math.max(7, Math.floor(height / 21)));
+        const trebleCenterY = Math.round(height * 0.50 + 2);
+        const bassCenterY = Math.round(height * 0.80 + 2);
 
         // Draw Treble Staff (5 lines)
         ctx.strokeStyle = '#334155';
