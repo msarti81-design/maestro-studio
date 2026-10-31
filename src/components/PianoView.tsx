@@ -3025,13 +3025,14 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
       {/* SYNTHESIA FALLING NOTES WATERFALL */}
       {showWaterfall && activeSong ? (
-        <div className="flex-1 w-full flex flex-col min-h-0 bg-slate-950 overflow-hidden">
+        <div className={`w-full flex flex-col transition-all duration-300 ${masterclassViewMode === 'sheet' ? 'h-36 sm:h-44 bg-white border-b border-slate-300 shadow-md shrink-0' : 'flex-1 min-h-0 bg-slate-950'} overflow-hidden`}>
           <FallingNotesWaterfall
             song={activeSong}
             keys={GAMEPLAY_KEYS}
             getTransposedNote={getTransposedNote}
             initialPlayMode={masterclassPlayMode}
             initialViewMode={masterclassViewMode}
+            onViewModeChange={setMasterclassViewMode}
             isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
             onActiveGuidanceChange={setSongGuidance}
             onMasterclassFinished={() => {

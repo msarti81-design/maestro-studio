@@ -32,6 +32,7 @@ interface FallingNotesWaterfallProps {
   lastPlayedNote?: { note: string; timestamp: number } | null;
   initialPlayMode?: 'learn' | 'arcade' | 'fingering' | 'demo';
   initialViewMode?: 'waterfall' | 'sheet';
+  onViewModeChange?: (mode: 'waterfall' | 'sheet') => void;
   isMasterclassMode?: boolean;
   onMasterclassFinished?: () => void;
   onActiveGuidanceChange?: (guidance: { note: string | null; finger: number | null; tip?: string | null; hand?: 'right' | 'left' } | null) => void;
@@ -82,6 +83,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   onClose,
   initialPlayMode = 'arcade',
   initialViewMode = 'waterfall',
+  onViewModeChange,
   isMasterclassMode = false,
   onMasterclassFinished,
   onActiveGuidanceChange,
@@ -853,21 +855,21 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full flex flex-col bg-slate-950 overflow-hidden select-none px-1 sm:px-2"
+      className={`relative w-full h-full flex flex-col ${viewMode === 'sheet' ? 'bg-white text-slate-900' : 'bg-slate-950 text-white'} overflow-hidden select-none px-1 sm:px-2`}
     >
       {/* HUD Header Bar - Sleek Single Row */}
       <div className="absolute top-1 left-2 right-2 z-20 flex items-center justify-between text-xs pointer-events-auto flex-nowrap gap-1">
         {/* Song Info */}
-        <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-0.5 backdrop-blur-md shrink-0">
-          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          <span className="font-extrabold text-white truncate max-w-[110px] sm:max-w-[180px] text-[11px]">
+        <div className={`flex items-center gap-1.5 ${viewMode === 'sheet' ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-900/90 border-slate-800 text-white'} border rounded-lg px-2 py-0.5 backdrop-blur-md shrink-0`}>
+          <div className="w-2 h-2 rounded-full bg-cyan-500 animate-ping" />
+          <span className={`font-extrabold ${viewMode === 'sheet' ? 'text-slate-900' : 'text-white'} truncate max-w-[110px] sm:max-w-[180px] text-[11px]`}>
             {song.title}
           </span>
-          <span className="text-[9px] text-slate-400 hidden md:inline">&bull; {song.author}</span>
+          <span className="text-[9px] text-slate-500 hidden md:inline">&bull; {song.author}</span>
         </div>
 
         {/* Mode Selector & Controls - Single Row */}
-        <div className="flex items-center gap-1 bg-slate-900/95 border border-slate-800 rounded-lg p-0.5 backdrop-blur-md flex-nowrap shrink-0 overflow-x-auto scrollbar-none">
+        <div className={`flex items-center gap-1 ${viewMode === 'sheet' ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-900/95 border-slate-800 text-white'} border rounded-lg p-0.5 backdrop-blur-md flex-nowrap shrink-0 overflow-x-auto scrollbar-none`}>
           {([
             { id: 'learn', label: 'Impara', icon: '🎯' },
             { id: 'fingering', label: 'Dita', icon: '🖐️' },
@@ -913,6 +915,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             onClick={() => {
               const next = viewMode === 'waterfall' ? 'sheet' : 'waterfall';
               setViewMode(next);
+              if (onViewModeChange) onViewModeChange(next);
             }}
             className={`px-2 py-0.5 text-[9px] sm:text-[10px] font-black rounded flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap ${
               viewMode === 'sheet'
