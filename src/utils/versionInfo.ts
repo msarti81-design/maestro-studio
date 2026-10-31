@@ -1,9 +1,9 @@
-export const APP_VERSION = '1.0.181';
-export const APP_BUILD_DATE = '31 Ottobre 2026 - 08:50';
-export const APP_COMMIT = '8f41b2e';
+export const APP_VERSION = '1.0.190';
+export const APP_BUILD_DATE = '31 Ottobre 2026 - 10:35';
+export const APP_COMMIT = 'b3d4e2f';
 export const APP_CHANGELOG = [
-  'WebRTC Unified Plan Fix: rimosso transceiver duplicato (mid: null) sul lato ricevente per garantire voce Full-Duplex simmetrica tra Maestro e Allievo',
-  'Sincronizzazione diretta dei receiver audio WebRTC (getReceivers) e Perfect Negotiation con rollback automatico',
+  'Rilevamento disconnessione automatica in tempo reale: notifica a video immediata e ritorno assistito alla scheda Social quando uno dei partecipanti si disconnette',
+  'WebRTC Unified Plan Fix: rimosso transceiver duplicato (mid: null) sul lato ricevente per garantire voce Full-Duplex simmetrica',
   'Evidenziazione tasti allievo in colore distinto (Ciano/Celeste) sullo schermo del Maestro',
   'WebRTC DataChannel P2P Ultra-Veloce: note istantanee (<10ms) per glissando e passaggi rapidi',
 ];

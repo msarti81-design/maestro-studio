@@ -130,16 +130,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.181",
-      buildDate: "2026-10-31 08:50",
-      commit: "8f41b2e",
+      version: "1.0.190",
+      buildDate: "2026-10-31 10:35",
+      commit: "b3d4e2f",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "Real-time peer disconnection detection with on-screen alert and automatic return to Social tab",
         "Student note highlighting in distinct cyan color (#38bdf8) on Maestro screen (CanvasPiano & MiniMapKeyboard)",
         "WebRTC Unified Plan Fix: full-duplex symmetric voice transceiver matching (mid !== null) + receiver sync",
-        "WebRTC DataChannel P2P Ultra-Fast Note Delivery (<10ms for glissando)",
-        "Unidirectional Masterclass Piano Audio (Student -> Maestro only)"
+        "WebRTC DataChannel P2P Ultra-Fast Note Delivery (<10ms for glissando)"
       ]
     });
   });

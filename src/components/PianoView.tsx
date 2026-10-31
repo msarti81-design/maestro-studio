@@ -677,7 +677,22 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const [peerMicMuted, setPeerMicMuted] = useState<boolean>(false);
   const [connectedPeersCount, setConnectedPeersCount] = useState<number>(1);
   const [roomMembers, setRoomMembers] = useState<{ id: string; username: string; role: string }[]>([]);
+  const hadOtherUserRef = useRef<boolean>(false);
+  const [peerDisconnectedState, setPeerDisconnectedState] = useState<boolean>(false);
   const [copiedLinkState, setCopiedLinkState] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!socialSession || !socialSession.roomId) return;
+    const clientSessionId = getOrCreateClientId();
+    const otherMembers = roomMembers.filter((m) => m.id !== clientSessionId && m.username !== username);
+
+    if (otherMembers.length > 0) {
+      hadOtherUserRef.current = true;
+    } else if (hadOtherUserRef.current && otherMembers.length === 0 && !peerDisconnectedState) {
+      setPeerDisconnectedState(true);
+      showToast("⚠️ L'altro utente si è disconnesso dalla stanza!");
+    }
+  }, [roomMembers, socialSession, username, peerDisconnectedState, showToast]);
 
   const localVoiceStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
@@ -3712,6 +3727,38 @@ export const PianoView: React.FC<PianoViewProps> = ({
         onClose={() => setIsMetronomeModalOpen(false)}
         onBpmChange={(newBpm) => setPianoBpm(newBpm)}
       />
+
+      {/* PEER DISCONNECTION NOTIFICATION MODAL */}
+      {peerDisconnectedState && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-amber-500/60 p-6 rounded-3xl max-w-md w-full space-y-4 text-center shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="text-4xl animate-pulse">⚠️</div>
+            <h3 className="text-lg font-black text-white uppercase tracking-wider">
+              Partecipante Disconnesso
+            </h3>
+            <p className="text-xs text-slate-300">
+              L&apos;altro utente ha lasciato la stanza <span className="font-mono font-bold text-amber-400">{socialSession?.roomId}</span> o la connessione è caduta.
+            </p>
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={handleExitToSocialResults}
+                className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer"
+              >
+                🏠 Ritorna alla Scheda Social
+              </button>
+              <button
+                onClick={() => {
+                  setPeerDisconnectedState(false);
+                  hadOtherUserRef.current = false;
+                }}
+                className="py-3 px-4 bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+              >
+                Attendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
