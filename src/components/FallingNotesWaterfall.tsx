@@ -855,7 +855,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full flex flex-col ${viewMode === 'sheet' ? 'bg-white text-slate-900' : 'bg-slate-950 text-white'} overflow-hidden select-none px-1 sm:px-2`}
+      className={`relative w-full ${viewMode === 'sheet' ? 'h-36 sm:h-44 shrink-0 bg-white text-slate-900 border-b border-slate-300 shadow-md' : 'flex-1 bg-slate-950 text-white'} flex flex-col overflow-hidden select-none px-1 sm:px-2`}
     >
       {/* HUD Header Bar - Sleek Single Row */}
       <div className="absolute top-1 left-2 right-2 z-20 flex items-center justify-between text-xs pointer-events-auto flex-nowrap gap-1">
