@@ -1,12 +1,11 @@
-export const APP_VERSION = '1.0.191';
-export const APP_BUILD_DATE = '31 Ottobre 2026 - 11:15';
-export const APP_COMMIT = 'c4e5f6a';
+export const APP_VERSION = '1.0.200';
+export const APP_BUILD_DATE = '31 Oct 2026 - 14:30';
+export const APP_COMMIT = 'e7f8a9b';
 export const APP_CHANGELOG = [
-  'Codice stanza personalizzato e dinamico (rimosso default fisso 190), con persistenza stabile in localStorage per il Maestro',
-  'Rilevamento disconnessione automatica in tempo reale: notifica a video immediata e ritorno assistito alla scheda Social quando uno dei partecipanti si disconnette',
-  'WebRTC Unified Plan Fix: rimosso transceiver duplicato (mid: null) sul lato ricevente per garantire voce Full-Duplex simmetrica',
-  'Evidenziazione tasti allievo in colore distinto (Ciano/Celeste) sullo schermo del Maestro',
-  'WebRTC DataChannel P2P Ultra-Veloce: note istantanee (<10ms) per glissando e passaggi rapidi',
+  'Full English localization across all studio modes, cards, modals, and interactive prompts',
+  'Compact 6-column main menu layout for streamlined mobile and desktop navigation',
+  'Comprehensive 5-tab Interactive Guide and Tutorial Modal in English',
+  'Dual-staff Treble & Bass notation for all 192 built-in songs',
 ];
 
 export interface ServerVersionInfo {

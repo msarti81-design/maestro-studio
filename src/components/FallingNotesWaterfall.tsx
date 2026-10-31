@@ -36,6 +36,7 @@ interface FallingNotesWaterfallProps {
   isMasterclassMode?: boolean;
   onMasterclassFinished?: () => void;
   onActiveGuidanceChange?: (guidance: { note: string | null; finger: number | null; tip?: string | null; hand?: 'right' | 'left' } | null) => void;
+  sheetScrollMode?: 'sweeping' | 'continuous';
 }
 
 interface KeyPosition {
@@ -45,26 +46,30 @@ interface KeyPosition {
 }
 
 function getNoteStaffY(noteName: string, trebleCenterY: number, bassCenterY: number, staffLineSpacing: number): { y: number; isTreble: boolean; hasLedger: boolean } {
-  const match = noteName.match(/^([A-G])([#b]?)(-?[0-9])$/);
+  const match = noteName.match(/^([A-G])([#b]?)(-?\d+)?$/);
   if (!match) return { y: trebleCenterY, isTreble: true, hasLedger: false };
   const [, letter, accidental, octaveStr] = match;
-  const octave = parseInt(octaveStr, 10);
+  const octave = octaveStr !== undefined ? parseInt(octaveStr, 10) : 4;
   const noteLetters = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
   const letterIdx = noteLetters.indexOf(letter);
+  if (letterIdx === -1) return { y: trebleCenterY, isTreble: true, hasLedger: false };
+
   const semitones = [0, 2, 4, 5, 7, 9, 11][letterIdx];
   const midi = (octave + 1) * 12 + semitones + (accidental === '#' ? 1 : accidental === 'b' ? -1 : 0);
 
   const stepH = staffLineSpacing / 2;
 
   if (midi >= 60) {
-    const diatonicSteps = midiToDiatonicOffset(midi) - midiToDiatonicOffset(64);
+    // Treble staff centered around B4 (MIDI 71)
+    const diatonicSteps = midiToDiatonicOffset(midi) - midiToDiatonicOffset(71);
     const y = trebleCenterY - diatonicSteps * stepH;
-    const hasLedger = midi === 60;
+    const hasLedger = Math.abs(diatonicSteps) >= 5 && Math.abs(diatonicSteps) % 2 === 0;
     return { y, isTreble: true, hasLedger };
   } else {
-    const diatonicSteps = midiToDiatonicOffset(midi) - midiToDiatonicOffset(43);
+    // Bass staff centered around D3 (MIDI 50)
+    const diatonicSteps = midiToDiatonicOffset(midi) - midiToDiatonicOffset(50);
     const y = bassCenterY - diatonicSteps * stepH;
-    const hasLedger = midi === 60;
+    const hasLedger = Math.abs(diatonicSteps) >= 5 && Math.abs(diatonicSteps) % 2 === 0;
     return { y, isTreble: false, hasLedger };
   }
 }
@@ -87,6 +92,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   isMasterclassMode = false,
   onMasterclassFinished,
   onActiveGuidanceChange,
+  sheetScrollMode = 'sweeping',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -162,7 +168,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
     }, 2000);
 
     const t3 = setTimeout(() => {
-      setCountInText('VIA!');
+      setCountInText('GO!');
       try { audioEngine.playMetronomeClick(true); } catch(e){}
     }, 3000);
 
@@ -212,6 +218,9 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
   const playbackSpeedRef = useRef<number>(playbackSpeed);
   playbackSpeedRef.current = playbackSpeed;
+
+  const sheetScrollModeRef = useRef<'sweeping' | 'continuous'>(sheetScrollMode);
+  sheetScrollModeRef.current = sheetScrollMode;
 
   const currentTimeRef = useRef<number>(0);
   const sheetPageStartTimeRef = useRef<number>(0);
@@ -592,30 +601,39 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
 
+        const isContinuous = sheetScrollModeRef.current === 'continuous';
+        const pixelsPerSecondX = 110 * playbackSpeedRef.current;
+
         const startX = 45; // Start position after clef
         const triggerX = Math.max(startX + 120, width - 65); // Trigger threshold near right edge
         const usableWidth = triggerX - startX;
-        const pixelsPerSecondX = 110 * playbackSpeedRef.current;
         const maxTimeSpanPerPage = usableWidth / pixelsPerSecondX;
 
-        // Auto-calculate current page start time
-        let pageStartTime = sheetPageStartTimeRef.current;
-        const timeInPage = visualTime - pageStartTime;
+        let playheadX = Math.round(width * 0.25);
+        let activeBaseTime = 0;
 
-        // Reset page window if rewound, reset, or playhead passed triggerX
-        if (timeInPage < -0.1 || timeInPage > maxTimeSpanPerPage * 1.5) {
-          pageStartTime = Math.max(0, visualTime - 0.1);
-          sheetPageStartTimeRef.current = pageStartTime;
+        if (isContinuous) {
+          // Continuous scroll mode: line stationary at 25%, staff slides underneath
+          playheadX = Math.round(width * 0.25);
         } else {
-          const rawPlayheadX = startX + timeInPage * pixelsPerSecondX;
-          if (rawPlayheadX >= triggerX) {
-            pageStartTime = Math.max(0, visualTime - 0.15);
-            sheetPageStartTimeRef.current = pageStartTime;
-          }
-        }
+          // Sweeping page mode: playhead sweeps from left to right, turns page
+          let pageStartTime = sheetPageStartTimeRef.current;
+          const timeInPage = visualTime - pageStartTime;
 
-        const activeBaseTime = sheetPageStartTimeRef.current;
-        const playheadX = startX + (visualTime - activeBaseTime) * pixelsPerSecondX;
+          if (timeInPage < -0.1 || timeInPage > maxTimeSpanPerPage * 1.5) {
+            pageStartTime = Math.max(0, visualTime - 0.1);
+            sheetPageStartTimeRef.current = pageStartTime;
+          } else {
+            const rawPlayheadX = startX + timeInPage * pixelsPerSecondX;
+            if (rawPlayheadX >= triggerX) {
+              pageStartTime = Math.max(0, visualTime - 0.15);
+              sheetPageStartTimeRef.current = pageStartTime;
+            }
+          }
+
+          activeBaseTime = sheetPageStartTimeRef.current;
+          playheadX = startX + (visualTime - activeBaseTime) * pixelsPerSecondX;
+        }
 
         const staffLineSpacing = Math.min(10, Math.max(7, Math.floor(height / 21)));
         const trebleCenterY = Math.round(height * 0.50 + 2);
@@ -655,15 +673,22 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         // Draw Measure / Bar Lines on the staff (stanghette di battuta)
         const bpm = songRef.current.bpm || 100;
         const measureDuration = (60 / bpm) * 4;
-        const firstMeasureIdx = Math.floor(activeBaseTime / measureDuration);
-        const lastMeasureIdx = Math.ceil((activeBaseTime + maxTimeSpanPerPage + 1) / measureDuration);
+        const firstMeasureIdx = isContinuous
+          ? Math.max(0, Math.floor((visualTime - 2) / measureDuration))
+          : Math.floor(activeBaseTime / measureDuration);
+        const lastMeasureIdx = isContinuous
+          ? Math.ceil((visualTime + (width / pixelsPerSecondX)) / measureDuration)
+          : Math.ceil((activeBaseTime + maxTimeSpanPerPage + 1) / measureDuration);
 
         ctx.strokeStyle = '#cbd5e1';
         ctx.lineWidth = 1.2;
         for (let m = firstMeasureIdx; m <= lastMeasureIdx; m++) {
           const mTime = m * measureDuration;
-          const mx = startX + (mTime - activeBaseTime) * pixelsPerSecondX;
-          if (mx >= startX && mx <= width - 15) {
+          const mx = isContinuous
+            ? playheadX + (mTime - visualTime) * pixelsPerSecondX
+            : startX + (mTime - activeBaseTime) * pixelsPerSecondX;
+
+          if (mx >= 45 && mx <= width - 15) {
             ctx.beginPath();
             ctx.moveTo(mx, trebleCenterY - 2 * staffLineSpacing);
             ctx.lineTo(mx, bassCenterY + 2 * staffLineSpacing);
@@ -679,7 +704,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         ctx.fillText('𝄞', 10, trebleCenterY);
         ctx.fillText('𝄢', 10, bassCenterY);
 
-        // Draw vertical Red Sweeping Playhead Line
+        // Draw vertical Red Playhead Line
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
@@ -698,7 +723,9 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
         for (let i = 0; i < len; i++) {
           const n = notes[i];
-          const x = startX + (n.time - activeBaseTime) * pixelsPerSecondX;
+          const x = isContinuous
+            ? playheadX + (n.time - visualTime) * pixelsPerSecondX
+            : startX + (n.time - activeBaseTime) * pixelsPerSecondX;
 
           if (x < -20 || x > width + 40) continue;
 
@@ -1076,7 +1103,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           <button
             onClick={handleReset}
             className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors cursor-pointer"
-            title="Ricomincia"
+            title="Restart"
           >
             <RotateCcw className="w-3 h-3" />
           </button>
@@ -1121,13 +1148,13 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
       {waitingTargetNote && playMode === 'fingering' && (
         <div className="absolute top-8 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center max-w-[94vw]">
           <div className="bg-slate-950/95 border border-amber-400/90 text-amber-300 font-extrabold px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] shadow-xl backdrop-blur-md flex items-center gap-1.5 flex-nowrap justify-center animate-in fade-in">
-            <span className="text-[9px] text-amber-300/80 uppercase font-black">SUONA:</span>
+            <span className="text-[9px] text-amber-300/80 uppercase font-black">PLAY:</span>
             <span className="text-[11px] bg-amber-500/25 text-amber-200 px-1.5 py-0.2 rounded font-mono font-black border border-amber-400/40">
               {waitingTargetNote}
             </span>
             {waitingTargetFinger && (
               <span className="flex items-center gap-1 text-[10px] font-black text-cyan-300 bg-cyan-950/90 border border-cyan-500/50 px-2 py-0.2 rounded-full whitespace-nowrap">
-                <span>{selectedHand === 'left' ? '🤚 Sx' : '✋ Dx'}: Dito {waitingTargetFinger}</span>
+                <span>{selectedHand === 'left' ? '🤚 Left' : '✋ Right'}: Finger {waitingTargetFinger}</span>
               </span>
             )}
           </div>
@@ -1143,9 +1170,9 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
       {waitingTargetNote && playMode === 'learn' && (
         <div className="absolute top-8 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           <div className="bg-slate-950/90 border border-amber-400 text-amber-300 font-extrabold px-3 py-0.5 rounded-full text-[10px] sm:text-[11px] shadow-xl backdrop-blur-md flex items-center gap-1.5 animate-pulse whitespace-nowrap">
-            <span>Premi</span>
+            <span>Press</span>
             <span className="text-amber-200 font-mono font-black text-xs">{waitingTargetNote}</span>
-            <span>per continuare...</span>
+            <span>to continue...</span>
           </div>
         </div>
       )}
@@ -1160,15 +1187,15 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             <div className="w-8 h-8 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center text-emerald-400 font-bold text-base mb-1">
               👑
             </div>
-            <h3 className="text-xs sm:text-sm font-black text-white">Frase Completata!</h3>
+            <h3 className="text-xs sm:text-sm font-black text-white">Phrase Completed!</h3>
             <p className="text-[10px] text-slate-300 mt-0.5 mb-2.5">
-              Hai completato tutte le {song.notes.length} note del Maestro! Il turno torna al Maestro.
+              You completed all {song.notes.length} notes from the Teacher! Turn passes back.
             </p>
             <button
               onClick={onClose}
               className="w-full py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[11px] transition-all shadow cursor-pointer"
             >
-              ⬅️ Torna al Piano
+              ⬅️ Back to Piano
             </button>
           </div>
         </div>
@@ -1181,7 +1208,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
               <div className="flex items-center gap-1.5 text-left">
                 <span className="text-base sm:text-lg">🏆</span>
                 <div>
-                  <h3 className="text-xs sm:text-sm font-black text-white leading-tight">Risultato Brano</h3>
+                  <h3 className="text-xs sm:text-sm font-black text-white leading-tight">Song Result</h3>
                   <p className="text-[9px] text-amber-300 font-bold truncate max-w-[170px] sm:max-w-[220px]">
                     {song.title} {song.author ? `• ${song.author}` : ''}
                   </p>
@@ -1196,47 +1223,47 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
               </div>
             </div>
 
-            {/* Stats row: Precisione, XP, Streak in compact pills */}
+            {/* Stats row: Accuracy, XP, Streak in compact pills */}
             <div className="grid grid-cols-3 gap-1.5 w-full my-2">
               <div className="bg-slate-950/90 border border-slate-800 rounded-lg py-1 px-1.5">
-                <div className="text-[8.5px] text-slate-400 font-bold uppercase leading-none">Precisione</div>
+                <div className="text-[8.5px] text-slate-400 font-bold uppercase leading-none">Accuracy</div>
                 <div className="text-xs sm:text-sm font-black text-emerald-400 font-mono mt-0.5">
                   {Math.min(100, Math.max(0, Math.round((hitNotesSetRef.current.size / Math.max(1, song.notes.length)) * 100)))}%
                 </div>
               </div>
               <div className="bg-slate-950/90 border border-slate-800 rounded-lg py-1 px-1.5">
-                <div className="text-[8.5px] text-slate-400 font-bold uppercase leading-none">Punti XP</div>
+                <div className="text-[8.5px] text-slate-400 font-bold uppercase leading-none">XP Points</div>
                 <div className="text-xs sm:text-sm font-black text-amber-400 font-mono mt-0.5">+{score}</div>
               </div>
               <div className="bg-slate-950/90 border border-slate-800 rounded-lg py-1 px-1.5">
-                <div className="text-[8.5px] text-slate-400 font-bold uppercase leading-none">Serie</div>
-                <div className="text-xs sm:text-sm font-black text-cyan-400 font-mono mt-0.5">🔥 5 Giorni</div>
+                <div className="text-[8.5px] text-slate-400 font-bold uppercase leading-none">Streak</div>
+                <div className="text-xs sm:text-sm font-black text-cyan-400 font-mono mt-0.5">🔥 5 Days</div>
               </div>
             </div>
 
-            {/* Action Buttons row: Rigioca, Sfida, Torna al Piano */}
+            {/* Action Buttons row: Replay, Challenge, Close */}
             <div className="flex items-center gap-1.5 w-full mt-0.5">
               <button
                 onClick={handleShareChallenge}
                 className="py-1.5 px-2.5 bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-black rounded-lg text-[10px] sm:text-[11px] transition-all shadow cursor-pointer flex items-center justify-center gap-1"
-                title="Condividi sfida"
+                title="Share challenge"
               >
                 {isCopiedChallenge ? <Check className="w-3.5 h-3.5 text-emerald-950" /> : <Share2 className="w-3.5 h-3.5" />}
-                <span>{isCopiedChallenge ? 'Copiato!' : 'Sfida'}</span>
+                <span>{isCopiedChallenge ? 'Copied!' : 'Challenge'}</span>
               </button>
               <button
                 onClick={handleReset}
                 className="flex-1 py-1.5 px-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black rounded-lg text-[10px] sm:text-[11px] transition-all shadow cursor-pointer flex items-center justify-center gap-1"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>Rigioca</span>
+                <span>Replay</span>
               </button>
               <button
                 onClick={onClose}
                 className="flex-1 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-bold rounded-lg text-[10px] sm:text-[11px] transition-all border border-slate-700 cursor-pointer flex items-center justify-center gap-1"
               >
                 <X className="w-3.5 h-3.5" />
-                <span>Chiudi</span>
+                <span>Close</span>
               </button>
             </div>
           </div>
@@ -1251,7 +1278,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
               {countInText}
             </div>
             <div className="text-[10px] sm:text-[11px] font-bold text-amber-200 uppercase tracking-wider mt-1 bg-amber-500/20 px-3 py-0.5 rounded-full border border-amber-500/40">
-              🥁 Pronto... Inizio brano!
+              🥁 Ready... Starting song!
             </div>
           </div>
         </div>
@@ -1343,7 +1370,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 onClick={() => setIsFingeringRulesModalOpen(false)}
                 className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs cursor-pointer shadow"
               >
-                Ho Capito!
+                Got It!
               </button>
             </div>
           </div>

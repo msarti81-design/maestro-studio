@@ -15,7 +15,7 @@ export const ScalesPracticeModal: React.FC<ScalesPracticeModalProps> = ({
   onClose,
   onStartGuidanceOnPiano,
 }) => {
-  const [selectedCategory, setSelectedCategory] = useState<string>('Tutte');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedEx, setSelectedEx] = useState<ScaleExercise>(SCALE_EXERCISES[0]);
   const [activeNoteIdx, setActiveNoteIdx] = useState<number | null>(null);
   const [isPlayingDemo, setIsPlayingDemo] = useState<boolean>(false);

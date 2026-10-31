@@ -21,6 +21,7 @@ import {
 import { audioEngine } from '../utils/audioEngine';
 import { loadGamificationState } from '../utils/gamification';
 import { APP_VERSION } from '../utils/versionInfo';
+import { TutorialModal } from './TutorialModal';
 
 interface HomeViewProps {
   onSelectView: (view: ViewMode) => void;
@@ -36,6 +37,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenVersionModal,
 }) => {
   const [isPlayingWelcome, setIsPlayingWelcome] = useState<boolean>(false);
+  const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(false);
   const [gamification] = useState(() => loadGamificationState());
   const [activeTabPreview, setActiveTabPreview] = useState<string | null>(null);
 
@@ -147,8 +149,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </div>
 
-      {/* FIVE REVOLUTIONIZED STUDIO MODULE CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 my-4">
+      {/* STREAMLINED COMPACT STUDIO MODULE CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3 my-3">
         {/* CARD 1: PIANO */}
         <div
           onClick={() => handleOpenMode('piano')}
@@ -156,53 +158,36 @@ export const HomeView: React.FC<HomeViewProps> = ({
             setActiveTabPreview('piano');
             audioEngine.playNote('C4', '8n', 'piano');
           }}
-          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-amber-500/30 hover:border-amber-400 p-5 rounded-3xl cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/20 hover:-translate-y-1 flex flex-col justify-between overflow-hidden"
+          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-amber-500/30 hover:border-amber-400 p-3.5 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/20 hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden"
         >
-          {/* Top Tag & Acoustic Accent */}
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
-              88 KEYS • WATERFALL
+            <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+              88 KEYS
             </span>
-            <div className="w-2 h-2 rounded-full bg-amber-400 group-hover:animate-ping" />
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 group-hover:animate-ping" />
           </div>
 
-          {/* Visual Piano Motif */}
-          <div className="my-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600 to-yellow-400 flex items-center justify-center text-slate-950 shadow-lg shadow-amber-500/30 group-hover:scale-110 transition-transform">
-                <Piano className="w-6 h-6 stroke-[2.2]" />
+          <div className="my-2.5 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-400 flex items-center justify-center text-slate-950 shadow-md shadow-amber-500/30 group-hover:scale-105 transition-transform shrink-0">
+                <Piano className="w-4 h-4 stroke-[2.2]" />
               </div>
               <div>
-                <h3 className="text-xl font-black text-white group-hover:text-amber-300 transition-colors">
-                  Grand Piano
+                <h3 className="text-sm font-black text-white group-hover:text-amber-300 transition-colors leading-tight">
+                  Piano
                 </h3>
-                <span className="text-xs text-amber-400/90 font-medium">Concert Live</span>
+                <span className="text-[10px] text-amber-400/90 font-medium">88 Keys & Waterfall</span>
               </div>
             </div>
 
-            {/* Interactive Mini Keyboard Visual Illustration */}
-            <div className="h-10 w-full bg-slate-950 rounded-xl p-1 flex border border-slate-800 shadow-inner overflow-hidden">
-              {['C', 'D', 'E', 'F', 'G', 'A', 'B'].map((k, i) => (
-                <div
-                  key={i}
-                  className="flex-1 bg-slate-200 border-r border-slate-400 last:border-0 rounded-b-[2px] flex items-end justify-center pb-0.5 text-[8px] font-bold text-slate-700 group-hover:bg-amber-100 transition-colors"
-                >
-                  {k}
-                </div>
-              ))}
-            </div>
-
-            <p className="text-slate-400 text-xs leading-relaxed">
-              88-key keyboard with <strong className="text-amber-300 font-bold">glissando</strong>, falling notes waterfall, and recorder.
+            <p className="text-slate-400 text-[11px] leading-snug line-clamp-2">
+              88-key piano keyboard, falling notes waterfall, and built-in recorder.
             </p>
           </div>
 
-          {/* Action button */}
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-amber-400 font-black text-xs group-hover:text-amber-300">
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-amber-400 font-bold text-[11px] group-hover:text-amber-300">
             <span>Play Now</span>
-            <div className="w-7 h-7 rounded-xl bg-amber-500/20 group-hover:bg-amber-500 group-hover:text-slate-950 flex items-center justify-center transition-all">
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </div>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
 
@@ -213,53 +198,36 @@ export const HomeView: React.FC<HomeViewProps> = ({
             setActiveTabPreview('sheet');
             audioEngine.playNote('E4', '8n', 'piano');
           }}
-          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-indigo-500/30 hover:border-indigo-400 p-5 rounded-3xl cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-indigo-500/20 hover:-translate-y-1 flex flex-col justify-between overflow-hidden"
+          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-indigo-500/30 hover:border-indigo-400 p-3.5 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/20 hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden"
         >
-          {/* Top Tag & Acoustic Accent */}
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 px-2.5 py-0.5 rounded-full">
-              STAVE
+            <span className="text-[9px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 px-2 py-0.5 rounded-full">
+              SHEET MUSIC
             </span>
-            <div className="w-2 h-2 rounded-full bg-indigo-400 group-hover:animate-ping" />
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 group-hover:animate-ping" />
           </div>
 
-          {/* Visual Sheet Motif */}
-          <div className="my-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 group-hover:scale-110 transition-transform">
-                <BookOpen className="w-6 h-6 stroke-[2.2]" />
+          <div className="my-2.5 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center text-white shadow-md shadow-indigo-500/30 group-hover:scale-105 transition-transform shrink-0">
+                <BookOpen className="w-4 h-4 stroke-[2.2]" />
               </div>
               <div>
-                <h3 className="text-xl font-black text-white group-hover:text-indigo-300 transition-colors">
-                  Sheet Music
+                <h3 className="text-sm font-black text-white group-hover:text-indigo-300 transition-colors leading-tight">
+                  Composer
                 </h3>
-                <span className="text-xs text-indigo-400/90 font-medium">Composer</span>
+                <span className="text-[10px] text-indigo-400/90 font-medium">Score & Notation</span>
               </div>
             </div>
 
-            {/* Interactive Pentagram Stave Illustration */}
-            <div className="h-10 w-full bg-slate-950/80 rounded-xl p-2 flex flex-col justify-between border border-slate-800 shadow-inner relative overflow-hidden">
-              <div className="w-full h-px bg-slate-700" />
-              <div className="w-full h-px bg-slate-700" />
-              <div className="w-full h-px bg-slate-700" />
-              <div className="w-full h-px bg-slate-700" />
-              <div className="w-full h-px bg-slate-700" />
-              <div className="absolute top-1 left-4 text-xs font-serif text-indigo-400">𝄞</div>
-              <div className="absolute top-3 left-12 w-2 h-2 rounded-full bg-amber-400" />
-              <div className="absolute top-1.5 left-24 w-2 h-2 rounded-full bg-indigo-400" />
-            </div>
-
-            <p className="text-slate-400 text-xs leading-relaxed">
-              Compose sheet music note by note, set <strong className="text-indigo-300 font-bold">BPM & melody</strong>, and export to MIDI.
+            <p className="text-slate-400 text-[11px] leading-snug line-clamp-2">
+              Compose sheet music note-by-note and export to MIDI.
             </p>
           </div>
 
-          {/* Action button */}
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-indigo-400 font-black text-xs group-hover:text-indigo-300">
-            <span>Compose Now</span>
-            <div className="w-7 h-7 rounded-xl bg-indigo-500/20 group-hover:bg-indigo-500 group-hover:text-white flex items-center justify-center transition-all">
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </div>
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-indigo-400 font-bold text-[11px] group-hover:text-indigo-300">
+            <span>Compose</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
 
@@ -270,213 +238,202 @@ export const HomeView: React.FC<HomeViewProps> = ({
             setActiveTabPreview('jam');
             audioEngine.playNote('G3', '8n', 'piano');
           }}
-          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-emerald-500/30 hover:border-emerald-400 p-5 rounded-3xl cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/20 hover:-translate-y-1 flex flex-col justify-between overflow-hidden"
+          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-emerald-500/30 hover:border-emerald-400 p-3.5 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/20 hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden"
         >
-          {/* Top Tag & Acoustic Accent */}
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+            <span className="text-[9px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
               LIVE BAND
             </span>
-            <div className="w-2 h-2 rounded-full bg-emerald-400 group-hover:animate-ping" />
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 group-hover:animate-ping" />
           </div>
 
-          {/* Visual Jam Motif */}
-          <div className="my-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform">
-                <Radio className="w-6 h-6 stroke-[2.2]" />
+          <div className="my-2.5 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-slate-950 shadow-md shadow-emerald-500/30 group-hover:scale-105 transition-transform shrink-0">
+                <Radio className="w-4 h-4 stroke-[2.2]" />
               </div>
               <div>
-                <h3 className="text-xl font-black text-white group-hover:text-emerald-300 transition-colors">
+                <h3 className="text-sm font-black text-white group-hover:text-emerald-300 transition-colors leading-tight">
                   Jam Band
                 </h3>
-                <span className="text-xs text-emerald-400/90 font-medium">Accompaniment</span>
+                <span className="text-[10px] text-emerald-400/90 font-medium">Live Drums & Bass</span>
               </div>
             </div>
 
-            {/* Interactive Multi-track VU meters Illustration */}
-            <div className="h-10 w-full bg-slate-950 rounded-xl p-2 flex items-center justify-around border border-slate-800 shadow-inner">
-              {[
-                { name: 'Piano', color: 'bg-amber-400' },
-                { name: 'Bass', color: 'bg-emerald-400' },
-                { name: 'Drums', color: 'bg-rose-400' },
-              ].map((trk, i) => (
-                <div key={i} className="flex flex-col items-center gap-0.5">
-                  <div className="w-6 h-3 bg-slate-800 rounded-sm overflow-hidden flex">
-                    <div className={`h-full ${trk.color} w-3/4 rounded-sm animate-pulse`} />
-                  </div>
-                  <span className="text-[7px] text-slate-500 uppercase font-black">{trk.name}</span>
-                </div>
-              ))}
-            </div>
-
-            <p className="text-slate-400 text-xs leading-relaxed">
-              Jam with automated backing band: <strong className="text-emerald-300 font-bold">bass & drums</strong> over customizable chords.
+            <p className="text-slate-400 text-[11px] leading-snug line-clamp-2">
+              Jam with auto-accompaniment on live drum rhythms and bass lines.
             </p>
           </div>
 
-          {/* Action button */}
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-emerald-400 font-black text-xs group-hover:text-emerald-300">
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-emerald-400 font-bold text-[11px] group-hover:text-emerald-300">
             <span>Start Jam</span>
-            <div className="w-7 h-7 rounded-xl bg-emerald-500/20 group-hover:bg-emerald-500 group-hover:text-slate-950 flex items-center justify-center transition-all">
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </div>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
 
-        {/* CARD 4: SOCIAL, MASTERCLASS & BATTLES */}
+        {/* CARD 4: SCALE GYM */}
+        <div
+          onClick={() => {
+            onInitAudio();
+            if (onOpenScalesModal) onOpenScalesModal();
+          }}
+          onMouseEnter={() => {
+            audioEngine.playNote('C4', '8n', 'piano');
+          }}
+          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-cyan-500/30 hover:border-cyan-400 p-3.5 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-cyan-500/20 hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-black uppercase tracking-wider text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded-full">
+              TECHNIQUE
+            </span>
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 group-hover:animate-ping" />
+          </div>
+
+          <div className="my-2.5 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-teal-400 flex items-center justify-center text-slate-950 shadow-md shadow-cyan-500/30 group-hover:scale-105 transition-transform shrink-0">
+                <Layers className="w-4 h-4 stroke-[2.2]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-white group-hover:text-cyan-300 transition-colors leading-tight">
+                  Scale Gym
+                </h3>
+                <span className="text-[10px] text-cyan-300/90 font-medium">Hanon & Scales</span>
+              </div>
+            </div>
+
+            <p className="text-slate-400 text-[11px] leading-snug line-clamp-2">
+              Practice 12 major & minor scales, Hanon exercises, and fingering.
+            </p>
+          </div>
+
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-cyan-300 font-bold text-[11px] group-hover:text-cyan-200">
+            <span>Open Gym</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </div>
+
+        {/* CARD 5: SOCIAL & MASTERCLASS */}
         <div
           onClick={() => handleOpenMode('social')}
           onMouseEnter={() => {
             setActiveTabPreview('social');
             audioEngine.playNote('B4', '8n', 'piano');
           }}
-          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-purple-500/30 hover:border-purple-400 p-5 rounded-3xl cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20 hover:-translate-y-1 flex flex-col justify-between overflow-hidden"
+          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-purple-500/30 hover:border-purple-400 p-3.5 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden"
         >
-          {/* Top Tag & Acoustic Accent */}
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/30 px-2.5 py-0.5 rounded-full">
+            <span className="text-[9px] font-black uppercase tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/30 px-2 py-0.5 rounded-full">
               MASTERCLASS
             </span>
-            <div className="w-2 h-2 rounded-full bg-purple-400 group-hover:animate-ping" />
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-400 group-hover:animate-ping" />
           </div>
 
-          {/* Visual Social Motif */}
-          <div className="my-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-400 flex items-center justify-center text-white shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform">
-                <Users className="w-6 h-6 stroke-[2.2]" />
+          <div className="my-2.5 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-400 flex items-center justify-center text-white shadow-md shadow-purple-500/30 group-hover:scale-105 transition-transform shrink-0">
+                <Users className="w-4 h-4 stroke-[2.2]" />
               </div>
               <div>
-                <h3 className="text-xl font-black text-white group-hover:text-purple-300 transition-colors">
-                  Social
+                <h3 className="text-sm font-black text-white group-hover:text-purple-300 transition-colors leading-tight">
+                  Masterclass & Social
                 </h3>
-                <span className="text-xs text-purple-400/90 font-medium">Multiplayer & Lessons</span>
+                <span className="text-[10px] text-purple-400/90 font-medium">Teacher ↔ Student Live</span>
               </div>
             </div>
 
-            {/* Interactive Social Badge Illustration */}
-            <div className="h-10 w-full bg-slate-950 rounded-xl p-2 flex items-center justify-around border border-slate-800 shadow-inner">
-              <span className="text-[10px]">🎓 Master</span>
-              <span className="text-[10px]">⚡ Battle</span>
-            </div>
-
-            <p className="text-slate-400 text-xs leading-relaxed">
-              <strong className="text-purple-300 font-bold">Master-Student</strong> lessons, 1v1 duels, relay, and piano bar.
+            <p className="text-slate-400 text-[11px] leading-snug line-clamp-2">
+              Live lessons with voice audio, 1v1 duels, and shared musical phrases.
             </p>
           </div>
 
-          {/* Action button */}
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-purple-400 font-black text-xs group-hover:text-purple-300">
-            <span>Enter Social</span>
-            <div className="w-7 h-7 rounded-xl bg-purple-500/20 group-hover:bg-purple-500 group-hover:text-white flex items-center justify-center transition-all">
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </div>
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-purple-400 font-bold text-[11px] group-hover:text-purple-300">
+            <span>Enter Classroom</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
 
-        {/* CARD 5: RECORDINGS MANAGER */}
+        {/* CARD 6: TUTORIAL & GUIDA COMPLETA */}
+        <div
+          onClick={() => {
+            onInitAudio();
+            setIsTutorialOpen(true);
+          }}
+          onMouseEnter={() => {
+            audioEngine.playNote('D4', '8n', 'piano');
+          }}
+          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-yellow-500/40 hover:border-yellow-300 p-3.5 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-yellow-500/25 hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden ring-1 ring-yellow-500/20"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-black uppercase tracking-wider text-yellow-300 bg-yellow-500/20 border border-yellow-500/40 px-2 py-0.5 rounded-full">
+              APP GUIDE
+            </span>
+            <Sparkles className="w-3 h-3 text-yellow-400 group-hover:animate-spin" />
+          </div>
+
+          <div className="my-2.5 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-yellow-500 to-amber-300 flex items-center justify-center text-slate-950 shadow-md shadow-yellow-500/30 group-hover:scale-105 transition-transform shrink-0">
+                <BookOpen className="w-4 h-4 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-white group-hover:text-yellow-300 transition-colors leading-tight">
+                  Tutorial
+                </h3>
+                <span className="text-[10px] text-yellow-300 font-bold">Guide & Options</span>
+              </div>
+            </div>
+
+            <p className="text-slate-300 text-[11px] leading-snug line-clamp-2">
+              Detailed guide to Masterclass, MIDI setup, sheet music, and all options.
+            </p>
+          </div>
+
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-yellow-300 font-bold text-[11px] group-hover:text-yellow-200">
+            <span>Open Guide</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </div>
+
+        {/* CARD 7: RECORDINGS & EXERCISES */}
         <div
           onClick={() => handleOpenMode('recordings')}
           onMouseEnter={() => {
             setActiveTabPreview('recordings');
             audioEngine.playNote('A4', '8n', 'piano');
           }}
-          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-yellow-500/30 hover:border-yellow-400 p-5 rounded-3xl cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-yellow-500/20 hover:-translate-y-1 flex flex-col justify-between overflow-hidden"
+          className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-slate-700/60 hover:border-slate-500 p-3.5 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-slate-500/10 hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden"
         >
-          {/* Top Tag */}
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2.5 py-0.5 rounded-full">
+            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 bg-slate-800/60 border border-slate-700 px-2 py-0.5 rounded-full">
               ARCHIVE
             </span>
-            <div className="w-2 h-2 rounded-full bg-yellow-400 group-hover:animate-ping" />
+            <div className="w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:animate-ping" />
           </div>
 
-          {/* Visual Recording Motif */}
-          <div className="my-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-yellow-600 to-amber-400 flex items-center justify-center text-slate-950 shadow-lg shadow-yellow-500/30 group-hover:scale-110 transition-transform">
-                <Disc3 className="w-6 h-6 stroke-[2.2] animate-spin [animation-duration:8s]" />
+          <div className="my-2.5 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-slate-700 to-slate-500 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform shrink-0">
+                <Disc3 className="w-4 h-4 stroke-[2.2] animate-spin [animation-duration:10s]" />
               </div>
               <div>
-                <h3 className="text-xl font-black text-white group-hover:text-yellow-300 transition-colors">
+                <h3 className="text-sm font-black text-white group-hover:text-slate-200 transition-colors leading-tight">
                   Recordings
                 </h3>
-                <span className="text-xs text-yellow-400/90 font-medium">Performance Manager</span>
+                <span className="text-[10px] text-slate-400 font-medium">Saved Tracks</span>
               </div>
             </div>
 
-            {/* Interactive Cassette Tape Illustration */}
-            <div className="h-10 w-full bg-slate-950 rounded-xl p-2 flex items-center justify-around border border-slate-800 shadow-inner">
-              <span className="text-[10px] text-amber-300">🔊 Listen</span>
-              <span className="text-[10px] text-slate-300">✏️ Rename</span>
-              <span className="text-[10px] text-red-400">🗑️ Delete</span>
-            </div>
-
-            <p className="text-slate-400 text-xs leading-relaxed">
-              Manage your <strong className="text-yellow-300 font-bold">saved recordings</strong>: listen to performances, rename, and download MIDI.
+            <p className="text-slate-400 text-[11px] leading-snug line-clamp-2">
+              Listen to and export your live piano performances.
             </p>
           </div>
 
-          {/* Action button */}
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-yellow-400 font-black text-xs group-hover:text-yellow-300">
-            <span>Open Archive</span>
-            <div className="w-7 h-7 rounded-xl bg-yellow-500/20 group-hover:bg-yellow-500 group-hover:text-slate-950 flex items-center justify-center transition-all">
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </div>
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-slate-300 font-bold text-[11px] group-hover:text-white">
+            <span>Archive</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
-
-        {/* CARD: SCALES & FINGER PRACTICE HUB */}
-        {onOpenScalesModal && (
-          <div
-            onClick={() => {
-              onInitAudio();
-              onOpenScalesModal();
-            }}
-            className="group relative bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-amber-500/30 hover:border-amber-400 p-5 rounded-3xl cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/20 hover:-translate-y-1 flex flex-col justify-between overflow-hidden"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
-                WARMUP
-              </span>
-              <div className="w-2 h-2 rounded-full bg-amber-400 group-hover:animate-ping" />
-            </div>
-
-            <div className="my-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600 to-yellow-400 flex items-center justify-center text-slate-950 shadow-lg shadow-amber-500/30 group-hover:scale-110 transition-transform">
-                  <Layers className="w-6 h-6 stroke-[2.2]" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-white group-hover:text-amber-300 transition-colors">
-                    Scale Gym
-                  </h3>
-                  <span className="text-xs text-amber-400/90 font-medium">Hanon & 12 Keys</span>
-                </div>
-              </div>
-
-              <div className="h-10 w-full bg-slate-950 rounded-xl p-2 flex items-center justify-center gap-2 border border-slate-800 shadow-inner">
-                <span className="text-[10px] bg-slate-900 px-2 py-1 rounded text-amber-300 font-mono font-bold">D1</span>
-                <span className="text-[10px] bg-slate-900 px-2 py-1 rounded text-amber-300 font-mono font-bold">D2</span>
-                <span className="text-[10px] bg-slate-900 px-2 py-1 rounded text-amber-300 font-mono font-bold">D3</span>
-                <span className="text-[10px] bg-slate-900 px-2 py-1 rounded text-amber-300 font-mono font-bold">D4</span>
-                <span className="text-[10px] bg-slate-900 px-2 py-1 rounded text-amber-300 font-mono font-bold">D5</span>
-              </div>
-
-              <p className="text-slate-400 text-xs leading-relaxed">
-                Agility exercises <strong className="text-amber-300 font-bold">Hanon, scales in all 12 keys</strong>, and fingering guide.
-              </p>
-            </div>
-
-            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-amber-400 font-black text-xs group-hover:text-amber-300">
-              <span>Start Gym</span>
-              <div className="w-7 h-7 rounded-xl bg-amber-500/20 group-hover:bg-amber-500 group-hover:text-slate-950 flex items-center justify-center transition-all">
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* FOOTER SOUNDBOARD BAR: Quick Studio Stats & Acoustic Engine indicator */}
@@ -517,6 +474,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
           )}
         </div>
       </div>
+
+      <TutorialModal
+        isOpen={isTutorialOpen}
+        onClose={() => setIsTutorialOpen(false)}
+        onOpenMode={handleOpenMode}
+      />
     </div>
   );
 };

@@ -208,7 +208,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onInitAudio();
               onOpenScalesModal();
             }}
-            className="hidden sm:flex items-center gap-1 px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-xl text-[10px] sm:text-xs font-black transition-all shadow-sm active:scale-95 cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-xl text-[10px] sm:text-xs font-black transition-all shadow-sm active:scale-95 cursor-pointer"
             title="Scales & Warmup Gym (Hanon, 12 Keys, Arpeggios)"
           >
             <Layers className="w-3.5 h-3.5 text-amber-400 shrink-0" />

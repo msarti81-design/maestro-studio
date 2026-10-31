@@ -71,37 +71,22 @@ export const getPublishedSongs = (): InteractiveSong[] => {
     const raw = localStorage.getItem(PUBLISHED_SONGS_KEY);
     const parsed: InteractiveSong[] = raw ? JSON.parse(raw) : [];
 
-    const defaultMap = new Map<string, InteractiveSong>();
-    for (const def of DEFAULT_INTERACTIVE_SONGS) {
-      if (def && def.id) {
-        defaultMap.set(def.id, def);
-      }
-    }
-
     const seen = new Set<string>();
     const unique: InteractiveSong[] = [];
 
-    for (const s of parsed) {
-      if (s && s.id && !seen.has(s.id)) {
-        const def = defaultMap.get(s.id);
-        if (def) {
-          // Automatically upgrade to full default song if cached version has fewer notes
-          if (!s.notes || s.notes.length < def.notes.length) {
-            unique.push(def);
-          } else {
-            unique.push(s);
-          }
-        } else {
-          unique.push(s);
-        }
-        seen.add(s.id);
+    // Always prioritize latest built-in DEFAULT_INTERACTIVE_SONGS from code
+    for (const def of DEFAULT_INTERACTIVE_SONGS) {
+      if (def && def.id) {
+        seen.add(def.id);
+        unique.push(def);
       }
     }
 
-    for (const def of DEFAULT_INTERACTIVE_SONGS) {
-      if (def && def.id && !seen.has(def.id)) {
-        seen.add(def.id);
-        unique.push(def);
+    // Append user-created custom published songs that are not in defaults
+    for (const s of parsed) {
+      if (s && s.id && !seen.has(s.id)) {
+        seen.add(s.id);
+        unique.push(s);
       }
     }
 

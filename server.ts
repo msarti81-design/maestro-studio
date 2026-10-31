@@ -130,16 +130,15 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.191",
-      buildDate: "2026-10-31 11:00",
-      commit: "c4e5f6a",
+      version: "1.0.200",
+      buildDate: "2026-10-31 14:30",
+      commit: "e7f8a9b",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Permanent stable Teacher room code MASTERCLASS-190 with robust persistence across disconnections and reloads",
-        "Student note highlighting in distinct cyan color (#38bdf8) on Maestro screen (CanvasPiano & MiniMapKeyboard)",
-        "WebRTC Unified Plan Fix: full-duplex symmetric voice transceiver matching (mid !== null) + receiver sync",
-        "WebRTC DataChannel P2P Ultra-Fast Note Delivery (<10ms for glissando)"
+        "Full English translation for interface, cards, tutorial, and waterfall prompts",
+        "Streamlined 6-column grid for Home menu",
+        "Interactive 5-tab Tutorial Modal"
       ]
     });
   });

@@ -28,6 +28,7 @@ import {
   MessageCircle,
   Timer,
   Palette,
+  Eye,
   Layers,
   Hand,
   Play,
@@ -669,7 +670,46 @@ export const PianoView: React.FC<PianoViewProps> = ({
   }, []);
 
   const [masterclassPlayMode, setMasterclassPlayMode] = useState<'arcade' | 'learn'>('arcade');
-  const [masterclassViewMode, setMasterclassViewMode] = useState<'waterfall' | 'sheet'>('waterfall');
+  
+  const [defaultViewMode, setDefaultViewMode] = useState<'waterfall' | 'sheet'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('maestro_default_view_mode');
+      if (saved === 'sheet' || saved === 'waterfall') return saved;
+    }
+    return 'waterfall';
+  });
+
+  const [masterclassViewMode, setMasterclassViewMode] = useState<'waterfall' | 'sheet'>(defaultViewMode);
+
+  // Sync view mode when active song starts
+  useEffect(() => {
+    if (activeSong) {
+      setMasterclassViewMode(defaultViewMode);
+    }
+  }, [activeSong, defaultViewMode]);
+
+  const handleDefaultViewModeChange = (mode: 'waterfall' | 'sheet') => {
+    setDefaultViewMode(mode);
+    setMasterclassViewMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('maestro_default_view_mode', mode);
+    }
+  };
+
+  const [sheetScrollMode, setSheetScrollMode] = useState<'sweeping' | 'continuous'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('maestro_sheet_scroll_mode');
+      if (saved === 'continuous' || saved === 'sweeping') return saved;
+    }
+    return 'sweeping';
+  });
+
+  const handleSheetScrollModeChange = (mode: 'sweeping' | 'continuous') => {
+    setSheetScrollMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('maestro_sheet_scroll_mode', mode);
+    }
+  };
 
   // Voice Audio Communication State (Maestro ↔ Allievo Live Voice Audio)
   const [isVoiceActive, setIsVoiceActive] = useState<boolean>(false);
@@ -3033,6 +3073,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             initialPlayMode={masterclassPlayMode}
             initialViewMode={masterclassViewMode}
             onViewModeChange={setMasterclassViewMode}
+            sheetScrollMode={sheetScrollMode}
             isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
             onActiveGuidanceChange={setSongGuidance}
             onMasterclassFinished={() => {
@@ -3184,6 +3225,89 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* DEFAULT VIEW MODE ON SONG START */}
+              <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-amber-400" />
+                    <div>
+                      <span className="font-bold text-white text-xs">Vista Predefinita all'Avvio del Brano</span>
+                      <span className="text-[10px] text-slate-400 block">Scegli quale vista mostrare automaticamente al via (Cascata o Spartito)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => handleDefaultViewModeChange('waterfall')}
+                    className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
+                      defaultViewMode === 'waterfall'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
+                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="block text-sm mb-0.5">🎹</span>
+                    <span className="font-bold text-[11px] block">Cascata (Waterfall)</span>
+                    <span className="text-[9px] text-slate-400 block">Note stile Synthesia arcade</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleDefaultViewModeChange('sheet')}
+                    className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
+                      defaultViewMode === 'sheet'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
+                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="block text-sm mb-0.5">🎼</span>
+                    <span className="font-bold text-[11px] block">Spartito Tradizionale</span>
+                    <span className="text-[9px] text-slate-400 block">Doppio pentagramma scorrevole</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* SHEET SCROLL MODE SELECTOR */}
+              <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-amber-400" />
+                    <div>
+                      <span className="font-bold text-white text-xs">Stile Scorrimento dello Spartito</span>
+                      <span className="text-[10px] text-slate-400 block">Scegli la dinamica di movimento della riga rossa e del pentagramma</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => handleSheetScrollModeChange('sweeping')}
+                    className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
+                      sheetScrollMode === 'sweeping'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
+                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="block text-sm mb-0.5">🚩</span>
+                    <span className="font-bold text-[11px] block">Riga Mobile & Cambio Pagina (Default)</span>
+                    <span className="text-[9px] text-slate-400 block">La riga attraversa lo spartito e gira pagina</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleSheetScrollModeChange('continuous')}
+                    className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
+                      sheetScrollMode === 'continuous'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
+                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="block text-sm mb-0.5">📜</span>
+                    <span className="font-bold text-[11px] block">Riga Fissa & Scorrimento Continuo</span>
+                    <span className="text-[9px] text-slate-400 block">La riga sta ferma e lo spartito scivola sotto</span>
+                  </button>
+                </div>
+              </div>
+
               {/* TEST AUDIO NOTE IN SEQUENZA (GLISSANDO CRACKLE-FREE TEST) */}
               <div className="bg-gradient-to-r from-amber-500/15 via-slate-800/80 to-slate-800/80 p-3.5 rounded-xl border border-amber-500/30 space-y-2.5">
                 <div className="flex items-center justify-between">

@@ -81,16 +81,15 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.181",
-      buildDate: "2026-10-31 08:50",
-      commit: "8f41b2e",
+      version: "1.0.200",
+      buildDate: "2026-10-31 14:30",
+      commit: "e7f8a9b",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Student note highlighting in distinct cyan color (#38bdf8) on Maestro screen (CanvasPiano & MiniMapKeyboard)",
-        "WebRTC Unified Plan Fix: full-duplex symmetric voice transceiver matching (mid !== null) + receiver sync",
-        "WebRTC DataChannel P2P Ultra-Fast Note Delivery (<10ms for glissando)",
-        "Unidirectional Masterclass Piano Audio (Student -> Maestro only)"
+        "Full English translation for interface, cards, tutorial, and waterfall prompts",
+        "Streamlined 6-column grid for Home menu",
+        "Interactive 5-tab Tutorial Modal"
       ]
     });
   });
@@ -916,7 +915,8 @@ Return a JSON object containing:
       }
     });
   }
-  const PORT = Number(process.env.PORT) || 3e3;
+  const rawPort = Number(process.env.PORT);
+  const PORT = rawPort && rawPort !== 8080 ? rawPort : 3e3;
   httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server & WebSockets running on http://localhost:${PORT}`);
   });
