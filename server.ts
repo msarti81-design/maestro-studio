@@ -130,14 +130,14 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.201",
-      buildDate: "2026-10-31 23:00",
-      commit: "7c9e102",
+      version: "1.0.202",
+      buildDate: "2026-10-31 23:10",
+      commit: "8b1d204",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Ultra-compact artistic musical logo header with minimal height",
-        "7 menu cards start immediately without wrapping on tablets and landscape screens",
+        "Logo repositioned equidistant between top navigation bar and menu cards",
+        "7 menu cards balanced across 2 roomy rows (4 studio cards on top, 3 centered below)",
         "Full English translation for interface, cards, tutorial, and waterfall prompts",
         "Interactive 5-tab Tutorial Modal",
       ],

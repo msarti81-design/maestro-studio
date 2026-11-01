@@ -1,9 +1,9 @@
-export const APP_VERSION = '1.0.201';
-export const APP_BUILD_DATE = '31 Oct 2026 - 23:00';
-export const APP_COMMIT = '7c9e102';
+export const APP_VERSION = '1.0.202';
+export const APP_BUILD_DATE = '31 Oct 2026 - 23:10';
+export const APP_COMMIT = '8b1d204';
 export const APP_CHANGELOG = [
-  'Ultra-compact artistic musical logo header with minimal height',
-  '7 menu cards start immediately without wrapping on tablets and landscape screens',
+  'Logo repositioned equidistant between top navigation bar and menu cards',
+  '7 menu cards balanced across 2 roomy rows (4 studio cards on top, 3 centered below)',
   'Full English localization across all studio modes, cards, and modals',
   'Dual-staff Treble & Bass notation for all 192 songs',
 ];
