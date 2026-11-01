@@ -317,7 +317,47 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
 
-        {/* CARD 6: TUTORIAL & GUIDE */}
+        {/* CARD 6: RECORDINGS & ARCHIVE */}
+        <div
+          onClick={() => handleOpenMode('recordings')}
+          onMouseEnter={() => {
+            setActiveTabPreview('recordings');
+            audioEngine.playNote('A4', '8n', 'piano');
+          }}
+          className={`${cardBaseClass} bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-slate-700/60 hover:border-slate-500 hover:shadow-slate-500/10`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 bg-slate-800/60 border border-slate-700 px-2 py-0.5 rounded-full">
+              ARCHIVE
+            </span>
+            <div className="w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:animate-ping" />
+          </div>
+
+          <div className="my-2 space-y-1.5 flex-1">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-slate-700 to-slate-500 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform shrink-0">
+                <Disc3 className="w-4 h-4 stroke-[2.2] animate-spin [animation-duration:10s]" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-black text-white group-hover:text-slate-200 transition-colors leading-tight truncate">
+                  Recordings
+                </h3>
+                <span className="text-[10px] text-slate-400 font-medium truncate block">Saved Tracks</span>
+              </div>
+            </div>
+
+            <p className="text-slate-400 text-[11px] leading-snug line-clamp-2 h-[2.5rem]">
+              Listen to and export your live piano performances.
+            </p>
+          </div>
+
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-slate-300 font-bold text-[11px] group-hover:text-white">
+            <span>Archive</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </div>
+
+        {/* CARD 7: TUTORIAL & GUIDE */}
         <div
           onClick={() => {
             onInitAudio();
@@ -355,46 +395,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
           <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-yellow-300 font-bold text-[11px] group-hover:text-yellow-200">
             <span>Open Guide</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </div>
-        </div>
-
-        {/* CARD 7: RECORDINGS & ARCHIVE */}
-        <div
-          onClick={() => handleOpenMode('recordings')}
-          onMouseEnter={() => {
-            setActiveTabPreview('recordings');
-            audioEngine.playNote('A4', '8n', 'piano');
-          }}
-          className={`${cardBaseClass} bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-slate-700/60 hover:border-slate-500 hover:shadow-slate-500/10`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 bg-slate-800/60 border border-slate-700 px-2 py-0.5 rounded-full">
-              ARCHIVE
-            </span>
-            <div className="w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:animate-ping" />
-          </div>
-
-          <div className="my-2 space-y-1.5 flex-1">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-slate-700 to-slate-500 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform shrink-0">
-                <Disc3 className="w-4 h-4 stroke-[2.2] animate-spin [animation-duration:10s]" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm sm:text-base font-black text-white group-hover:text-slate-200 transition-colors leading-tight truncate">
-                  Recordings
-                </h3>
-                <span className="text-[10px] text-slate-400 font-medium truncate block">Saved Tracks</span>
-              </div>
-            </div>
-
-            <p className="text-slate-400 text-[11px] leading-snug line-clamp-2 h-[2.5rem]">
-              Listen to and export your live piano performances.
-            </p>
-          </div>
-
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-slate-300 font-bold text-[11px] group-hover:text-white">
-            <span>Archive</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>

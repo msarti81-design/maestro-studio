@@ -81,12 +81,13 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.203",
-      buildDate: "2026-10-31 23:15",
-      commit: "9c3e415",
+      version: "1.0.204",
+      buildDate: "2026-10-31 23:20",
+      commit: "0d4e512",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "Tutorial card positioned as the 7th and final card in the menu",
         "All 7 menu cards now have identical width, height, and proportions across 2 centered rows",
         "Logo repositioned equidistant between top navigation bar and menu cards",
         "Full English translation for interface, cards, tutorial, and waterfall prompts",

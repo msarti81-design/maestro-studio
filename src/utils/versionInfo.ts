@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.203';
-export const APP_BUILD_DATE = '31 Oct 2026 - 23:15';
-export const APP_COMMIT = '9c3e415';
+export const APP_VERSION = '1.0.204';
+export const APP_BUILD_DATE = '31 Oct 2026 - 23:20';
+export const APP_COMMIT = '0d4e512';
 export const APP_CHANGELOG = [
+  'Tutorial card positioned as the 7th and final card in the menu',
   'All 7 menu cards now have identical width, height, and proportions across 2 centered rows',
   'Logo vertically centered with equal distance to top bar and menu cards',
   'Full English localization across all studio modes, cards, and modals',
-  'Dual-staff Treble & Bass notation for all 192 songs',
 ];
 
 export interface ServerVersionInfo {
