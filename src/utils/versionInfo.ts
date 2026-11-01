@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.200';
-export const APP_BUILD_DATE = '31 Oct 2026 - 14:30';
-export const APP_COMMIT = 'e7f8a9b';
+export const APP_VERSION = '1.0.201';
+export const APP_BUILD_DATE = '31 Oct 2026 - 23:00';
+export const APP_COMMIT = '7c9e102';
 export const APP_CHANGELOG = [
-  'Full English localization across all studio modes, cards, modals, and interactive prompts',
-  'Compact 6-column main menu layout for streamlined mobile and desktop navigation',
-  'Comprehensive 5-tab Interactive Guide and Tutorial Modal in English',
-  'Dual-staff Treble & Bass notation for all 192 built-in songs',
+  'Ultra-compact artistic musical logo header with minimal height',
+  '7 menu cards start immediately without wrapping on tablets and landscape screens',
+  'Full English localization across all studio modes, cards, and modals',
+  'Dual-staff Treble & Bass notation for all 192 songs',
 ];
 
 export interface ServerVersionInfo {
