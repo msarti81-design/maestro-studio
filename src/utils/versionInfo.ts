@@ -1,11 +1,12 @@
-export const APP_VERSION = '1.0.204';
-export const APP_BUILD_DATE = '31 Oct 2026 - 23:20';
-export const APP_COMMIT = '0d4e512';
+export const APP_VERSION = '1.0.205';
+export const APP_BUILD_DATE = '01 Nov 2026 - 15:50';
+export const APP_COMMIT = 'b729a41';
 export const APP_CHANGELOG = [
+  'Google Play Store official asset package (512x512 icon, 1024x500 banner, screenshots & ZIP)',
+  'In-app Play Store asset preview and direct download manager',
   'Tutorial card positioned as the 7th and final card in the menu',
   'All 7 menu cards now have identical width, height, and proportions across 2 centered rows',
   'Logo vertically centered with equal distance to top bar and menu cards',
-  'Full English localization across all studio modes, cards, and modals',
 ];
 
 export interface ServerVersionInfo {

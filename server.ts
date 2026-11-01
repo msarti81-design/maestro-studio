@@ -130,17 +130,17 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.204",
-      buildDate: "2026-10-31 23:20",
-      commit: "0d4e512",
+      version: "1.0.205",
+      buildDate: "2026-11-01 15:50",
+      commit: "b729a41",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "Google Play Store official asset package (512x512 icon, 1024x500 banner, screenshots & ZIP)",
+        "In-app Play Store asset preview and direct download manager",
         "Tutorial card positioned as the 7th and final card in the menu",
         "All 7 menu cards now have identical width, height, and proportions across 2 centered rows",
         "Logo repositioned equidistant between top navigation bar and menu cards",
-        "Full English translation for interface, cards, tutorial, and waterfall prompts",
-        "Interactive 5-tab Tutorial Modal",
       ],
     });
   });

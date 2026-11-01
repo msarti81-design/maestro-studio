@@ -6,9 +6,10 @@ import { isNativePlatform } from '../utils/networkHelper';
 interface VersionModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenPlayAssetsModal?: () => void;
 }
 
-export const VersionModal: React.FC<VersionModalProps> = ({ isOpen, onClose }) => {
+export const VersionModal: React.FC<VersionModalProps> = ({ isOpen, onClose, onOpenPlayAssetsModal }) => {
   const [serverCheck, setServerCheck] = useState<{
     loading: boolean;
     serverVersion: string | null;
@@ -180,6 +181,20 @@ export const VersionModal: React.FC<VersionModalProps> = ({ isOpen, onClose }) =
             ))}
           </div>
         </div>
+
+        {/* Play Store Assets Link */}
+        {onOpenPlayAssetsModal && (
+          <button
+            onClick={() => {
+              onClose();
+              onOpenPlayAssetsModal();
+            }}
+            className="w-full py-2 px-3 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-500/40 text-amber-300 hover:text-amber-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Immagini e Icona per Google Play Store</span>
+          </button>
+        )}
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
