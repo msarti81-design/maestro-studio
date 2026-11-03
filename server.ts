@@ -130,17 +130,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.205",
-      buildDate: "2026-11-01 15:50",
-      commit: "b729a41",
+      version: "1.0.206",
+      buildDate: "2026-11-02 22:00",
+      commit: "c839f21",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Google Play Store official asset package (512x512 icon, 1024x500 banner, screenshots & ZIP)",
-        "In-app Play Store asset preview and direct download manager",
-        "Tutorial card positioned as the 7th and final card in the menu",
-        "All 7 menu cards now have identical width, height, and proportions across 2 centered rows",
-        "Logo repositioned equidistant between top navigation bar and menu cards",
+        "First Internal Testing release preparation for Google Play Console",
+        "Official 512x512 icon & 1024x500 feature graphic integration",
+        "Landscape 16:9 Google Play screenshots package included",
+        "Optimized performance for Android tablets and smartphones",
       ],
     });
   });
