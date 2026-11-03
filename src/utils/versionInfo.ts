@@ -1,9 +1,9 @@
-export const APP_VERSION = '1.0.212';
-export const APP_BUILD_DATE = '02 Nov 2026 - 22:52';
-export const APP_COMMIT = 'c3d4e56';
+export const APP_VERSION = '1.0.213';
+export const APP_BUILD_DATE = '02 Nov 2026 - 22:55';
+export const APP_COMMIT = 'd4e5f67';
 export const APP_CHANGELOG = [
-  'Fix workflow gradle platform initialization and keystore copy',
-  'Signed release AAB generation for Play Console v1.0.212',
+  'Fix workflow rm -rf android before adding platform',
+  'Signed release AAB generation for Play Console v1.0.213',
   'Package ID: it.freeserv.virtukeys • Name: VirtuKeys',
 ];
 

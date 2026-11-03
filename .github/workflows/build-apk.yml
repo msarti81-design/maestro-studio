@@ -41,8 +41,9 @@ jobs:
       - name: Install Capacitor CLI & Platform
         run: npm install @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
 
-      - name: Add & Sync Android Platform
+      - name: Clean, Add & Sync Android Platform
         run: |
+          rm -rf android
           npx cap add android
           npx cap sync android
 

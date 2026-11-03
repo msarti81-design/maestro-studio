@@ -130,14 +130,14 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.212",
-      buildDate: "2026-11-02 22:52",
-      commit: "c3d4e56",
+      version: "1.0.213",
+      buildDate: "2026-11-02 22:55",
+      commit: "d4e5f67",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Fix workflow gradle platform initialization and keystore copy",
-        "Signed release AAB generation for Play Console v1.0.212",
+        "Fix workflow rm -rf android before adding platform",
+        "Signed release AAB generation for Play Console v1.0.213",
         "Package ID: it.freeserv.virtukeys • Name: VirtuKeys",
       ],
     });
