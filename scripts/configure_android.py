@@ -416,8 +416,21 @@ allprojects {
             import re
             content = re.sub(r'sourceCompatibility\s+JavaVersion\.VERSION_\d+', 'sourceCompatibility JavaVersion.VERSION_21', content)
             content = re.sub(r'targetCompatibility\s+JavaVersion\.VERSION_\d+', 'targetCompatibility JavaVersion.VERSION_21', content)
-            if 'signingConfig signingConfigs.debug' not in content:
-                content = content.replace('release {', 'release {\n            signingConfig signingConfigs.debug')
+            if 'signingConfigs {' not in content:
+                signing_config_block = """
+    signingConfigs {
+        release {
+            storeFile file('release.jks')
+            storePassword 'virtukeys2026'
+            keyAlias 'virtukeys-key'
+            keyPassword 'virtukeys2026'
+        }
+    }
+"""
+                content = content.replace(' buildTypes {', signing_config_block + '\n    buildTypes {')
+
+            if 'signingConfig signingConfigs.release' not in content:
+                content = content.replace('release {', 'release {\n            signingConfig signingConfigs.release')
 
             if 'kotlin-stdlib-jdk8' not in content:
                 content += "\n" + """

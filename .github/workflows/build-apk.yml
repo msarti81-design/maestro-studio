@@ -73,14 +73,18 @@ jobs:
           EOF
           fi
 
-      - name: Build Debug APK & Release AAB with Gradle
+      - name: Generate Release Keystore for Signing
+        run: |
+          keytool -genkey -v -keystore android/app/release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias virtukeys-key -storepass virtukeys2026 -keypass virtukeys2026 -dname "CN=VirtuKeys, OU=Studio, O=FreeServ, L=Italy, C=IT"
+
+      - name: Build Debug APK & Signed Release AAB with Gradle
         working-directory: android
         env:
           JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon -Dorg.gradle.java.home="$JAVA_HOME"
-          ./gradlew bundleRelease --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" || echo "Release bundle skipped without keystore"
+          ./gradlew bundleRelease --no-daemon -Dorg.gradle.java.home="$JAVA_HOME"
 
       - name: Prepare Artifacts Output
         run: |
@@ -94,7 +98,7 @@ jobs:
           AAB_FILE=$(find android/app/build/outputs/bundle/release/ -name "*.aab" | head -n 1)
           if [ -f "$AAB_FILE" ]; then
             cp "$AAB_FILE" release-output/VirtuKeys.aab
-            echo "AAB pronto: release-output/VirtuKeys.aab"
+            echo "AAB pronto (Signed Release): release-output/VirtuKeys.aab"
           fi
 
       - name: Upload Artifacts
@@ -112,9 +116,9 @@ jobs:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "VirtuKeys Android v1.0.${{ github.run_number }}"
           body: |
-            ### 🎹 VirtuKeys - Pacchetto Android (APK & AAB)
-            - **VirtuKeys.apk**: Ideale per **Test Interni** su Play Console e installazione diretta su dispositivi.
-            - **VirtuKeys.aab**: Formato **Android App Bundle** richiesto da Google Play per la pubblicazione in produzione.
+            ### 🎹 VirtuKeys - Pacchetto Android (APK & Signed AAB v1.0.${{ github.run_number }})
+            - **VirtuKeys.apk**: Ideale per test diretti.
+            - **VirtuKeys.aab**: **App Bundle firmato in modalità di rilascio** (pronto al 100% per Google Play Console - Test Interni e Produzione).
           files: |
             release-output/VirtuKeys.apk
             release-output/VirtuKeys.aab

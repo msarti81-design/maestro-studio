@@ -1,10 +1,10 @@
-export const APP_VERSION = '1.0.207';
-export const APP_BUILD_DATE = '02 Nov 2026 - 22:15';
-export const APP_COMMIT = 'd941e32';
+export const APP_VERSION = '1.0.208';
+export const APP_BUILD_DATE = '02 Nov 2026 - 22:20';
+export const APP_COMMIT = 'e82b4a1';
 export const APP_CHANGELOG = [
-  'Automatic release signing configuration for Google Play Console AAB/APK bundles',
-  'First Internal Testing release v1.0.207',
-  'Package ID updated to it.freeserv.virtukeys and app name to VirtuKeys',
+  'Automatic release keystore generation for Google Play Console AAB signing',
+  'First Internal Testing signed release v1.0.208',
+  'Package ID: it.freeserv.virtukeys • Name: VirtuKeys',
 ];
 
 export interface ServerVersionInfo {

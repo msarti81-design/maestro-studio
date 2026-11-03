@@ -130,15 +130,15 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.207",
-      buildDate: "2026-11-02 22:15",
-      commit: "d941e32",
+      version: "1.0.208",
+      buildDate: "2026-11-02 22:20",
+      commit: "e82b4a1",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Automatic release signing configuration for Google Play Console AAB/APK bundles",
-        "First Internal Testing release v1.0.207",
-        "Package ID updated to it.freeserv.virtukeys and app name to VirtuKeys",
+        "Automatic release keystore generation for Google Play Console AAB signing",
+        "First Internal Testing signed release v1.0.208",
+        "Package ID: it.freeserv.virtukeys • Name: VirtuKeys",
       ],
     });
   });
