@@ -474,8 +474,37 @@ configurations.all {
         except Exception as e:
             print("Properties config warning:", e)
 
+def configure_min_sdk():
+    variables_path = 'android/variables.gradle'
+    if os.path.exists(variables_path):
+        try:
+            with open(variables_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            import re
+            content = re.sub(r'minSdkVersion\s*=\s*\d+', 'minSdkVersion = 24', content)
+            with open(variables_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print("Successfully updated minSdkVersion to 24 in android/variables.gradle")
+        except Exception as e:
+            print("variables.gradle config warning:", e)
+
+    gradle_path = 'android/app/build.gradle'
+    if os.path.exists(gradle_path):
+        try:
+            with open(gradle_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            import re
+            content = re.sub(r'minSdk\s*=\s*\d+', 'minSdk = 24', content)
+            content = re.sub(r'minSdkVersion\s+\d+', 'minSdkVersion 24', content)
+            with open(gradle_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print("Successfully updated minSdkVersion to 24 in android/app/build.gradle")
+        except Exception as e:
+            print("app/build.gradle config warning:", e)
+
 if __name__ == '__main__':
     configure_manifest()
     configure_styles()
     configure_main_activity()
     configure_gradle()
+    configure_min_sdk()

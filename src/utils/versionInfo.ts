@@ -1,9 +1,9 @@
-export const APP_VERSION = '1.0.209';
-export const APP_BUILD_DATE = '02 Nov 2026 - 22:25';
-export const APP_COMMIT = 'f91a5c2';
+export const APP_VERSION = '1.0.210';
+export const APP_BUILD_DATE = '02 Nov 2026 - 22:30';
+export const APP_COMMIT = 'a1b2c34';
 export const APP_CHANGELOG = [
-  'Fix Gradle release signingConfig block injection in build.gradle',
-  'Signed release AAB generation for Play Console v1.0.209',
+  'Update minSdkVersion to 24 for Play Protect / Play Console compliance',
+  'Signed release AAB generation for Play Console v1.0.210',
   'Package ID: it.freeserv.virtukeys • Name: VirtuKeys',
 ];
 
