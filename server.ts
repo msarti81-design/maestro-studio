@@ -130,15 +130,15 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.213",
-      buildDate: "2026-11-02 22:55",
-      commit: "d4e5f67",
+      version: "1.0.214",
+      buildDate: "2026-11-03 13:30",
+      commit: "e5f6a78",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Fix workflow rm -rf android before adding platform",
-        "Signed release AAB generation for Play Console v1.0.213",
-        "Package ID: it.freeserv.virtukeys • Name: VirtuKeys",
+        "Set app startup landing view to Main Menu (HomeView)",
+        "Official high-res 512x512 VirtuKeys icon injected into Android mipmaps & Web PWA",
+        "Signed release AAB generation for Play Console v1.0.214",
       ],
     });
   });

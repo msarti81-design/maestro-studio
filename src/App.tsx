@@ -93,25 +93,14 @@ export default function App() {
     if (invite) return 'social';
 
     if (typeof window !== 'undefined') {
-      const path = window.location.pathname.toLowerCase();
-      if (path.includes('piano') || path.includes('song')) return 'piano';
-      if (path.includes('sheet')) return 'sheet';
-      if (path.includes('jam')) return 'jam';
-      if (path.includes('social') || path.includes('challenge')) return 'social';
-
       const hash = window.location.hash.toLowerCase();
-      if (hash.startsWith('#piano') || hash.startsWith('#song')) return 'piano';
+      if (hash.startsWith('#piano')) return 'piano';
       if (hash.startsWith('#sheet')) return 'sheet';
       if (hash.startsWith('#jam')) return 'jam';
       if (hash.startsWith('#social') || hash.startsWith('#challenge')) return 'social';
-
-      try {
-        const saved = localStorage.getItem('maestro_last_view');
-        if (saved === 'piano' || saved === 'sheet' || saved === 'jam' || saved === 'social') {
-          return saved;
-        }
-      } catch (e) {}
     }
+
+    // Default startup must always be the menu (HomeView)
     return 'home';
   });
 

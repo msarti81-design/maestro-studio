@@ -502,9 +502,18 @@ def configure_min_sdk():
         except Exception as e:
             print("app/build.gradle config warning:", e)
 
+def update_icons():
+    try:
+        import subprocess
+        subprocess.run(['node', 'scripts/update_android_icons.cjs'], check=False)
+        print("Triggered update_android_icons.cjs")
+    except Exception as e:
+        print("Icon update error:", e)
+
 if __name__ == '__main__':
     configure_manifest()
     configure_styles()
     configure_main_activity()
     configure_gradle()
     configure_min_sdk()
+    update_icons()

@@ -55,6 +55,9 @@ jobs:
       - name: Configure Android Settings (Fullscreen, Permissions, Java 21 & Kotlin Stdlib)
         run: python3 scripts/configure_android.py
 
+      - name: Inject VirtuKeys Official App Icons into Android Mipmaps
+        run: node scripts/update_android_icons.cjs
+
       - name: Resolve Kotlin Stdlib Classpath Conflicts
         run: |
           if ! grep -q "kotlin-stdlib-jdk8" android/app/build.gradle; then
