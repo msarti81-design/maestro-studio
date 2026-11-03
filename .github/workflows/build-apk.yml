@@ -41,14 +41,15 @@ jobs:
       - name: Install Capacitor CLI & Platform
         run: npm install @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
 
-      - name: Add Android Platform (if not present)
+      - name: Add & Sync Android Platform
         run: |
-          if [ ! -d "android" ]; then
-            npx cap add android
-          fi
+          npx cap add android
+          npx cap sync android
 
-      - name: Sync Web Build to Capacitor Android
-        run: npx cap sync android
+      - name: Copy Persistent Release Keystore
+        run: |
+          mkdir -p android/app
+          cp release.jks android/app/release.jks
 
       - name: Configure Android Settings (Fullscreen, Permissions, Java 21 & Kotlin Stdlib)
         run: python3 scripts/configure_android.py

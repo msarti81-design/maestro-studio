@@ -1,9 +1,9 @@
-export const APP_VERSION = '1.0.211';
-export const APP_BUILD_DATE = '02 Nov 2026 - 22:48';
-export const APP_COMMIT = 'b2c3d45';
+export const APP_VERSION = '1.0.212';
+export const APP_BUILD_DATE = '02 Nov 2026 - 22:52';
+export const APP_COMMIT = 'c3d4e56';
 export const APP_CHANGELOG = [
-  'Persistent static release.jks keystore for consistent upload signing',
-  'Signed release AAB generation for Play Console v1.0.211',
+  'Fix workflow gradle platform initialization and keystore copy',
+  'Signed release AAB generation for Play Console v1.0.212',
   'Package ID: it.freeserv.virtukeys • Name: VirtuKeys',
 ];
 
