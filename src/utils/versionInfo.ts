@@ -1,9 +1,9 @@
-export const APP_VERSION = '1.0.210';
-export const APP_BUILD_DATE = '02 Nov 2026 - 22:30';
-export const APP_COMMIT = 'a1b2c34';
+export const APP_VERSION = '1.0.211';
+export const APP_BUILD_DATE = '02 Nov 2026 - 22:48';
+export const APP_COMMIT = 'b2c3d45';
 export const APP_CHANGELOG = [
-  'Update minSdkVersion to 24 for Play Protect / Play Console compliance',
-  'Signed release AAB generation for Play Console v1.0.210',
+  'Persistent static release.jks keystore for consistent upload signing',
+  'Signed release AAB generation for Play Console v1.0.211',
   'Package ID: it.freeserv.virtukeys • Name: VirtuKeys',
 ];
 

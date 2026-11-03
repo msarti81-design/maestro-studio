@@ -73,10 +73,6 @@ jobs:
           EOF
           fi
 
-      - name: Generate Release Keystore for Signing
-        run: |
-          keytool -genkey -v -keystore android/app/release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias virtukeys-key -storepass virtukeys2026 -keypass virtukeys2026 -dname "CN=VirtuKeys, OU=Studio, O=FreeServ, L=Italy, C=IT"
-
       - name: Build Debug APK & Signed Release AAB with Gradle
         working-directory: android
         env:
@@ -116,9 +112,9 @@ jobs:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "VirtuKeys Android v1.0.${{ github.run_number }}"
           body: |
-            ### 🎹 VirtuKeys - Pacchetto Android (APK & Signed AAB v1.0.${{ github.run_number }})
+            ### 🎹 VirtuKeys - Pacchetto Android (APK & Persistent Signed AAB v1.0.${{ github.run_number }})
             - **VirtuKeys.apk**: Ideale per test diretti.
-            - **VirtuKeys.aab**: **App Bundle firmato in modalità di rilascio** (pronto al 100% per Google Play Console - Test Interni e Produzione).
+            - **VirtuKeys.aab**: **App Bundle firmato con keystore persistente** (pronto per Google Play Console).
           files: |
             release-output/VirtuKeys.apk
             release-output/VirtuKeys.aab
