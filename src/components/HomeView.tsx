@@ -18,6 +18,7 @@ import { audioEngine } from '../utils/audioEngine';
 import { loadGamificationState } from '../utils/gamification';
 import { APP_VERSION } from '../utils/versionInfo';
 import { TutorialModal } from './TutorialModal';
+import { isNativePlatform } from '../utils/networkHelper';
 
 interface HomeViewProps {
   onSelectView: (view: ViewMode) => void;
@@ -428,7 +429,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <span>Lv.{gamification.level}</span>
           </div>
 
-          {onOpenPlayAssetsModal && (
+          {onOpenPlayAssetsModal && !isNativePlatform() && (
             <button
               onClick={onOpenPlayAssetsModal}
               className="flex items-center gap-1 text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-lg transition-all cursor-pointer shadow-sm active:scale-95"

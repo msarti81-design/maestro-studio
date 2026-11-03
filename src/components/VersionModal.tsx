@@ -183,7 +183,7 @@ export const VersionModal: React.FC<VersionModalProps> = ({ isOpen, onClose, onO
         </div>
 
         {/* Play Store Assets Link */}
-        {onOpenPlayAssetsModal && (
+        {onOpenPlayAssetsModal && !isNative && (
           <button
             onClick={() => {
               onClose();
