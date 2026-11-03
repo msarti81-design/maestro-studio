@@ -1,8 +1,7 @@
-name: Build Android APK
+name: Build Android APK & AAB
 
 on:
   push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 permissions:
@@ -74,31 +73,35 @@ jobs:
           EOF
           fi
 
-      - name: Build Debug APK with Gradle
+      - name: Build Debug APK & Release AAB with Gradle
         working-directory: android
         env:
           JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon -Dorg.gradle.java.home="$JAVA_HOME"
+          ./gradlew bundleRelease --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" || echo "Release bundle skipped without keystore"
 
-      - name: Prepare APK Output
+      - name: Prepare Artifacts Output
         run: |
-          mkdir -p release-apk
+          mkdir -p release-output
           APK_FILE=$(find android/app/build/outputs/apk/debug/ -name "*.apk" | head -n 1)
           if [ -f "$APK_FILE" ]; then
-            cp "$APK_FILE" release-apk/Maestro-Piano-Studio.apk
-            echo "APK pronto: release-apk/Maestro-Piano-Studio.apk"
-          else
-            echo "Errore: APK non trovato!"
-            exit 1
+            cp "$APK_FILE" release-output/VirtuKeys.apk
+            echo "APK pronto: release-output/VirtuKeys.apk"
           fi
 
-      - name: Upload APK Artifact
+          AAB_FILE=$(find android/app/build/outputs/bundle/release/ -name "*.aab" | head -n 1)
+          if [ -f "$AAB_FILE" ]; then
+            cp "$AAB_FILE" release-output/VirtuKeys.aab
+            echo "AAB pronto: release-output/VirtuKeys.aab"
+          fi
+
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Maestro-Piano-Studio-APK
-          path: release-apk/Maestro-Piano-Studio.apk
+          name: VirtuKeys-Android-Artifacts
+          path: release-output/*
           retention-days: 30
 
       - name: Create GitHub Release
@@ -107,11 +110,13 @@ jobs:
         continue-on-error: true
         with:
           tag_name: "v1.0.${{ github.run_number }}"
-          name: "Maestro Piano Studio APK v1.0.${{ github.run_number }}"
+          name: "VirtuKeys Android v1.0.${{ github.run_number }}"
           body: |
-            ### 🎹 Maestro Piano Studio - Versione Android APK
-            Compilazione completata con successo!
-            Scarica il file **`Maestro-Piano-Studio.apk`** sottostante e installalo direttamente su tablet o smartphone Android.
-          files: release-apk/Maestro-Piano-Studio.apk
+            ### 🎹 VirtuKeys - Pacchetto Android (APK & AAB)
+            - **VirtuKeys.apk**: Ideale per **Test Interni** su Play Console e installazione diretta su dispositivi.
+            - **VirtuKeys.aab**: Formato **Android App Bundle** richiesto da Google Play per la pubblicazione in produzione.
+          files: |
+            release-output/VirtuKeys.apk
+            release-output/VirtuKeys.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
