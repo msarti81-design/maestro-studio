@@ -430,7 +430,11 @@ allprojects {
                 content = content.replace(' buildTypes {', signing_config_block + '\n    buildTypes {')
 
             if 'signingConfig signingConfigs.release' not in content:
-                content = content.replace('release {', 'release {\n            signingConfig signingConfigs.release')
+                content = re.sub(
+                    r'(buildTypes\s*\{\s*)(release\s*\{)',
+                    r'\1\2\n            signingConfig signingConfigs.release',
+                    content
+                )
 
             if 'kotlin-stdlib-jdk8' not in content:
                 content += "\n" + """
