@@ -133,6 +133,32 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
           </a>
         </div>
 
+        {/* KEYSTORE & CERTIFICATE DOWNLOAD BANNER */}
+        <div className="px-6 py-3 bg-amber-500/10 border-b border-amber-500/30 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-amber-200">
+            <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Chiavi di Firma Play Console (release.jks e upload_cert.pem):</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href="/play-store/release.jks"
+              download="release.jks"
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Scarica release.jks</span>
+            </a>
+            <a
+              href="/play-store/upload_cert.pem"
+              download="upload_cert.pem"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg text-xs flex items-center gap-1.5 border border-slate-700 cursor-pointer transition-colors"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-400" />
+              <span>Scarica upload_cert.pem</span>
+            </a>
+          </div>
+        </div>
+
         {/* ASSET LIST */}
         <div className="p-6 overflow-y-auto space-y-4 max-h-[65vh]">
           {assets.map((asset, index) => (
