@@ -1,5 +1,5 @@
 {
-  "appId": "com.maestrostudio.piano",
+  "appId": "it.freeserv.virtukeys",
   "appName": "Maestro Piano Studio",
   "webDir": "dist",
   "bundledWebRuntime": false,

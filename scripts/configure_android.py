@@ -105,7 +105,7 @@ def configure_styles():
 
 def configure_main_activity():
     main_act_path = None
-    package_name = "com.maestrostudio.piano"
+    package_name = "it.freeserv.virtukeys"
     
     for root, dirs, files in os.walk('android/app/src/main/java'):
         for file in files:
