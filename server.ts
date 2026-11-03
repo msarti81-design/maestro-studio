@@ -130,16 +130,15 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.206",
-      buildDate: "2026-11-02 22:00",
-      commit: "c839f21",
+      version: "1.0.207",
+      buildDate: "2026-11-02 22:15",
+      commit: "d941e32",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "First Internal Testing release preparation for Google Play Console",
-        "Official 512x512 icon & 1024x500 feature graphic integration",
-        "Landscape 16:9 Google Play screenshots package included",
-        "Optimized performance for Android tablets and smartphones",
+        "Automatic release signing configuration for Google Play Console AAB/APK bundles",
+        "First Internal Testing release v1.0.207",
+        "Package ID updated to it.freeserv.virtukeys and app name to VirtuKeys",
       ],
     });
   });

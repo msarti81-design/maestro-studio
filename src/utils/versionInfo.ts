@@ -1,11 +1,10 @@
-export const APP_VERSION = '1.0.206';
-export const APP_BUILD_DATE = '02 Nov 2026 - 22:00';
-export const APP_COMMIT = 'c839f21';
+export const APP_VERSION = '1.0.207';
+export const APP_BUILD_DATE = '02 Nov 2026 - 22:15';
+export const APP_COMMIT = 'd941e32';
 export const APP_CHANGELOG = [
-  'First Internal Testing release preparation for Google Play Console',
-  'Official 512x512 icon & 1024x500 feature graphic integration',
-  'Landscape 16:9 Google Play screenshots package included',
-  'Optimized performance for Android tablets and smartphones',
+  'Automatic release signing configuration for Google Play Console AAB/APK bundles',
+  'First Internal Testing release v1.0.207',
+  'Package ID updated to it.freeserv.virtukeys and app name to VirtuKeys',
 ];
 
 export interface ServerVersionInfo {

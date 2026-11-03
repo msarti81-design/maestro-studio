@@ -416,6 +416,9 @@ allprojects {
             import re
             content = re.sub(r'sourceCompatibility\s+JavaVersion\.VERSION_\d+', 'sourceCompatibility JavaVersion.VERSION_21', content)
             content = re.sub(r'targetCompatibility\s+JavaVersion\.VERSION_\d+', 'targetCompatibility JavaVersion.VERSION_21', content)
+            if 'signingConfig signingConfigs.debug' not in content:
+                content = content.replace('release {', 'release {\n            signingConfig signingConfigs.debug')
+
             if 'kotlin-stdlib-jdk8' not in content:
                 content += "\n" + """
 configurations.all {
@@ -434,7 +437,7 @@ configurations.all {
 """
             with open(gradle_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            print("Successfully aligned android/app/build.gradle to Java 21 and resolved Kotlin stdlib conflicts")
+            print("Successfully aligned android/app/build.gradle to Java 21, signed release build, and resolved Kotlin stdlib conflicts")
         except Exception as e:
             print("Gradle config warning:", e)
 
