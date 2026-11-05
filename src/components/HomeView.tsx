@@ -430,17 +430,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <span>Lv.{gamification.level}</span>
           </div>
 
-          {onOpenPlayAssetsModal && !isNativePlatform() && (
-            <button
-              onClick={onOpenPlayAssetsModal}
-              className="flex items-center gap-1 text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-lg transition-all cursor-pointer shadow-sm active:scale-95"
-              title="Visualizza e scarica le immagini per Google Play Store"
-            >
-              <Sparkles className="w-3 h-3 text-amber-400" />
-              <span>Play Store Assets</span>
-            </button>
-          )}
-
           {onOpenVersionModal && (
             <button
               onClick={onOpenVersionModal}
