@@ -1,10 +1,10 @@
-export const APP_VERSION = '1.0.215';
-export const APP_BUILD_DATE = '05 Nov 2026 - 20:25';
-export const APP_COMMIT = 'f6a7b89';
+export const APP_VERSION = '1.0.216';
+export const APP_BUILD_DATE = '05 Nov 2026 - 21:05';
+export const APP_COMMIT = 'a7b8c90';
 export const APP_CHANGELOG = [
-  'Update Android targetSdkVersion and compileSdkVersion to 36 for Google Play requirement',
-  'Increment versionCode to 215 for Play Console release update',
-  'Signed release AAB generation for Play Console v1.0.215',
+  'Full Android Adaptive Icons support (mipmap-anydpi-v26, dark navy background & foreground safe-zone)',
+  'Official 512x512 VirtuKeys icon across all Android device launcher densities',
+  'Signed release AAB generation for Play Console v1.0.216',
 ];
 
 export interface ServerVersionInfo {
