@@ -453,14 +453,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
           )}
 
           <a
-            href="/privacy.html"
+            href={typeof window !== 'undefined' && window.location.pathname.toLowerCase().startsWith('/song') ? '/Song/privacy.html' : '/privacy.html'}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[10px] font-medium text-slate-500 hover:text-slate-300 transition-colors ml-1"
-            title="Norme sulla Privacy"
+            className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-lg transition-all cursor-pointer shadow-sm ml-1"
+            title="Norme sulla Privacy (Privacy Policy)"
           >
-            <ShieldCheck className="w-3 h-3 text-slate-400" />
-            <span className="hidden sm:inline">Privacy</span>
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+            <span>Privacy</span>
           </a>
         </div>
       </div>

@@ -196,6 +196,17 @@ export const VersionModal: React.FC<VersionModalProps> = ({ isOpen, onClose, onO
           </button>
         )}
 
+        {/* Privacy Policy Link */}
+        <a
+          href={typeof window !== 'undefined' && window.location.pathname.toLowerCase().startsWith('/song') ? '/Song/privacy.html' : '/privacy.html'}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full py-2 px-3 bg-slate-950/80 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-amber-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm"
+        >
+          <Shield className="w-3.5 h-3.5 text-amber-400" />
+          <span>Norme sulla Privacy (Privacy Policy)</span>
+        </a>
+
         {/* Action Buttons */}
         <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
           {!isNative && (
