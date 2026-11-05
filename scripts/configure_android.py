@@ -482,9 +482,11 @@ def configure_min_sdk():
                 content = f.read()
             import re
             content = re.sub(r'minSdkVersion\s*=\s*\d+', 'minSdkVersion = 24', content)
+            content = re.sub(r'compileSdkVersion\s*=\s*\d+', 'compileSdkVersion = 36', content)
+            content = re.sub(r'targetSdkVersion\s*=\s*\d+', 'targetSdkVersion = 36', content)
             with open(variables_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            print("Successfully updated minSdkVersion to 24 in android/variables.gradle")
+            print("Successfully updated minSdkVersion to 24 and target/compileSdkVersion to 36 in android/variables.gradle")
         except Exception as e:
             print("variables.gradle config warning:", e)
 
@@ -496,11 +498,47 @@ def configure_min_sdk():
             import re
             content = re.sub(r'minSdk\s*=\s*\d+', 'minSdk = 24', content)
             content = re.sub(r'minSdkVersion\s+\d+', 'minSdkVersion 24', content)
+            content = re.sub(r'targetSdk\s*=\s*\d+', 'targetSdk = 36', content)
+            content = re.sub(r'targetSdkVersion\s+\d+', 'targetSdkVersion 36', content)
+            content = re.sub(r'compileSdk\s*=\s*\d+', 'compileSdk = 36', content)
+            content = re.sub(r'compileSdkVersion\s+\d+', 'compileSdkVersion 36', content)
             with open(gradle_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            print("Successfully updated minSdkVersion to 24 in android/app/build.gradle")
+            print("Successfully updated SDK levels (min=24, target=36, compile=36) in android/app/build.gradle")
         except Exception as e:
             print("app/build.gradle config warning:", e)
+
+def configure_version():
+    gradle_path = 'android/app/build.gradle'
+    version_file = 'src/utils/versionInfo.ts'
+    if os.path.exists(gradle_path) and os.path.exists(version_file):
+        try:
+            with open(version_file, 'r', encoding='utf-8') as f:
+                ver_content = f.read()
+            import re
+            m = re.search(r"APP_VERSION\s*=\s*'([^']+)'", ver_content)
+            if m:
+                app_ver = m.group(1)
+                # Build an integer code from major.minor.patch (e.g., 1.0.214 -> 10214)
+                parts = app_ver.split('.')
+                v_code = 1
+                try:
+                    if len(parts) >= 3:
+                        v_code = int(parts[0]) * 10000 + int(parts[1]) * 1000 + int(parts[2])
+                    else:
+                        v_code = int(parts[-1])
+                except:
+                    v_code = 214
+
+                with open(gradle_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                content = re.sub(r'versionCode\s+\d+', f'versionCode {v_code}', content)
+                content = re.sub(r'versionName\s+"[^"]+"', f'versionName "{app_ver}"', content)
+                with open(gradle_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                print(f"Successfully aligned Android build.gradle to versionCode {v_code} and versionName '{app_ver}'")
+        except Exception as e:
+            print("Version config warning:", e)
 
 def update_icons():
     try:
@@ -516,4 +554,5 @@ if __name__ == '__main__':
     configure_main_activity()
     configure_gradle()
     configure_min_sdk()
+    configure_version()
     update_icons()

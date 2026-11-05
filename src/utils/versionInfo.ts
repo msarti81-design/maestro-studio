@@ -1,10 +1,10 @@
-export const APP_VERSION = '1.0.214';
-export const APP_BUILD_DATE = '03 Nov 2026 - 13:30';
-export const APP_COMMIT = 'e5f6a78';
+export const APP_VERSION = '1.0.215';
+export const APP_BUILD_DATE = '05 Nov 2026 - 20:25';
+export const APP_COMMIT = 'f6a7b89';
 export const APP_CHANGELOG = [
-  'Set app startup landing view to Main Menu (HomeView)',
-  'Official high-res 512x512 VirtuKeys icon injected into Android mipmaps & Web PWA',
-  'Signed release AAB generation for Play Console v1.0.214',
+  'Update Android targetSdkVersion and compileSdkVersion to 36 for Google Play requirement',
+  'Increment versionCode to 215 for Play Console release update',
+  'Signed release AAB generation for Play Console v1.0.215',
 ];
 
 export interface ServerVersionInfo {

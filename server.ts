@@ -130,15 +130,15 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.214",
-      buildDate: "2026-11-03 13:30",
-      commit: "e5f6a78",
+      version: "1.0.215",
+      buildDate: "2026-11-05 20:25",
+      commit: "f6a7b89",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Set app startup landing view to Main Menu (HomeView)",
-        "Official high-res 512x512 VirtuKeys icon injected into Android mipmaps & Web PWA",
-        "Signed release AAB generation for Play Console v1.0.214",
+        "Update Android targetSdkVersion and compileSdkVersion to 36 for Google Play requirement",
+        "Increment versionCode to 215 for Play Console release update",
+        "Signed release AAB generation for Play Console v1.0.215",
       ],
     });
   });
