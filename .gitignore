@@ -10,4 +10,3 @@ coverage/
 public/assets/
 .aistudio/
 *.py
-*.sh
