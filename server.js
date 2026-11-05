@@ -77,21 +77,32 @@ async function startServer() {
     }
     next();
   });
+  app.get(["/privacy", "/privacy.html", "/Song/privacy", "/Song/privacy.html", "/song/privacy", "/song/privacy.html"], (req, res) => {
+    const privacyPath = path.join(__dirname, "public", "privacy.html");
+    if (fs.existsSync(privacyPath)) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.sendFile(privacyPath);
+    }
+    const distPrivacy = path.join(__dirname, "dist", "privacy.html");
+    if (fs.existsSync(distPrivacy)) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.sendFile(distPrivacy);
+    }
+    res.redirect("/privacy.html");
+  });
   app.get(["/api/version", "/Song/api/version", "/song/api/version"], (req, res) => {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.204",
-      buildDate: "2026-10-31 23:20",
-      commit: "0d4e512",
+      version: "1.0.216",
+      buildDate: "2026-11-05 21:05",
+      commit: "a7b8c90",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Tutorial card positioned as the 7th and final card in the menu",
-        "All 7 menu cards now have identical width, height, and proportions across 2 centered rows",
-        "Logo repositioned equidistant between top navigation bar and menu cards",
-        "Full English translation for interface, cards, tutorial, and waterfall prompts",
-        "Interactive 5-tab Tutorial Modal"
+        "Full Android Adaptive Icons support (mipmap-anydpi-v26, dark navy background & foreground safe-zone)",
+        "Official 512x512 VirtuKeys icon across all Android device launcher densities",
+        "Signed release AAB generation for Play Console v1.0.216"
       ]
     });
   });
@@ -861,14 +872,25 @@ Return a JSON object containing:
     app.use("/Song", express.static(distPath, staticOptions));
     app.use("/song", express.static(distPath, staticOptions));
     app.use(express.static(distPath, staticOptions));
+    const sendIndexHtml = (res) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      const distIndex = path.join(distPath, "index.html");
+      if (fs.existsSync(distIndex)) {
+        return res.sendFile(distIndex);
+      }
+      const rootIndex = path.join(__dirname, "index.html");
+      if (fs.existsSync(rootIndex)) {
+        return res.sendFile(rootIndex);
+      }
+      res.status(200).send("<!DOCTYPE html><html><head><title>VirtuKeys</title></head><body><h1>VirtuKeys Studio</h1></body></html>");
+    };
     app.get(["/song", "/song/*", "/Song", "/Song/*", "/piano", "/piano/*", "/sheet", "/sheet/*", "/jam", "/jam/*", "/ai", "/ai/*", "/social", "/social/*"], (req, res, next) => {
       if (path.extname(req.path)) {
         return next();
       }
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      res.sendFile(path.join(distPath, "index.html"));
+      sendIndexHtml(res);
     });
     app.get("*", (req, res) => {
       if (req.path.endsWith(".sh") || req.path.endsWith(".py")) {
@@ -878,10 +900,7 @@ Return a JSON object containing:
           return res.status(200).sendFile(file);
         }
       }
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      res.sendFile(path.join(distPath, "index.html"));
+      sendIndexHtml(res);
     });
   } else {
     const vite = await createViteServer({
