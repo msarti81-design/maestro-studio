@@ -45,9 +45,14 @@ cd "$TARGET_DIR"
 
 # 2. Aggiornamento codice da GitHub
 echo "⬇️ Scaricamento ultimi file da GitHub..."
-git pull origin main || git pull
+git fetch origin main 2>/dev/null || true
+git checkout -B main origin/main 2>/dev/null || true
+git reset --hard origin/main || git pull origin main || true
 
-# 3. Assicurazione presenza privacy.html
+# 3. Assicurazione presenza dipendenze e privacy.html
+echo "📦 Installazione dipendenze mancanti (tone, lucide-react, etc.)..."
+npm install --no-audit --prefer-offline 2>/dev/null || npm install
+
 mkdir -p public dist
 if [ ! -f "public/privacy.html" ] || [ ! -f "dist/privacy.html" ]; then
   echo "📄 Download diretto privacy.html..."
@@ -57,7 +62,7 @@ fi
 
 # 4. Compilazione
 echo "🔨 Compilazione Vite..."
-npm run build || true
+npm run build
 
 # 5. Riavvio servizio Node / PM2
 echo "🔄 Riavvio servizio..."
