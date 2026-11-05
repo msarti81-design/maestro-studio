@@ -1062,14 +1062,26 @@ Return a JSON object containing:
     app.use("/song", express.static(distPath, staticOptions));
     app.use(express.static(distPath, staticOptions));
 
+    const sendIndexHtml = (res: express.Response) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      const distIndex = path.join(distPath, "index.html");
+      if (fs.existsSync(distIndex)) {
+        return res.sendFile(distIndex);
+      }
+      const rootIndex = path.join(__dirname, "index.html");
+      if (fs.existsSync(rootIndex)) {
+        return res.sendFile(rootIndex);
+      }
+      res.status(200).send("<!DOCTYPE html><html><head><title>VirtuKeys</title></head><body><h1>VirtuKeys Studio</h1></body></html>");
+    };
+
     app.get(["/song", "/song/*", "/Song", "/Song/*", "/piano", "/piano/*", "/sheet", "/sheet/*", "/jam", "/jam/*", "/ai", "/ai/*", "/social", "/social/*"], (req, res, next) => {
       if (path.extname(req.path)) {
         return next();
       }
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      res.sendFile(path.join(distPath, "index.html"));
+      sendIndexHtml(res);
     });
 
     app.get("*", (req, res) => {
@@ -1080,10 +1092,7 @@ Return a JSON object containing:
           return res.status(200).sendFile(file);
         }
       }
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      res.sendFile(path.join(distPath, "index.html"));
+      sendIndexHtml(res);
     });
   } else {
     const vite = await createViteServer({
