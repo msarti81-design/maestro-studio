@@ -13,6 +13,7 @@ import {
   Award,
   Users,
   Layers,
+  ShieldCheck,
 } from 'lucide-react';
 import { audioEngine } from '../utils/audioEngine';
 import { loadGamificationState } from '../utils/gamification';
@@ -450,6 +451,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <span>v{APP_VERSION}</span>
             </button>
           )}
+
+          <a
+            href="/privacy.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-[10px] font-medium text-slate-500 hover:text-slate-300 transition-colors ml-1"
+            title="Norme sulla Privacy"
+          >
+            <ShieldCheck className="w-3 h-3 text-slate-400" />
+            <span className="hidden sm:inline">Privacy</span>
+          </a>
         </div>
       </div>
 

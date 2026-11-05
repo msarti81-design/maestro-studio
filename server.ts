@@ -125,6 +125,21 @@ async function startServer() {
     next();
   });
 
+  // --- PRIVACY POLICY ROUTE FOR GOOGLE PLAY CONSOLE ---
+  app.get(["/privacy", "/privacy.html", "/Song/privacy", "/Song/privacy.html", "/song/privacy", "/song/privacy.html"], (req, res) => {
+    const privacyPath = path.join(__dirname, "public", "privacy.html");
+    if (fs.existsSync(privacyPath)) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.sendFile(privacyPath);
+    }
+    const distPrivacy = path.join(__dirname, "dist", "privacy.html");
+    if (fs.existsSync(distPrivacy)) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.sendFile(distPrivacy);
+    }
+    res.redirect("/privacy.html");
+  });
+
   // --- API ROUTE: SYSTEM VERSION & SYNC STATUS ---
   app.get(["/api/version", "/Song/api/version", "/song/api/version"], (req, res) => {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
