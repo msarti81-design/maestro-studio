@@ -84,6 +84,9 @@ async function startServer() {
 
   const httpServer = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
+  wss.on("error", (err) => {
+    console.warn("WebSocketServer error (suppressed):", err?.message || err);
+  });
 
   httpServer.on("upgrade", (request, socket, head) => {
     try {
@@ -1096,7 +1099,7 @@ Return a JSON object containing:
     });
   } else {
     const vite = await createViteServer({
-      server: { middlewareMode: true, allowedHosts: true },
+      server: { middlewareMode: true, allowedHosts: true, hmr: false },
       appType: "custom",
     });
     app.use((req, res, next) => {
@@ -1132,9 +1135,32 @@ Return a JSON object containing:
   const rawPort = Number(process.env.PORT);
   // Port 8080 is reserved by internal reverse-proxy (nginx) in AI Studio; app dev server must listen on 3000
   const PORT = rawPort && rawPort !== 8080 ? rawPort : 3000;
+
+  httpServer.on("error", (err: any) => {
+    if (err.code === "EADDRINUSE") {
+      console.warn(`Port ${PORT} is in use, will retry in 1s...`);
+      setTimeout(() => {
+        try {
+          httpServer.close();
+        } catch (_) {}
+        httpServer.listen(PORT, "0.0.0.0");
+      }, 1000);
+    } else {
+      console.error("HTTP server error:", err);
+    }
+  });
+
   httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server & WebSockets running on http://localhost:${PORT}`);
   });
 }
+
+process.on("uncaughtException", (err) => {
+  console.warn("Uncaught exception (suppressed):", err?.message || err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.warn("Unhandled rejection (suppressed):", reason);
+});
 
 startServer();
