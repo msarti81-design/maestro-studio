@@ -2037,6 +2037,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     >
       <canvas
         ref={canvasRef}
+        data-piano-canvas="true"
         className="w-full h-full block select-none touch-none bg-slate-950 rounded-b-xl shadow-2xl cursor-pointer"
       />
     </div>

@@ -1490,7 +1490,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
       )}
 
       {/* 60 FPS Canvas with zero lag and O(1) rendering */}
-      <canvas ref={canvasRef} className="w-full h-full block cursor-pointer" />
+      <canvas ref={canvasRef} data-waterfall-canvas="true" className="w-full h-full block cursor-pointer" />
 
       {/* Masterclass Completion Screen (No points, No rigioca modal, Handover back to Maestro) */}
       {isCompleted && isMasterclassMode ? (

@@ -71,6 +71,7 @@ class AudioEngine {
   private masterGain: Tone.Gain | null = null;
   private masterCompressor: Tone.Compressor | null = null;
   private masterLimiter: Tone.Limiter | null = null;
+  private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
 
   // Jam Band drums
   private drumSynth: Tone.MembraneSynth | null = null;
@@ -753,6 +754,36 @@ class AudioEngine {
       osc.start(now);
       osc.stop(now + 0.04);
     } catch (e) {}
+  }
+
+  getRecordingAudioStream(): MediaStream | null {
+    try {
+      this.init().catch(() => {});
+      this.buildAudioGraph();
+      const rawCtx = Tone.context.rawContext as AudioContext;
+      if (!rawCtx || typeof rawCtx.createMediaStreamDestination !== 'function') {
+        return null;
+      }
+      if (!this.mediaStreamDest) {
+        this.mediaStreamDest = rawCtx.createMediaStreamDestination();
+        if (this.masterLimiter) {
+          Tone.connect(this.masterLimiter, this.mediaStreamDest);
+        }
+        if (this.drumSynth) {
+          Tone.connect(this.drumSynth, this.mediaStreamDest);
+        }
+        if (this.hihatSynth) {
+          Tone.connect(this.hihatSynth, this.mediaStreamDest);
+        }
+        if (this.snareSynth) {
+          Tone.connect(this.snareSynth, this.mediaStreamDest);
+        }
+      }
+      return this.mediaStreamDest.stream;
+    } catch (e) {
+      console.warn("Could not create recording audio stream:", e);
+      return null;
+    }
   }
 }
 
