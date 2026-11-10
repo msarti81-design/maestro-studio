@@ -1,0 +1,23 @@
+{
+  "devices": {
+    "dev_1792152583715_59n7hdc": {
+      "deviceId": "dev_1792152583715_59n7hdc",
+      "username": "Sarti81",
+      "platform": "Browser Mobile",
+      "firstSeen": "2026-11-10T18:31:50.840Z",
+      "lastSeen": "2026-11-10T18:51:13.908Z",
+      "lastView": "piano",
+      "totalPings": 13,
+      "totalSessions": 1,
+      "screen": "444x985"
+    }
+  },
+  "daily": {
+    "2026-11-10": {
+      "devices": [
+        "dev_1792152583715_59n7hdc"
+      ],
+      "pings": 13
+    }
+  }
+}

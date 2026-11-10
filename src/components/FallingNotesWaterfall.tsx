@@ -97,7 +97,55 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const songDuration = useMemo(() => Math.max(...song.notes.map((n) => n.time + n.duration), 5), [song.notes]);
+  const [isMelodyOnly, setIsMelodyOnly] = useState<boolean>(false);
+  const [showSparks, setShowSparks] = useState<boolean>(true);
+  const showSparksRef = useRef<boolean>(showSparks);
+  showSparksRef.current = showSparks;
+
+  // Smart 1-Hand Melody Filter: extracts the top vocal/lead melody line and removes simultaneous accompaniment chords
+  const effectiveSong = useMemo<InteractiveSong>(() => {
+    if (!isMelodyOnly || !song.notes || song.notes.length === 0) return song;
+    const sorted = [...song.notes].sort((a, b) => {
+      const tDiff = a.time - b.time;
+      if (Math.abs(tDiff) > 0.01) return tDiff;
+      return noteNameToMidiNumber(b.note) - noteNameToMidiNumber(a.note);
+    });
+
+    const melodyNotes: typeof song.notes = [];
+    let i = 0;
+    while (i < sorted.length) {
+      const clusterStart = sorted[i].time;
+      let highestNote = sorted[i];
+      let highestMidi = noteNameToMidiNumber(highestNote.note);
+      let j = i + 1;
+      // Group notes within 65ms window as a simultaneous chord/cluster and pick the highest pitch (lead melody)
+      while (j < sorted.length && sorted[j].time - clusterStart <= 0.065) {
+        const m = noteNameToMidiNumber(sorted[j].note);
+        if (m > highestMidi) {
+          highestMidi = m;
+          highestNote = sorted[j];
+        }
+        j++;
+      }
+
+      const prev = melodyNotes[melodyNotes.length - 1];
+      // Avoid impossible ultra-fast machine-gun repeats (<90ms on the same or adjacent note)
+      if (!prev || highestNote.time - prev.time >= 0.09 || highestNote.note !== prev.note) {
+        melodyNotes.push({
+          ...highestNote,
+          duration: Math.max(highestNote.duration, 0.22),
+        });
+      }
+      i = j;
+    }
+
+    return {
+      ...song,
+      notes: melodyNotes.length > 0 ? melodyNotes : song.notes,
+    };
+  }, [song, isMelodyOnly]);
+
+  const songDuration = useMemo(() => Math.max(...effectiveSong.notes.map((n) => n.time + n.duration), 5), [effectiveSong.notes]);
 
   const [playMode, setPlayMode] = useState<'learn' | 'arcade' | 'fingering' | 'demo'>(initialPlayMode);
   const [viewMode, setViewMode] = useState<'waterfall' | 'sheet'>(initialViewMode);
@@ -191,8 +239,8 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   // Pre-calcola la diteggiatura ottimale per la mano selezionata (regole speculari DX/SX)
   const songFingering = useMemo(() => {
     const targetH = selectedHand === 'both' ? 'right' : selectedHand;
-    return calculateFingeringForNotes(song.notes, targetH);
-  }, [song.notes, selectedHand]);
+    return calculateFingeringForNotes(effectiveSong.notes, targetH);
+  }, [effectiveSong.notes, selectedHand]);
 
   const onActiveGuidanceChangeRef = useRef(onActiveGuidanceChange);
   onActiveGuidanceChangeRef.current = onActiveGuidanceChange;
@@ -260,14 +308,55 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const getTransposedNoteRef = useRef(getTransposedNote);
   getTransposedNoteRef.current = getTransposedNote;
 
-  const songRef = useRef(song);
-  songRef.current = song;
+  const songRef = useRef(effectiveSong);
+  songRef.current = effectiveSong;
 
   const songDurationRef = useRef(songDuration);
   songDurationRef.current = songDuration;
 
   const songFingeringRef = useRef(songFingering);
   songFingeringRef.current = songFingering;
+
+  // Lightweight zero-latency particle pool for Synthesia/YouTube impact sparks
+  const sparksRef = useRef<
+    { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number }[]
+  >([]);
+
+  const spawnNoteSparks = useCallback((rawNoteName: string, isBlack?: boolean) => {
+    if (!showSparksRef.current || viewModeRef.current === 'sheet') return;
+    const keyPos =
+      keyPositionsMapRef.current.get(rawNoteName) ||
+      keyPositionsMapRef.current.get(getTransposedNoteRef.current(rawNoteName));
+    if (!keyPos) return;
+
+    const hitY = Math.max(20, dimsRef.current.height - 2);
+    const centerX = keyPos.x + keyPos.width / 2;
+    const black = isBlack ?? keyPos.type === 'black';
+    const palette = black
+      ? ['#fbbf24', '#f59e0b', '#fef08a', '#ffffff']
+      : ['#38bdf8', '#22d3ee', '#fbbf24', '#ffffff'];
+
+    const pool = sparksRef.current;
+    // Cap particle pool at 64 so rendering cost is <0.05ms
+    if (pool.length > 56) {
+      pool.splice(0, 8);
+    }
+
+    for (let i = 0; i < 8; i++) {
+      const angle = -Math.PI * (0.15 + Math.random() * 0.7);
+      const speed = 35 + Math.random() * 75;
+      pool.push({
+        x: centerX + (Math.random() - 0.5) * Math.max(6, keyPos.width * 0.6),
+        y: hitY - 2,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 15,
+        life: 0,
+        maxLife: 0.28 + Math.random() * 0.22,
+        color: palette[i % palette.length],
+        size: 1.8 + Math.random() * 2.2,
+      });
+    }
+  }, []);
 
   // Recompute position cache whenever keys or canvas dimensions change
   const updateKeyPositionsMap = useCallback((canvasWidth: number) => {
@@ -314,13 +403,15 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
   const processPlayedNote = useCallback((playedNote: string) => {
     const curTime = currentTimeRef.current;
+    const activeNotes = songRef.current.notes;
 
     if (playModeRef.current === 'learn' || playModeRef.current === 'fingering') {
       const waitingIdx = waitingNoteIndexRef.current;
       if (waitingIdx !== null) {
-        const expectedNote = song.notes[waitingIdx];
+        const expectedNote = activeNotes[waitingIdx];
         if (expectedNote && (expectedNote.note === playedNote || getTransposedNote(expectedNote.note) === playedNote)) {
           hitNotesSetRef.current.add(waitingIdx);
+          spawnNoteSparks(expectedNote.note);
           waitingNoteIndexRef.current = null;
           setWaitingTargetNote(null);
           setWaitingTargetFinger(null);
@@ -349,11 +440,12 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
       }
 
       // Proactive hit: if player hits note as it nears the bar (within 0.4s window)
-      for (let i = 0; i < song.notes.length; i++) {
+      for (let i = 0; i < activeNotes.length; i++) {
         if (!hitNotesSetRef.current.has(i)) {
-          const n = song.notes[i];
+          const n = activeNotes[i];
           if (Math.abs(n.time - curTime) <= 0.4 && (n.note === playedNote || getTransposedNote(n.note) === playedNote)) {
             hitNotesSetRef.current.add(i);
+            spawnNoteSparks(n.note);
             if (!isMasterclassMode) {
               setScore((s) => s + 100);
               recordNoteHitBonus(5);
@@ -370,7 +462,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
     } else if (playModeRef.current === 'arcade') {
       let bestIdx = -1;
       let minDiff = 999;
-      song.notes.forEach((n, idx) => {
+      activeNotes.forEach((n, idx) => {
         if (hitNotesSetRef.current.has(idx)) return;
         const diff = Math.abs(n.time - curTime);
         if (diff < 0.35 && (n.note === playedNote || getTransposedNote(n.note) === playedNote)) {
@@ -383,6 +475,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
       if (bestIdx !== -1) {
         hitNotesSetRef.current.add(bestIdx);
+        spawnNoteSparks(activeNotes[bestIdx].note);
         if (!isMasterclassMode) {
           const pts = minDiff < 0.15 ? 100 : 50;
           setScore((s) => s + pts);
@@ -395,7 +488,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         }
       }
     }
-  }, [song.notes, getTransposedNote, isMasterclassMode]);
+  }, [getTransposedNote, isMasterclassMode, spawnNoteSparks]);
 
   useEffect(() => {
     const handleEvent = (e: Event) => {
@@ -409,10 +502,13 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   }, [processPlayedNote]);
 
   const sortedNotes = useMemo(() => {
-    return [...song.notes]
+    return [...effectiveSong.notes]
       .map((n, originalIndex) => ({ ...n, originalIndex }))
       .sort((a, b) => a.time - b.time);
-  }, [song.notes]);
+  }, [effectiveSong.notes]);
+
+  const sortedNotesRef = useRef(sortedNotes);
+  sortedNotesRef.current = sortedNotes;
 
   const lastFrameTimeRef = useRef<number | null>(null);
 
@@ -503,9 +599,12 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         }
 
         // Learn & Fingering Mode: pause right at target note line
+        const curSorted = sortedNotesRef.current;
+        const curFingering = songFingeringRef.current;
+        const curNotes = songRef.current.notes;
         if (playModeRef.current === 'learn' || playModeRef.current === 'fingering') {
-          for (let i = 0; i < sortedNotes.length; i++) {
-            const sn = sortedNotes[i];
+          for (let i = 0; i < curSorted.length; i++) {
+            const sn = curSorted[i];
             const origIdx = sn.originalIndex;
             if (!hitNotesSetRef.current.has(origIdx)) {
               if (newTime >= sn.time) {
@@ -515,10 +614,10 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 setWaitingTargetNote(sn.note);
 
                 if (playModeRef.current === 'fingering') {
-                  const finger = songFingering[origIdx] || 1;
+                  const finger = curFingering[origIdx] || 1;
                   setWaitingTargetFinger(finger);
-                  const prevNote = origIdx > 0 ? song.notes[origIdx - 1]?.note : undefined;
-                  const prevFinger = origIdx > 0 ? songFingering[origIdx - 1] : undefined;
+                  const prevNote = origIdx > 0 ? curNotes[origIdx - 1]?.note : undefined;
+                  const prevFinger = origIdx > 0 ? curFingering[origIdx - 1] : undefined;
                   const rawH = selectedHandRef.current;
                   const curHand = rawH === 'both' ? 'right' : rawH;
                   const tip = getPedagogicalFingeringTip(sn.note, finger, prevNote, prevFinger, curHand);
@@ -553,11 +652,12 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         if (playModeRef.current === 'demo') {
           const currentDemoNotes = new Set<string>();
 
-          sortedNotes.forEach((sn) => {
+          curSorted.forEach((sn) => {
             const origIdx = sn.originalIndex;
             if (!hitNotesSetRef.current.has(origIdx) && newTime >= sn.time) {
               hitNotesSetRef.current.add(origIdx);
               audioEngine.playNote(getTransposedNoteRef.current(sn.note), '4n', 'piano');
+              spawnNoteSparks(sn.note);
             }
 
             // A note is actively sounding while currentTime is within its duration
@@ -1006,6 +1106,30 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             renderNoteBar(i);
           }
         }
+
+        // Pass 3: Synthesia / YouTube Key Impact Sparks & Flares (0ms CPU pool)
+        if (showSparksRef.current && sparksRef.current.length > 0) {
+          const pool = sparksRef.current;
+          ctx.save();
+          for (let sIdx = pool.length - 1; sIdx >= 0; sIdx--) {
+            const sp = pool[sIdx];
+            sp.life += deltaSec;
+            if (sp.life >= sp.maxLife) {
+              pool.splice(sIdx, 1);
+              continue;
+            }
+            sp.x += sp.vx * deltaSec;
+            sp.y += sp.vy * deltaSec;
+            sp.vy += 120 * deltaSec; // subtle gravity arc
+            const alpha = Math.max(0, 1 - sp.life / sp.maxLife);
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = sp.color;
+            ctx.beginPath();
+            ctx.arc(sp.x, sp.y, sp.size * alpha + 0.6, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
       }
 
       // Target hit line (Gold bar right above piano keys)
@@ -1173,6 +1297,49 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             title={`Mano: ${selectedHand === 'right' ? 'Mano Destra (Dx)' : selectedHand === 'left' ? 'Mano Sinistra (Sx)' : 'Entrambe le Mani (Insieme)'}. Clicca per cambiare!`}
           >
             <span>{selectedHand === 'right' ? '✋ Dx' : selectedHand === 'left' ? '🤚 Sx' : '👐 Insieme'}</span>
+          </button>
+
+          {/* 🪄 Smart MIDI Filter: Solo Melodia (1 Mano) */}
+          <button
+            onClick={() => {
+              const next = !isMelodyOnly;
+              setIsMelodyOnly(next);
+              hitNotesSetRef.current.clear();
+              waitingNoteIndexRef.current = null;
+              setWaitingTargetNote(null);
+              setLoopFeedbackMessage(
+                next
+                  ? '🪄 Solo Melodia (1 Mano) ATTIVO: accordi e doppie voci rimossi per rendere il brano suonabile!'
+                  : '🎼 Brano Originale Completo ripristinato (tutte le note MIDI)'
+              );
+              setTimeout(() => setLoopFeedbackMessage(null), 3200);
+            }}
+            className={`px-1.5 py-0.5 text-[9px] font-black rounded flex items-center gap-0.5 transition-all border cursor-pointer whitespace-nowrap ${
+              isMelodyOnly
+                ? 'bg-gradient-to-r from-fuchsia-500 to-amber-500 text-slate-950 border-amber-300 shadow-sm'
+                : 'bg-slate-800/90 border-fuchsia-500/40 text-fuchsia-300 hover:text-white'
+            }`}
+            title="Semplifica per 1 Mano (Solo Melodia): filtra automaticamente gli accordi simultanei dei file MIDI lasciando solo la melodia principale cantata!"
+          >
+            <span>🪄 1 Mano</span>
+          </button>
+
+          {/* ✨ Effetti Particellari Synthesia/YouTube sui Tasti */}
+          <button
+            onClick={() => {
+              const next = !showSparks;
+              setShowSparks(next);
+              showSparksRef.current = next;
+              if (!next) sparksRef.current = [];
+            }}
+            className={`px-1.5 py-0.5 text-[9px] font-bold rounded flex items-center gap-0.5 transition-all border cursor-pointer whitespace-nowrap ${
+              showSparks
+                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300'
+                : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white'
+            }`}
+            title="Attiva/Disattiva scintille luminose stile YouTube/Synthesia quando le note toccano i tasti"
+          >
+            <span>✨ FX</span>
           </button>
 
           {/* Loop A-B Studio a Sezioni Controls */}

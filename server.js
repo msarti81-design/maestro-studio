@@ -184,12 +184,13 @@ async function startServer() {
         const raw = JSON.parse(fs.readFileSync(analyticsFile, "utf-8") || "{}");
         return {
           devices: raw.devices || {},
-          daily: raw.daily || {}
+          daily: raw.daily || {},
+          songs: raw.songs || {}
         };
       }
     } catch (_) {
     }
-    return { devices: {}, daily: {} };
+    return { devices: {}, daily: {}, songs: {} };
   };
   const writeAnalytics = (data) => {
     try {
@@ -199,7 +200,7 @@ async function startServer() {
   };
   app.post(["/api/analytics/ping", "/Song/api/analytics/ping", "/song/api/analytics/ping"], (req, res) => {
     try {
-      const { deviceId, username, platform, view, screen, isNewSession } = req.body || {};
+      const { deviceId, username, platform, view, screen, isNewSession, theme, songTitle } = req.body || {};
       if (!deviceId) {
         return res.status(400).json({ success: false, error: "deviceId required" });
       }
@@ -221,6 +222,8 @@ async function startServer() {
           existing.totalSessions = (existing.totalSessions || 1) + 1;
         }
         if (screen) existing.screen = screen;
+        if (theme) existing.theme = String(theme);
+        if (songTitle) existing.lastSong = String(songTitle);
       } else {
         data.devices[deviceId] = {
           deviceId,
@@ -231,8 +234,14 @@ async function startServer() {
           lastView: view || "piano",
           totalPings: 1,
           totalSessions: 1,
-          screen: screen || ""
+          screen: screen || "",
+          theme: theme ? String(theme) : "midnight",
+          lastSong: songTitle ? String(songTitle) : ""
         };
+      }
+      if (songTitle && String(songTitle).trim()) {
+        const cleanSong = String(songTitle).trim();
+        data.songs[cleanSong] = (data.songs[cleanSong] || 0) + 1;
       }
       if (!data.daily[todayKey]) {
         data.daily[todayKey] = { devices: [], pings: 0 };
@@ -275,7 +284,8 @@ async function startServer() {
             lastSeen: u.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
             lastView: "home",
             totalPings: 1,
-            totalSessions: 1
+            totalSessions: 1,
+            theme: "midnight"
           };
           mergedChanged = true;
         }
@@ -303,13 +313,24 @@ async function startServer() {
         "Browser PC": 0,
         Altro: 0
       };
+      const themeCounts = {
+        midnight: 0,
+        mahogany: 0,
+        marble: 0,
+        gold: 0,
+        carbon: 0,
+        neon: 0
+      };
       for (const d of allDevices) {
         if (d.platform in platformCounts) {
           platformCounts[d.platform]++;
         } else {
           platformCounts.Altro++;
         }
+        const t = d.theme || "midnight";
+        themeCounts[t] = (themeCounts[t] || 0) + 1;
       }
+      const topSongs = Object.entries(data.songs || {}).map(([title, count]) => ({ title, count })).sort((a, b) => b.count - a.count).slice(0, 8);
       const last14Days = [];
       for (let i = 13; i >= 0; i--) {
         const dt = new Date(nowMs - i * 864e5).toISOString().slice(0, 10);
@@ -327,6 +348,8 @@ async function startServer() {
         activeToday,
         active7Days,
         platformCounts,
+        themeCounts,
+        topSongs,
         last14Days,
         devices: allDevices.slice(0, 100)
       });

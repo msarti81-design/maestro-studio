@@ -517,6 +517,114 @@ export const PianoView: React.FC<PianoViewProps> = ({
     return () => clearInterval(interval);
   }, [isChordDetectorOpen]);
 
+  // --- 👂 ORECCHIO ASSOLUTO (EAR TRAINING MINI-GAME) STATE ---
+  const [isEarTrainingOpen, setIsEarTrainingOpen] = useState<boolean>(false);
+  const [earLevel, setEarLevel] = useState<'base' | 'expert' | 'maestro'>('base');
+  const [earTargetNotes, setEarTargetNotes] = useState<string[]>([]);
+  const [earMatchedIdx, setEarMatchedIdx] = useState<number>(0);
+  const [earScore, setEarScore] = useState<number>(0);
+  const [earStreak, setEarStreak] = useState<number>(0);
+  const [earBestStreak, setEarBestStreak] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('maestro_ear_best_streak') || 0);
+    } catch {
+      return 0;
+    }
+  });
+  const [earHintShown, setEarHintShown] = useState<boolean>(false);
+  const [earFeedback, setEarFeedback] = useState<{
+    text: string;
+    type: 'neutral' | 'correct' | 'higher' | 'lower';
+  }>({
+    text: 'Ascolta la nota misteriosa e premila sulla tastiera!',
+    type: 'neutral',
+  });
+
+  const isEarTrainingOpenRef = useRef<boolean>(isEarTrainingOpen);
+  isEarTrainingOpenRef.current = isEarTrainingOpen;
+  const earTargetNotesRef = useRef<string[]>(earTargetNotes);
+  earTargetNotesRef.current = earTargetNotes;
+  const earMatchedIdxRef = useRef<number>(earMatchedIdx);
+  earMatchedIdxRef.current = earMatchedIdx;
+  const earLevelRef = useRef<'base' | 'expert' | 'maestro'>(earLevel);
+  earLevelRef.current = earLevel;
+
+  const playEarMysterySequence = useCallback(
+    (notesToPlay: string[]) => {
+      if (!notesToPlay || notesToPlay.length === 0) return;
+      audioEngine.init().catch(() => {});
+      notesToPlay.forEach((n, idx) => {
+        setTimeout(() => {
+          audioEngine.playNote(n, '4n', instrument);
+        }, idx * 430);
+      });
+    },
+    [instrument]
+  );
+
+  const startNewEarRound = useCallback(
+    (levelOverride?: 'base' | 'expert' | 'maestro') => {
+      const lvl = levelOverride || earLevelRef.current;
+      const whitePool = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+      const chromaticPool = ['C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4', 'C5'];
+      const pool = lvl === 'base' ? whitePool : chromaticPool;
+      const count = lvl === 'maestro' ? 3 : 1;
+
+      const picked: string[] = [];
+      for (let i = 0; i < count; i++) {
+        let candidate = pool[Math.floor(Math.random() * pool.length)];
+        if (picked.length > 0 && candidate === picked[picked.length - 1]) {
+          candidate = pool[(pool.indexOf(candidate) + 2) % pool.length];
+        }
+        picked.push(candidate);
+      }
+
+      setEarTargetNotes(picked);
+      earTargetNotesRef.current = picked;
+      setEarMatchedIdx(0);
+      earMatchedIdxRef.current = 0;
+      setEarHintShown(false);
+      setEarFeedback({
+        text:
+          count === 1
+            ? '👂 Ascolta la nota misteriosa e suonala sulla tastiera!'
+            : '👂 Ascolta la sequenza di 3 note e replicala nell’ordine giusto!',
+        type: 'neutral',
+      });
+
+      // Center keyboard around C4-C5 so the target octave is right in front of the player
+      const c4Idx = getWhiteKeyIndexForNote('C4');
+      if (c4Idx !== -1) {
+        const opt = Math.max(0, Math.min(maxStartWhiteIdx, Math.round(c4Idx - windowSize / 2 + 4)));
+        setStartWhiteKeyIdx(opt);
+      }
+
+      setTimeout(() => {
+        playEarMysterySequence(picked);
+      }, 180);
+    },
+    [getWhiteKeyIndexForNote, maxStartWhiteIdx, playEarMysterySequence, windowSize]
+  );
+
+  // Report song & keyboard material to lightweight analytics when song waterfall is active
+  useEffect(() => {
+    if (!showWaterfall || !activeSong?.title) return;
+    try {
+      const clientId = getOrCreateClientId();
+      fetch(getAppApiUrl('/api/analytics/ping'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId: localStorage.getItem('maestro_device_id') || clientId,
+          username,
+          view: 'piano',
+          theme: studioTheme,
+          songTitle: activeSong.title,
+        }),
+      }).catch(() => {});
+    } catch (_) {}
+  }, [showWaterfall, activeSong?.title, studioTheme, username]);
+
   // --- PALESTRA DELLE SCALE & MANO TRASPARENTE STATE ---
   const [scaleActiveIdx, setScaleActiveIdx] = useState<number>(0);
   const [isScaleAutoplay, setIsScaleAutoplay] = useState<boolean>(true);
@@ -1776,11 +1884,72 @@ export const PianoView: React.FC<PianoViewProps> = ({
       }
     }
 
+    // 👂 Orecchio Assoluto (Ear Training Mini-Game) interactive check
+    if (isEarTrainingOpenRef.current && earTargetNotesRef.current.length > 0) {
+      const targets = earTargetNotesRef.current;
+      const curIdx = earMatchedIdxRef.current;
+      const expected = targets[curIdx];
+      if (expected) {
+        if (note === expected) {
+          const nextIdx = curIdx + 1;
+          if (nextIdx >= targets.length) {
+            const pts = earLevelRef.current === 'maestro' ? 250 : earLevelRef.current === 'expert' ? 150 : 100;
+            setEarScore((s) => s + pts);
+            setEarStreak((st) => {
+              const nextSt = st + 1;
+              setEarBestStreak((best) => {
+                const updated = Math.max(best, nextSt);
+                try {
+                  localStorage.setItem('maestro_ear_best_streak', String(updated));
+                } catch {}
+                return updated;
+              });
+              return nextSt;
+            });
+            setEarFeedback({
+              text: `✅ ESATTO! Era ${targets.join(' → ')}! (+${pts} pt) — Nuova nota in arrivo...`,
+              type: 'correct',
+            });
+            earTargetNotesRef.current = [];
+            setTimeout(() => {
+              if (isEarTrainingOpenRef.current) {
+                startNewEarRound();
+              }
+            }, 1100);
+          } else {
+            setEarMatchedIdx(nextIdx);
+            earMatchedIdxRef.current = nextIdx;
+            setEarFeedback({
+              text: `✨ Nota ${nextIdx}/${targets.length} presa (${expected})! Ora indovina la nota #${nextIdx + 1}...`,
+              type: 'correct',
+            });
+          }
+        } else {
+          const playedKeyIdx = ALL_PIANO_KEYS.findIndex((k) => k.note === note);
+          const expectedKeyIdx = ALL_PIANO_KEYS.findIndex((k) => k.note === expected);
+          setEarStreak(0);
+          if (playedKeyIdx !== -1 && expectedKeyIdx !== -1) {
+            if (playedKeyIdx < expectedKeyIdx) {
+              setEarFeedback({
+                text: `⬆️ Hai premuto ${note}: la nota misteriosa è PIÙ ACUTA (vai più a destra 👉)`,
+                type: 'higher',
+              });
+            } else {
+              setEarFeedback({
+                text: `⬇️ Hai premuto ${note}: la nota misteriosa è PIÙ GRAVE (vai più a sinistra 👈)`,
+                type: 'lower',
+              });
+            }
+          }
+        }
+      }
+    }
+
     if (isRecording) {
       const now = (Date.now() - recordStartTime) / 1000;
       recordedNotesRef.current.push({ note, time: now, duration: 0.5 });
     }
-  }, [instrument, isRecording, recordStartTime, getTransposedNote, socialSession, isSimulatingStudentMode, showToast, activeScaleExercise, scaleMode, scaleActiveIdx, isScaleLoop]);
+  }, [instrument, isRecording, recordStartTime, getTransposedNote, socialSession, isSimulatingStudentMode, showToast, activeScaleExercise, scaleMode, scaleActiveIdx, isScaleLoop, startNewEarRound]);
 
   const handleCanvasNoteDown = useCallback((baseNote: string) => {
     triggerNoteHit(baseNote);
@@ -2476,6 +2645,27 @@ export const PianoView: React.FC<PianoViewProps> = ({
             <span className="hidden xs:inline">Accordi</span>
           </button>
 
+          {/* 👂 Orecchio Assoluto (Ear Training Mini-Game) Button */}
+          <button
+            onClick={() => {
+              const next = !isEarTrainingOpen;
+              setIsEarTrainingOpen(next);
+              isEarTrainingOpenRef.current = next;
+              if (next) {
+                startNewEarRound();
+              }
+            }}
+            className={`px-1.5 sm:px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer ${
+              isEarTrainingOpen
+                ? 'bg-gradient-to-r from-fuchsia-500 to-amber-500 text-slate-950 font-black shadow-sm ring-1 ring-amber-300'
+                : 'bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border border-fuchsia-500/40 text-fuchsia-300'
+            }`}
+            title="Orecchio Assoluto: Mini-gioco per indovinare ad orecchio le note suonate dal pianoforte!"
+          >
+            <span>👂</span>
+            <span className="hidden xs:inline">Orecchio</span>
+          </button>
+
           {/* Toggle Falling Notes (ON / OFF) */}
           <button
             onClick={() => {
@@ -2602,6 +2792,104 @@ export const PianoView: React.FC<PianoViewProps> = ({
       {toastMessage && (
         <div className="fixed top-12 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 border border-amber-300 animate-in fade-in slide-in-from-top-3 text-xs sm:text-sm pointer-events-none">
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* 👂 ORECCHIO ASSOLUTO (EAR TRAINING MINI-GAME) HUD BAR */}
+      {isEarTrainingOpen && (
+        <div className="bg-gradient-to-r from-slate-900 via-fuchsia-950/60 to-slate-900 border-b-2 border-fuchsia-500/60 px-2 sm:px-3 py-1.5 flex items-center justify-between gap-2 shrink-0 z-20 text-[10px] sm:text-xs shadow-xl flex-wrap sm:flex-nowrap">
+          {/* Left: Title, Level Selector & Feedback */}
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="px-2 py-1 rounded-lg bg-gradient-to-tr from-fuchsia-500 to-amber-400 text-slate-950 font-black text-[10px] shrink-0 shadow">
+              👂 Orecchio Assoluto
+            </div>
+
+            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5 text-[9px] sm:text-[10px] font-bold shrink-0">
+              {([
+                { id: 'base', label: '🌱 Base (Bianchi)' },
+                { id: 'expert', label: '🔥 Esperto (Tutti)' },
+                { id: 'maestro', label: '🏆 Maestro (3 Note)' },
+              ] as const).map((lvl) => (
+                <button
+                  key={lvl.id}
+                  onClick={() => {
+                    setEarLevel(lvl.id);
+                    earLevelRef.current = lvl.id;
+                    startNewEarRound(lvl.id);
+                  }}
+                  className={`px-1.5 py-0.5 rounded transition-all cursor-pointer whitespace-nowrap ${
+                    earLevel === lvl.id
+                      ? 'bg-amber-500 text-slate-950 font-black shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {lvl.label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              className={`font-bold truncate px-2 py-0.5 rounded border text-[10px] sm:text-[11px] ${
+                earFeedback.type === 'correct'
+                  ? 'bg-emerald-950/90 border-emerald-400/50 text-emerald-300'
+                  : earFeedback.type === 'higher' || earFeedback.type === 'lower'
+                  ? 'bg-amber-950/90 border-amber-400/50 text-amber-300'
+                  : 'bg-slate-900/90 border-slate-700 text-slate-200'
+              }`}
+            >
+              {earFeedback.text}
+              {earHintShown && earTargetNotes[earMatchedIdx] && (
+                <span className="ml-1.5 text-fuchsia-300 font-black">
+                  (Indizio: inizia per {earTargetNotes[earMatchedIdx].slice(0, -1)} nell&apos;ottava {earTargetNotes[earMatchedIdx].slice(-1)})
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Actions & Score */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => playEarMysterySequence(earTargetNotes)}
+              className="px-2 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] flex items-center gap-1 shadow cursor-pointer"
+              title="Riascolta la nota o sequenza misteriosa"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              <span>Riascolta</span>
+            </button>
+
+            <button
+              onClick={() => setEarHintShown(true)}
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-fuchsia-300 border border-fuchsia-500/40 rounded-lg text-[10px] font-bold cursor-pointer"
+              title="Mostra un piccolo indizio sulla nota misteriosa"
+            >
+              💡 Indizio
+            </button>
+
+            <button
+              onClick={() => startNewEarRound()}
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold cursor-pointer"
+              title="Cambia nota misteriosa"
+            >
+              Salta
+            </button>
+
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-2 py-0.5 rounded-lg text-[10px] font-mono">
+              <span className="text-amber-400 font-black">⭐ {earScore}</span>
+              <span className="text-emerald-400 font-bold">🔥 {earStreak}</span>
+              <span className="text-slate-400 hidden md:inline">Record: {earBestStreak}</span>
+            </div>
+
+            <button
+              onClick={() => {
+                setIsEarTrainingOpen(false);
+                isEarTrainingOpenRef.current = false;
+              }}
+              className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+              title="Chiudi Orecchio Assoluto"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 

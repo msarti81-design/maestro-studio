@@ -203,6 +203,7 @@ export default function App() {
             username: username || getStoredUsername(),
             platform,
             view: currentView,
+            theme: studioTheme,
             screen,
             isNewSession: isFirstPing,
           }),
@@ -214,7 +215,7 @@ export default function App() {
     sendPing();
     const interval = setInterval(sendPing, 60000);
     return () => clearInterval(interval);
-  }, [currentView, username]);
+  }, [currentView, username, studioTheme]);
 
   const handleSelectView = (view: ViewMode | 'home') => {
     setCurrentView(view);

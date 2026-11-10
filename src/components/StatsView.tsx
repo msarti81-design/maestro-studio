@@ -13,6 +13,8 @@ interface DeviceStatEntry {
   totalPings: number;
   totalSessions: number;
   screen?: string;
+  theme?: string;
+  lastSong?: string;
 }
 
 interface DailyStatEntry {
@@ -28,9 +30,20 @@ interface AnalyticsStatsResponse {
   activeToday: number;
   active7Days: number;
   platformCounts: Record<string, number>;
+  themeCounts?: Record<string, number>;
+  topSongs?: { title: string; count: number }[];
   last14Days: DailyStatEntry[];
   devices: DeviceStatEntry[];
 }
+
+const THEME_LABELS: Record<string, string> = {
+  midnight: '🎹 Ivory Concert',
+  mahogany: '🪵 Vintage Wood',
+  marble: '🏛️ Marmo Carrara',
+  gold: '👑 Oro Reale & Perla',
+  carbon: '🏎️ Carbonio & Titanio',
+  neon: '⚡ Cyber Synth Neon',
+};
 
 interface StatsViewProps {
   onBackToHome: () => void;
@@ -331,6 +344,61 @@ export const StatsView: React.FC<StatsViewProps> = ({ onBackToHome }) => {
         </div>
       </div>
 
+      {/* 3D Keyboard Materials & Top Played Songs Breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Favorite 3D Keyboard Materials */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+          <div>
+            <h2 className="text-sm font-black text-white">🎨 Materiali Tastiera 3D Preferiti</h2>
+            <p className="text-[11px] text-slate-400">Quale finitura scelgono gli utenti quando suonano</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 pt-1">
+            {Object.entries(THEME_LABELS).map(([key, label]) => {
+              const count = stats?.themeCounts?.[key] || 0;
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between bg-slate-950/70 border border-slate-800/80 rounded-xl px-3 py-2 text-xs"
+                >
+                  <span className="font-semibold text-slate-200 truncate">{label}</span>
+                  <span className="font-mono font-black text-amber-400 tabular-nums ml-2">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Most Played Songs */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+          <div>
+            <h2 className="text-sm font-black text-white">🎵 Brani Più Suonati</h2>
+            <p className="text-[11px] text-slate-400">Canzoni aperte nella modalità Cascata o Spartito</p>
+          </div>
+          {!stats?.topSongs || stats.topSongs.length === 0 ? (
+            <div className="text-xs text-slate-500 py-6 text-center bg-slate-950/40 rounded-xl border border-slate-800/60">
+              Nessun brano registrato finora. Avvia una canzone sul pianoforte per vederla qui!
+            </div>
+          ) : (
+            <div className="space-y-1.5 pt-1">
+              {stats.topSongs.map((item, idx) => (
+                <div
+                  key={item.title}
+                  className="flex items-center justify-between bg-slate-950/70 border border-slate-800/80 rounded-xl px-3 py-1.5 text-xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono font-black text-amber-400 w-4">#{idx + 1}</span>
+                    <span className="font-bold text-white truncate">{item.title}</span>
+                  </div>
+                  <span className="font-mono text-[11px] font-bold text-emerald-400 shrink-0 ml-2">
+                    {item.count} {item.count === 1 ? 'volta' : 'volte'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Visitors & Devices Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
         <div className="px-4 sm:px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
@@ -351,7 +419,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ onBackToHome }) => {
                 <th className="py-2.5 px-4 font-bold">Utente / Dispositivo</th>
                 <th className="py-2.5 px-4 font-bold">Piattaforma</th>
                 <th className="py-2.5 px-4 font-bold">Ultima Attività</th>
-                <th className="py-2.5 px-4 font-bold">Sezione Usata</th>
+                <th className="py-2.5 px-4 font-bold">Sezione & Materiale</th>
                 <th className="py-2.5 px-4 font-bold text-right">Sessioni / Tempo</th>
               </tr>
             </thead>
@@ -421,7 +489,11 @@ export const StatsView: React.FC<StatsViewProps> = ({ onBackToHome }) => {
                       </td>
 
                       <td className="py-3 px-4 text-slate-300 font-medium">
-                        {formatViewLabel(d.lastView)}
+                        <div>{formatViewLabel(d.lastView)}</div>
+                        <div className="text-[10px] text-amber-300/90 mt-0.5">
+                          {THEME_LABELS[d.theme || 'midnight'] || '🎹 Ivory Concert'}
+                          {d.lastSong ? ` · 🎵 ${d.lastSong}` : ''}
+                        </div>
                       </td>
 
                       <td className="py-3 px-4 text-right font-mono tabular-nums text-slate-300">
