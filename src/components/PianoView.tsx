@@ -3090,7 +3090,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
       {/* SYNTHESIA FALLING NOTES WATERFALL */}
       {showWaterfall && activeSong ? (
-        <div className={`w-full flex flex-col transition-all duration-300 ${masterclassViewMode === 'sheet' ? 'shrink-0 bg-white' : 'flex-1 min-h-0 bg-slate-950'} overflow-hidden`}>
+        <div className={`w-full flex flex-col shrink-0 transition-colors duration-300 ${masterclassViewMode === 'sheet' ? 'bg-white' : 'bg-slate-950'} overflow-hidden`}>
           <FallingNotesWaterfall
             song={activeSong}
             keys={GAMEPLAY_KEYS}
@@ -3196,9 +3196,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         studentPressedNotesRef={studentPressedNotesRef}
         className={
           showWaterfall && activeSong
-            ? masterclassViewMode === 'sheet'
-              ? 'w-full flex-1 min-h-[160px] select-none touch-none relative'
-              : 'w-full h-[180px] sm:h-[220px] md:h-[260px] shrink-0 select-none touch-none relative'
+            ? 'w-full flex-1 min-h-[160px] select-none touch-none relative'
             : 'w-full flex-1 min-h-0 select-none touch-none relative'
         }
       />
