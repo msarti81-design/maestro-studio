@@ -102,6 +102,7 @@ export default function App() {
         return 'stats';
       }
       if (hash.startsWith('#piano')) return 'piano';
+      if (hash.startsWith('#ear')) return 'ear';
       if (hash.startsWith('#sheet')) return 'sheet';
       if (hash.startsWith('#jam')) return 'jam';
       if (hash.startsWith('#recordings')) return 'recordings';
@@ -258,11 +259,11 @@ export default function App() {
 
   return (
     <div className={`${themeBgClass} flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 ${
-      currentView === 'piano'
+      currentView === 'piano' || currentView === 'ear'
         ? 'w-screen h-[100dvh] overflow-hidden fixed inset-0 touch-none'
         : 'w-full min-h-screen h-full overflow-y-auto touch-pan-y'
     }`}>
-      {currentView !== 'piano' && (
+      {currentView !== 'piano' && currentView !== 'ear' && (
         <Navbar
           currentView={currentView}
           onSelectView={(v) => handleSelectView(v)}
@@ -280,7 +281,7 @@ export default function App() {
         />
       )}
 
-      <main className={`flex-1 ${currentView === 'piano' ? 'p-0 h-full overflow-hidden' : 'py-4 px-4 sm:px-6 lg:px-8 touch-pan-y'}`}>
+      <main className={`flex-1 ${currentView === 'piano' || currentView === 'ear' ? 'p-0 h-full overflow-hidden' : 'py-4 px-4 sm:px-6 lg:px-8 touch-pan-y'}`}>
         {currentView === 'home' && (
           <HomeView
             onSelectView={(v) => handleSelectView(v)}
@@ -290,18 +291,20 @@ export default function App() {
             onOpenPlayAssetsModal={() => setIsPlayAssetsModalOpen(true)}
           />
         )}
-        {currentView === 'piano' && (
+        {(currentView === 'piano' || currentView === 'ear') && (
           <PianoView
+            key={currentView}
+            earTrainingStandalone={currentView === 'ear'}
             onBackToHome={() => handleSelectView('home')}
-            socialSession={activeSocialSession}
+            socialSession={currentView === 'ear' ? null : activeSocialSession}
             onExitToSocial={handleExitSocialChallenge}
             studioTheme={studioTheme}
             onThemeChange={handleThemeChange}
             onOpenScalesModal={() => setIsScalesModalOpen(true)}
-            activeScaleExercise={activeScaleExercise}
+            activeScaleExercise={currentView === 'ear' ? null : activeScaleExercise}
             onCloseScaleExercise={() => setActiveScaleExercise(null)}
             onNavigateToView={(v) => handleSelectView(v)}
-            selectedSongToPlay={selectedSongForPiano}
+            selectedSongToPlay={currentView === 'ear' ? null : selectedSongForPiano}
             onClearSelectedSong={() => setSelectedSongForPiano(null)}
           />
         )}

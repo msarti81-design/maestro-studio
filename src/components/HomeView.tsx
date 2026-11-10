@@ -361,7 +361,47 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
 
-        {/* CARD 7: TUTORIAL & GUIDE */}
+        {/* CARD 7: ORECCHIO ASSOLUTO (EAR TRAINING) */}
+        <div
+          onClick={() => handleOpenMode('ear')}
+          onMouseEnter={() => {
+            setActiveTabPreview('ear');
+            audioEngine.playNote('F4', '8n', 'piano');
+          }}
+          className={`${cardBaseClass} bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950 border border-fuchsia-500/35 hover:border-fuchsia-400 hover:shadow-fuchsia-500/20`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-black uppercase tracking-wider text-fuchsia-300 bg-fuchsia-500/15 border border-fuchsia-500/35 px-2 py-0.5 rounded-full">
+              EAR TRAINING
+            </span>
+            <div className="w-1.5 h-1.5 rounded-full bg-fuchsia-400 group-hover:animate-ping" />
+          </div>
+
+          <div className="my-2 space-y-1.5 flex-1">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-fuchsia-600 to-amber-400 flex items-center justify-center text-slate-950 shadow-md shadow-fuchsia-500/30 group-hover:scale-105 transition-transform shrink-0 text-base">
+                👂
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-black text-white group-hover:text-fuchsia-300 transition-colors leading-tight truncate">
+                  Orecchio
+                </h3>
+                <span className="text-[10px] text-fuchsia-300/90 font-medium truncate block">Indovina la Nota</span>
+              </div>
+            </div>
+
+            <p className="text-slate-400 text-[11px] leading-snug line-clamp-2 h-[2.5rem]">
+              Allena l&apos;orecchio assoluto con la tastiera gigante dedicata: ascolta e indovina!
+            </p>
+          </div>
+
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-fuchsia-300 font-bold text-[11px] group-hover:text-fuchsia-200">
+            <span>Allena Orecchio</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </div>
+
+        {/* CARD 8: TUTORIAL & GUIDE */}
         <div
           onClick={() => {
             onInitAudio();

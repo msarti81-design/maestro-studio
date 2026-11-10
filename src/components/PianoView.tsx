@@ -69,6 +69,7 @@ interface PianoViewProps {
   onNavigateToView?: (view: any) => void;
   selectedSongToPlay?: InteractiveSong | null;
   onClearSelectedSong?: () => void;
+  earTrainingStandalone?: boolean;
 }
 
 import { ALL_PIANO_KEYS, ALL_WHITE_KEYS } from '../data/pianoKeys';
@@ -123,6 +124,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
   onNavigateToView,
   selectedSongToPlay,
   onClearSelectedSong,
+  earTrainingStandalone = false,
 }) => {
   const sessionStartTimeRef = useRef<number>(Date.now());
   const notesCountRef = useRef<number>(0);
@@ -518,7 +520,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
   }, [isChordDetectorOpen]);
 
   // --- 👂 ORECCHIO ASSOLUTO (EAR TRAINING MINI-GAME) STATE ---
-  const [isEarTrainingOpen, setIsEarTrainingOpen] = useState<boolean>(false);
+  const [isEarTrainingOpen, setIsEarTrainingOpen] = useState<boolean>(Boolean(earTrainingStandalone));
   const [earLevel, setEarLevel] = useState<'base' | 'expert' | 'maestro'>('base');
   const [earTargetNotes, setEarTargetNotes] = useState<string[]>([]);
   const [earMatchedIdx, setEarMatchedIdx] = useState<number>(0);
@@ -605,6 +607,16 @@ export const PianoView: React.FC<PianoViewProps> = ({
     },
     [getWhiteKeyIndexForNote, maxStartWhiteIdx, playEarMysterySequence, windowSize]
   );
+
+  // Auto-start first mystery note when entering dedicated Orecchio Assoluto mode from the main menu
+  useEffect(() => {
+    if (earTrainingStandalone) {
+      setIsEarTrainingOpen(true);
+      isEarTrainingOpenRef.current = true;
+      setShowWaterfall(false);
+      startNewEarRound('base');
+    }
+  }, [earTrainingStandalone]);
 
   // Report song & keyboard material to lightweight analytics when song waterfall is active
   useEffect(() => {
@@ -2579,214 +2591,195 @@ export const PianoView: React.FC<PianoViewProps> = ({
       style={containerStyle}
       className="bg-slate-950 flex flex-col h-full w-full overflow-hidden select-none touch-none p-0 m-0"
     >
-      {/* ULTRA-COMPACT SINGLE-ROW TOP BAR */}
-      <div
-        style={{
-          paddingTop: 'max(env(safe-area-inset-top, 0px), 2px)',
-          paddingLeft: 'max(env(safe-area-inset-left, 0px), 6px)',
-          paddingRight: 'max(env(safe-area-inset-right, 0px), 6px)',
-        }}
-        className="h-8 min-h-[32px] max-h-[34px] bg-slate-900/95 border-b border-slate-800/80 px-1 sm:px-2 flex items-center justify-between flex-nowrap overflow-x-auto scrollbar-none shrink-0 z-20 text-[10px] sm:text-[11px]"
-      >
-        {/* Left: Essential navigation and toggles */}
-        <div className="flex items-center gap-1 shrink-0 flex-nowrap">
-          {socialSession ? (
+      {/* ULTRA-COMPACT SINGLE-ROW TOP BAR (Hidden in dedicated Ear Training mode) */}
+      {!earTrainingStandalone && (
+        <div
+          style={{
+            paddingTop: 'max(env(safe-area-inset-top, 0px), 2px)',
+            paddingLeft: 'max(env(safe-area-inset-left, 0px), 6px)',
+            paddingRight: 'max(env(safe-area-inset-right, 0px), 6px)',
+          }}
+          className="h-8 min-h-[32px] max-h-[34px] bg-slate-900/95 border-b border-slate-800/80 px-1 sm:px-2 flex items-center justify-between flex-nowrap overflow-x-auto scrollbar-none shrink-0 z-20 text-[10px] sm:text-[11px]"
+        >
+          {/* Left: Essential navigation and toggles */}
+          <div className="flex items-center gap-1 shrink-0 flex-nowrap">
+            {socialSession ? (
+              <button
+                onClick={handleExitToSocialResults}
+                className="px-2 py-0.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 text-white font-black rounded-md flex items-center gap-1 shadow transition-all active:scale-95 animate-pulse cursor-pointer text-[10px]"
+                title="Esci dal duello e vedi esiti"
+              >
+                <span>🏁 ESCI ({socialSession.roomId})</span>
+              </button>
+            ) : (
+              <button
+                onClick={onBackToHome}
+                className="px-1.5 py-0.5 text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-750 rounded-md flex items-center gap-1 transition-colors cursor-pointer"
+                title="Torna al Menu Principale"
+              >
+                <Home className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline font-bold">Menu</span>
+              </button>
+            )}
+
+            {/* Spartiti / Library */}
             <button
-              onClick={handleExitToSocialResults}
-              className="px-2 py-0.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 text-white font-black rounded-md flex items-center gap-1 shadow transition-all active:scale-95 animate-pulse cursor-pointer text-[10px]"
-              title="Esci dal duello e vedi esiti"
+              onClick={() => setIsLibraryOpen(true)}
+              className="px-1.5 sm:px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-md flex items-center gap-1 shadow-sm transition-all active:scale-95 cursor-pointer"
+              title="Apri libreria spartiti"
             >
-              <span>🏁 ESCI ({socialSession.roomId})</span>
+              <BookOpen className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Spartiti</span>
             </button>
-          ) : (
+
+            {/* Palestra Scale Button */}
+            {onOpenScalesModal && (
+              <button
+                onClick={onOpenScalesModal}
+                className={`px-1.5 sm:px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer ${
+                  activeScaleExercise
+                    ? 'bg-amber-500 text-slate-950 font-black shadow ring-1 ring-amber-300'
+                    : 'bg-slate-800/80 hover:bg-slate-750 text-amber-300 border border-amber-500/30'
+                }`}
+                title="Palestra di Scale & Diteggiatura"
+              >
+                <Layers className="w-3 h-3 text-amber-400" />
+                <span className="hidden xs:inline">Scale</span>
+              </button>
+            )}
+
+            {/* Chord Detector Button */}
             <button
-              onClick={onBackToHome}
-              className="px-1.5 py-0.5 text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-750 rounded-md flex items-center gap-1 transition-colors cursor-pointer"
-              title="Torna al Menu Principale"
+              onClick={() => setIsChordDetectorOpen(true)}
+              className="px-1.5 sm:px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer"
+              title="Analizzatore di Accordi in Tempo Reale"
             >
-              <Home className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline font-bold">Menu</span>
+              <Music className="w-3 h-3 text-amber-400" />
+              <span className="hidden xs:inline">Accordi</span>
             </button>
-          )}
 
-          {/* Spartiti / Library */}
-          <button
-            onClick={() => setIsLibraryOpen(true)}
-            className="px-1.5 sm:px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-md flex items-center gap-1 shadow-sm transition-all active:scale-95 cursor-pointer"
-            title="Apri libreria spartiti"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Spartiti</span>
-          </button>
-
-          {/* Palestra Scale Button */}
-          {onOpenScalesModal && (
-            <button
-              onClick={onOpenScalesModal}
-              className={`px-1.5 sm:px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer ${
-                activeScaleExercise
-                  ? 'bg-amber-500 text-slate-950 font-black shadow ring-1 ring-amber-300'
-                  : 'bg-slate-800/80 hover:bg-slate-750 text-amber-300 border border-amber-500/30'
-              }`}
-              title="Palestra di Scale & Diteggiatura"
-            >
-              <Layers className="w-3 h-3 text-amber-400" />
-              <span className="hidden xs:inline">Scale</span>
-            </button>
-          )}
-
-          {/* Chord Detector Button */}
-          <button
-            onClick={() => setIsChordDetectorOpen(true)}
-            className="px-1.5 sm:px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer"
-            title="Analizzatore di Accordi in Tempo Reale"
-          >
-            <Music className="w-3 h-3 text-amber-400" />
-            <span className="hidden xs:inline">Accordi</span>
-          </button>
-
-          {/* 👂 Orecchio Assoluto (Ear Training Mini-Game) Button */}
-          <button
-            onClick={() => {
-              const next = !isEarTrainingOpen;
-              setIsEarTrainingOpen(next);
-              isEarTrainingOpenRef.current = next;
-              if (next) {
-                startNewEarRound();
-              }
-            }}
-            className={`px-1.5 sm:px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer ${
-              isEarTrainingOpen
-                ? 'bg-gradient-to-r from-fuchsia-500 to-amber-500 text-slate-950 font-black shadow-sm ring-1 ring-amber-300'
-                : 'bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border border-fuchsia-500/40 text-fuchsia-300'
-            }`}
-            title="Orecchio Assoluto: Mini-gioco per indovinare ad orecchio le note suonate dal pianoforte!"
-          >
-            <span>👂</span>
-            <span className="hidden xs:inline">Orecchio</span>
-          </button>
-
-          {/* Toggle Falling Notes (ON / OFF) */}
-          <button
-            onClick={() => {
-              const next = !showWaterfall;
-              setShowWaterfall(next);
-              if (!next) {
-                setSongGuidance(null);
-              }
-            }}
-            className={`px-2 py-0.5 font-bold rounded-md flex items-center gap-1 transition-all cursor-pointer ${
-              showWaterfall
-                ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 shadow-sm'
-                : 'bg-slate-800/90 hover:bg-slate-750 text-slate-300 border border-slate-700'
-            }`}
-            title={showWaterfall ? 'Note a cascata ATTIVE. Clicca per disattivare (solo pianoforte)' : 'Attiva note a cascata (Waterfall)'}
-          >
-            <Sparkles className={`w-3 h-3 ${showWaterfall ? 'text-cyan-400' : 'text-slate-400'}`} />
-            <span>Note {showWaterfall ? 'ON' : 'OFF'}</span>
-          </button>
-        </div>
-
-        {/* Center: Song info or Title */}
-        <div className="flex items-center gap-1.5 min-w-0 px-2 justify-center truncate">
-          {activeSong ? (
-            <div className="flex items-center gap-1 font-semibold text-slate-200 text-[10px] sm:text-[11px] truncate">
-              <span className="text-amber-400 truncate max-w-[120px] sm:max-w-[200px] font-bold">
-                🎵 {activeSong.title}
-              </span>
-              <span className="text-slate-400 hidden md:inline truncate">&bull; {activeSong.author}</span>
-            </div>
-          ) : (
-            <span className="font-bold text-slate-400 text-[10px] sm:text-[11px] truncate tracking-wide hidden sm:inline">
-              🎹 VirtuKeys Piano Studio
-            </span>
-          )}
-        </div>
-
-        {/* Right: Pedale, Rec & Options 3-dots */}
-        <div className="flex items-center gap-1 shrink-0 flex-nowrap">
-          {/* Record button */}
-          <button
-            onClick={toggleRecording}
-            className={`px-1.5 sm:px-2 py-0.5 font-bold rounded-md flex items-center gap-1 transition-colors cursor-pointer ${
-              isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-800 hover:bg-slate-750 text-slate-300'
-            }`}
-            title={isRecording ? 'Termina registrazione' : 'Registra'}
-          >
-            <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-white' : 'bg-red-500'}`} />
-            <span className="hidden sm:inline">{isRecording ? 'Stop' : 'Rec'}</span>
-          </button>
-
-          {/* Sustain pedal toggle */}
-          <button
-            onClick={() => {
-              const next = !sustain;
-              setSustain(next);
-              audioEngine.setSustain(next);
-            }}
-            className={`px-1.5 sm:px-2 py-0.5 font-semibold rounded-md border transition-colors cursor-pointer ${
-              sustain
-                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold'
-                : 'bg-slate-800/80 border-slate-700/80 text-slate-400 hover:text-white'
-            }`}
-            title="Sustain (Pedal)"
-          >
-            Sustain
-          </button>
-
-          {/* Quick 1-Tap Material Switcher Button */}
-          {onThemeChange && (
+            {/* Toggle Falling Notes (ON / OFF) */}
             <button
               onClick={() => {
-                const order: StudioTheme[] = ['midnight', 'mahogany', 'marble', 'gold', 'carbon', 'neon'];
-                const nextIdx = (order.indexOf(studioTheme) + 1) % order.length;
-                onThemeChange(order[nextIdx]);
+                const next = !showWaterfall;
+                setShowWaterfall(next);
+                if (!next) {
+                  setSongGuidance(null);
+                }
               }}
-              className="px-1.5 sm:px-2 py-0.5 font-bold rounded-md border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
-              title="Cambia materiale della tastiera (Ivory, Wood, Marble, Gold, Carbon, Neon)"
+              className={`px-2 py-0.5 font-bold rounded-md flex items-center gap-1 transition-all cursor-pointer ${
+                showWaterfall
+                  ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 shadow-sm'
+                  : 'bg-slate-800/90 hover:bg-slate-750 text-slate-300 border border-slate-700'
+              }`}
+              title={showWaterfall ? 'Note a cascata ATTIVE. Clicca per disattivare (solo pianoforte)' : 'Attiva note a cascata (Waterfall)'}
             >
-              <span>
-                {studioTheme === 'mahogany'
-                  ? '🪵'
-                  : studioTheme === 'marble'
-                  ? '🏛️'
-                  : studioTheme === 'gold'
-                  ? '👑'
-                  : studioTheme === 'carbon'
-                  ? '🏎️'
-                  : studioTheme === 'neon'
-                  ? '⚡'
-                  : '🎹'}
-              </span>
-              <span className="hidden md:inline text-[10px]">
-                {studioTheme === 'mahogany'
-                  ? 'Wood'
-                  : studioTheme === 'marble'
-                  ? 'Marble'
-                  : studioTheme === 'gold'
-                  ? 'Gold'
-                  : studioTheme === 'carbon'
-                  ? 'Carbon'
-                  : studioTheme === 'neon'
-                  ? 'Neon'
-                  : 'Ivory'}
-              </span>
+              <Sparkles className={`w-3 h-3 ${showWaterfall ? 'text-cyan-400' : 'text-slate-400'}`} />
+              <span>Note {showWaterfall ? 'ON' : 'OFF'}</span>
             </button>
-          )}
+          </div>
 
-          {/* 3-DOTS OPTIONS MODAL BUTTON (Metronome, Volume, Keys, etc.) */}
-          <button
-            onClick={() => setIsOptionsModalOpen(true)}
-            className="p-1 px-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/40 rounded-md transition-all flex items-center gap-1 cursor-pointer"
-            title="All options and tools (Metronome, Volume, Keys, Microphone...)"
-          >
-            <MoreHorizontal className="w-3.5 h-3.5" />
-            {isPianoMetronomeActive && (
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+          {/* Center: Song info or Title */}
+          <div className="flex items-center gap-1.5 min-w-0 px-2 justify-center truncate">
+            {activeSong ? (
+              <div className="flex items-center gap-1 font-semibold text-slate-200 text-[10px] sm:text-[11px] truncate">
+                <span className="text-amber-400 truncate max-w-[120px] sm:max-w-[200px] font-bold">
+                  🎵 {activeSong.title}
+                </span>
+                <span className="text-slate-400 hidden md:inline truncate">&bull; {activeSong.author}</span>
+              </div>
+            ) : (
+              <span className="font-bold text-slate-400 text-[10px] sm:text-[11px] truncate tracking-wide hidden sm:inline">
+                🎹 VirtuKeys Piano Studio
+              </span>
             )}
-          </button>
+          </div>
+
+          {/* Right: Pedale, Rec & Options 3-dots */}
+          <div className="flex items-center gap-1 shrink-0 flex-nowrap">
+            {/* Record button */}
+            <button
+              onClick={toggleRecording}
+              className={`px-1.5 sm:px-2 py-0.5 font-bold rounded-md flex items-center gap-1 transition-colors cursor-pointer ${
+                isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-800 hover:bg-slate-750 text-slate-300'
+              }`}
+              title={isRecording ? 'Termina registrazione' : 'Registra'}
+            >
+              <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-white' : 'bg-red-500'}`} />
+              <span className="hidden sm:inline">{isRecording ? 'Stop' : 'Rec'}</span>
+            </button>
+
+            {/* Sustain pedal toggle */}
+            <button
+              onClick={() => {
+                const next = !sustain;
+                setSustain(next);
+                audioEngine.setSustain(next);
+              }}
+              className={`px-1.5 sm:px-2 py-0.5 font-semibold rounded-md border transition-colors cursor-pointer ${
+                sustain
+                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold'
+                  : 'bg-slate-800/80 border-slate-700/80 text-slate-400 hover:text-white'
+              }`}
+              title="Sustain (Pedal)"
+            >
+              Sustain
+            </button>
+
+            {/* Quick 1-Tap Material Switcher Button */}
+            {onThemeChange && (
+              <button
+                onClick={() => {
+                  const order: StudioTheme[] = ['midnight', 'mahogany', 'marble', 'gold', 'carbon', 'neon'];
+                  const nextIdx = (order.indexOf(studioTheme) + 1) % order.length;
+                  onThemeChange(order[nextIdx]);
+                }}
+                className="px-1.5 sm:px-2 py-0.5 font-bold rounded-md border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                title="Cambia materiale della tastiera (Ivory, Wood, Marble, Gold, Carbon, Neon)"
+              >
+                <span>
+                  {studioTheme === 'mahogany'
+                    ? '🪵'
+                    : studioTheme === 'marble'
+                    ? '🏛️'
+                    : studioTheme === 'gold'
+                    ? '👑'
+                    : studioTheme === 'carbon'
+                    ? '🏎️'
+                    : studioTheme === 'neon'
+                    ? '⚡'
+                    : '🎹'}
+                </span>
+                <span className="hidden md:inline text-[10px]">
+                  {studioTheme === 'mahogany'
+                    ? 'Wood'
+                    : studioTheme === 'marble'
+                    ? 'Marble'
+                    : studioTheme === 'gold'
+                    ? 'Gold'
+                    : studioTheme === 'carbon'
+                    ? 'Carbon'
+                    : studioTheme === 'neon'
+                    ? 'Neon'
+                    : 'Ivory'}
+                </span>
+              </button>
+            )}
+
+            {/* 3-DOTS OPTIONS MODAL BUTTON (Metronome, Volume, Keys, etc.) */}
+            <button
+              onClick={() => setIsOptionsModalOpen(true)}
+              className="p-1 px-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/40 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+              title="All options and tools (Metronome, Volume, Keys, Microphone...)"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+              {isPianoMetronomeActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Toast Notification Banner */}
       {toastMessage && (
@@ -2795,12 +2788,28 @@ export const PianoView: React.FC<PianoViewProps> = ({
         </div>
       )}
 
-      {/* 👂 ORECCHIO ASSOLUTO (EAR TRAINING MINI-GAME) HUD BAR */}
-      {isEarTrainingOpen && (
-        <div className="bg-gradient-to-r from-slate-900 via-fuchsia-950/60 to-slate-900 border-b-2 border-fuchsia-500/60 px-2 sm:px-3 py-1.5 flex items-center justify-between gap-2 shrink-0 z-20 text-[10px] sm:text-xs shadow-xl flex-wrap sm:flex-nowrap">
-          {/* Left: Title, Level Selector & Feedback */}
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="px-2 py-1 rounded-lg bg-gradient-to-tr from-fuchsia-500 to-amber-400 text-slate-950 font-black text-[10px] shrink-0 shadow">
+      {/* 👂 ORECCHIO ASSOLUTO (EAR TRAINING STANDALONE TOP BAR) */}
+      {(earTrainingStandalone || isEarTrainingOpen) && (
+        <div
+          style={{
+            paddingTop: 'max(env(safe-area-inset-top, 0px), 4px)',
+            paddingLeft: 'max(env(safe-area-inset-left, 0px), 8px)',
+            paddingRight: 'max(env(safe-area-inset-right, 0px), 8px)',
+          }}
+          className="bg-gradient-to-r from-slate-900 via-fuchsia-950/75 to-slate-900 border-b border-fuchsia-500/50 px-2 sm:px-3 py-1.5 flex items-center justify-between gap-2 shrink-0 z-20 text-[10px] sm:text-xs shadow-xl flex-wrap sm:flex-nowrap"
+        >
+          {/* Left: Back to Menu, Title, Level Selector & Feedback */}
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+            <button
+              onClick={onBackToHome}
+              className="px-2 py-1 text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg flex items-center gap-1 transition-colors cursor-pointer shrink-0 font-bold"
+              title="Torna al Menu Principale"
+            >
+              <Home className="w-3.5 h-3.5 text-amber-400" />
+              <span>Menu</span>
+            </button>
+
+            <div className="hidden md:flex px-2 py-1 rounded-lg bg-gradient-to-tr from-fuchsia-500 to-amber-400 text-slate-950 font-black text-[10px] shrink-0 shadow">
               👂 Orecchio Assoluto
             </div>
 
@@ -2817,7 +2826,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     earLevelRef.current = lvl.id;
                     startNewEarRound(lvl.id);
                   }}
-                  className={`px-1.5 py-0.5 rounded transition-all cursor-pointer whitespace-nowrap ${
+                  className={`px-1.5 sm:px-2 py-0.5 rounded transition-all cursor-pointer whitespace-nowrap ${
                     earLevel === lvl.id
                       ? 'bg-amber-500 text-slate-950 font-black shadow'
                       : 'text-slate-400 hover:text-white'
@@ -2829,11 +2838,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
             </div>
 
             <div
-              className={`font-bold truncate px-2 py-0.5 rounded border text-[10px] sm:text-[11px] ${
+              className={`font-bold truncate px-2.5 py-1 rounded-lg border text-[10px] sm:text-xs flex-1 min-w-[140px] ${
                 earFeedback.type === 'correct'
-                  ? 'bg-emerald-950/90 border-emerald-400/50 text-emerald-300'
+                  ? 'bg-emerald-950/90 border-emerald-400/60 text-emerald-300'
                   : earFeedback.type === 'higher' || earFeedback.type === 'lower'
-                  ? 'bg-amber-950/90 border-amber-400/50 text-amber-300'
+                  ? 'bg-amber-950/90 border-amber-400/60 text-amber-300'
                   : 'bg-slate-900/90 border-slate-700 text-slate-200'
               }`}
             >
@@ -2846,11 +2855,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
             </div>
           </div>
 
-          {/* Right: Actions & Score */}
+          {/* Right: Actions, Score & Material Switcher */}
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => playEarMysterySequence(earTargetNotes)}
-              className="px-2 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] flex items-center gap-1 shadow cursor-pointer"
+              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] sm:text-xs flex items-center gap-1 shadow cursor-pointer"
               title="Riascolta la nota o sequenza misteriosa"
             >
               <Volume2 className="w-3.5 h-3.5" />
@@ -2873,22 +2882,37 @@ export const PianoView: React.FC<PianoViewProps> = ({
               Salta
             </button>
 
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-2 py-0.5 rounded-lg text-[10px] font-mono">
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-mono">
               <span className="text-amber-400 font-black">⭐ {earScore}</span>
               <span className="text-emerald-400 font-bold">🔥 {earStreak}</span>
-              <span className="text-slate-400 hidden md:inline">Record: {earBestStreak}</span>
+              <span className="text-slate-400 hidden lg:inline">Record: {earBestStreak}</span>
             </div>
 
-            <button
-              onClick={() => {
-                setIsEarTrainingOpen(false);
-                isEarTrainingOpenRef.current = false;
-              }}
-              className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-              title="Chiudi Orecchio Assoluto"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            {onThemeChange && (
+              <button
+                onClick={() => {
+                  const order: StudioTheme[] = ['midnight', 'mahogany', 'marble', 'gold', 'carbon', 'neon'];
+                  const nextIdx = (order.indexOf(studioTheme) + 1) % order.length;
+                  onThemeChange(order[nextIdx]);
+                }}
+                className="px-2 py-1 font-bold rounded-lg border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap text-[10px]"
+                title="Cambia materiale della tastiera"
+              >
+                <span>
+                  {studioTheme === 'mahogany'
+                    ? '🪵'
+                    : studioTheme === 'marble'
+                    ? '🏛️'
+                    : studioTheme === 'gold'
+                    ? '👑'
+                    : studioTheme === 'carbon'
+                    ? '🏎️'
+                    : studioTheme === 'neon'
+                    ? '⚡'
+                    : '🎹'}
+                </span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -3449,92 +3473,96 @@ export const PianoView: React.FC<PianoViewProps> = ({
         );
       })()}
 
-      {/* SYNTHESIA FALLING NOTES WATERFALL */}
-      {showWaterfall && activeSong ? (
-        <div className={`w-full flex flex-col shrink-0 transition-colors duration-300 ${masterclassViewMode === 'sheet' ? 'bg-white' : 'bg-slate-950'} overflow-hidden`}>
-          <FallingNotesWaterfall
-            song={activeSong}
-            keys={GAMEPLAY_KEYS}
-            getTransposedNote={getTransposedNote}
-            initialPlayMode={masterclassPlayMode}
-            initialViewMode={masterclassViewMode}
-            onViewModeChange={setMasterclassViewMode}
-            sheetScrollMode={sheetScrollMode}
-            isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
-            onActiveGuidanceChange={setSongGuidance}
-            onMasterclassFinished={() => {
-              showToast('🎉 Phrase completed! Turn goes back to Teacher 👑');
-              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(
-                  JSON.stringify({
-                    type: 'piano:phrase_progress',
-                    roomId: socialSession?.roomId,
-                    currentIndex: activeSong.notes.length,
-                    totalNotes: activeSong.notes.length,
-                    completed: true,
-                  })
-                );
-              }
-            }}
-            onClose={() => {
-              setShowWaterfall(false);
-              setSongGuidance(null);
-            }}
-          />
-        </div>
-      ) : (
-        /* When waterfall is hidden, slim quick chords strip above keys */
-        <div className="shrink-0 w-full h-7 sm:h-8 flex items-center justify-center bg-slate-950/80 border-b border-slate-900/80 px-2 overflow-x-auto scrollbar-none gap-1.5 z-10">
-          <span className="text-[9px] text-slate-500 uppercase font-bold shrink-0">Accordi:</span>
-          <div className="flex items-center gap-1 flex-nowrap">
-            {CHORD_PRESETS.map((chord) => (
-              <button
-                key={chord.name}
-                onClick={() => audioEngine.playChord(chord.notes.map((n) => getTransposedNote(n)), '2n', instrument)}
-                className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 border border-slate-800/80 rounded text-slate-300 hover:text-amber-400 text-[10px] font-semibold shrink-0 cursor-pointer transition-colors"
-              >
-                {chord.name}
-              </button>
-            ))}
+      {/* SYNTHESIA FALLING NOTES WATERFALL (Hidden in dedicated Ear Training mode) */}
+      {!earTrainingStandalone && (
+        <>
+          {showWaterfall && activeSong ? (
+            <div className={`w-full flex flex-col shrink-0 transition-colors duration-300 ${masterclassViewMode === 'sheet' ? 'bg-white' : 'bg-slate-950'} overflow-hidden`}>
+              <FallingNotesWaterfall
+                song={activeSong}
+                keys={GAMEPLAY_KEYS}
+                getTransposedNote={getTransposedNote}
+                initialPlayMode={masterclassPlayMode}
+                initialViewMode={masterclassViewMode}
+                onViewModeChange={setMasterclassViewMode}
+                sheetScrollMode={sheetScrollMode}
+                isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
+                onActiveGuidanceChange={setSongGuidance}
+                onMasterclassFinished={() => {
+                  showToast('🎉 Phrase completed! Turn goes back to Teacher 👑');
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(
+                      JSON.stringify({
+                        type: 'piano:phrase_progress',
+                        roomId: socialSession?.roomId,
+                        currentIndex: activeSong.notes.length,
+                        totalNotes: activeSong.notes.length,
+                        completed: true,
+                      })
+                    );
+                  }
+                }}
+                onClose={() => {
+                  setShowWaterfall(false);
+                  setSongGuidance(null);
+                }}
+              />
+            </div>
+          ) : (
+            /* When waterfall is hidden, slim quick chords strip above keys */
+            <div className="shrink-0 w-full h-7 sm:h-8 flex items-center justify-center bg-slate-950/80 border-b border-slate-900/80 px-2 overflow-x-auto scrollbar-none gap-1.5 z-10">
+              <span className="text-[9px] text-slate-500 uppercase font-bold shrink-0">Accordi:</span>
+              <div className="flex items-center gap-1 flex-nowrap">
+                {CHORD_PRESETS.map((chord) => (
+                  <button
+                    key={chord.name}
+                    onClick={() => audioEngine.playChord(chord.notes.map((n) => getTransposedNote(n)), '2n', instrument)}
+                    className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 border border-slate-800/80 rounded text-slate-300 hover:text-amber-400 text-[10px] font-semibold shrink-0 cursor-pointer transition-colors"
+                  >
+                    {chord.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* FIXED 88-KEY MINI-MAP KEYBOARD (Mostra sempre la posizione su tutti gli 88 tasti) */}
+          <div className="w-full bg-slate-900/95 border-t border-b border-slate-800/80 px-1 sm:px-2 py-0.5 flex items-center justify-between gap-1 sm:gap-2 shrink-0 z-20">
+            {/* Quick Shift -1 Octave */}
+            <button
+              onClick={() => setStartWhiteKeyIdx((prev) => Math.max(0, prev - 7))}
+              disabled={clampedStartWhiteIdx === 0}
+              className="p-0.5 h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors cursor-pointer"
+              title="Sposta indietro di 1 Ottava"
+            >
+              <ChevronLeft className="w-3.5 h-3.5 text-amber-400" />
+            </button>
+
+            {/* Interactive 88-Key Mini Piano with Falling Notes Waterfall */}
+            <MiniMapKeyboard
+              allWhiteKeys={ALL_WHITE_KEYS}
+              allPianoKeys={ALL_PIANO_KEYS}
+              startWhiteKeyIdx={clampedStartWhiteIdx}
+              windowSize={windowSize}
+              maxStartWhiteIdx={maxStartWhiteIdx}
+              onSelectStartWhiteIdx={setStartWhiteKeyIdx}
+              currentlyPressedNotesRef={currentlyPressedNotesRef}
+              showWaterfall={Boolean(showWaterfall && activeSong)}
+              studentPressedNotesRef={studentPressedNotesRef}
+            />
+
+            {/* Quick Shift +1 Octave */}
+            <button
+              onClick={() => setStartWhiteKeyIdx((prev) => Math.min(maxStartWhiteIdx, prev + 7))}
+              disabled={clampedStartWhiteIdx >= maxStartWhiteIdx}
+              className="p-0.5 h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors cursor-pointer"
+              title="Sposta avanti di 1 Ottava"
+            >
+              <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
+            </button>
           </div>
-        </div>
+        </>
       )}
-
-      {/* FIXED 88-KEY MINI-MAP KEYBOARD (Mostra sempre la posizione su tutti gli 88 tasti) */}
-      <div className="w-full bg-slate-900/95 border-t border-b border-slate-800/80 px-1 sm:px-2 py-0.5 flex items-center justify-between gap-1 sm:gap-2 shrink-0 z-20">
-        {/* Quick Shift -1 Octave */}
-        <button
-          onClick={() => setStartWhiteKeyIdx((prev) => Math.max(0, prev - 7))}
-          disabled={clampedStartWhiteIdx === 0}
-          className="p-0.5 h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors cursor-pointer"
-          title="Sposta indietro di 1 Ottava"
-        >
-          <ChevronLeft className="w-3.5 h-3.5 text-amber-400" />
-        </button>
-
-        {/* Interactive 88-Key Mini Piano with Falling Notes Waterfall */}
-        <MiniMapKeyboard
-          allWhiteKeys={ALL_WHITE_KEYS}
-          allPianoKeys={ALL_PIANO_KEYS}
-          startWhiteKeyIdx={clampedStartWhiteIdx}
-          windowSize={windowSize}
-          maxStartWhiteIdx={maxStartWhiteIdx}
-          onSelectStartWhiteIdx={setStartWhiteKeyIdx}
-          currentlyPressedNotesRef={currentlyPressedNotesRef}
-          showWaterfall={Boolean(showWaterfall && activeSong)}
-          studentPressedNotesRef={studentPressedNotesRef}
-        />
-
-        {/* Quick Shift +1 Octave */}
-        <button
-          onClick={() => setStartWhiteKeyIdx((prev) => Math.min(maxStartWhiteIdx, prev + 7))}
-          disabled={clampedStartWhiteIdx >= maxStartWhiteIdx}
-          className="p-0.5 h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors cursor-pointer"
-          title="Sposta avanti di 1 Ottava"
-        >
-          <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
-        </button>
-      </div>
 
       {/* Gold Divider Line */}
       <div className="w-full h-1 bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.95)] z-10 shrink-0" />
