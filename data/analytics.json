@@ -5,11 +5,11 @@
       "username": "Sarti81",
       "platform": "Browser Mobile",
       "firstSeen": "2026-11-10T18:31:50.840Z",
-      "lastSeen": "2026-11-10T19:29:27.806Z",
+      "lastSeen": "2026-11-10T19:57:34.887Z",
       "lastView": "piano",
-      "totalPings": 29,
-      "totalSessions": 2,
-      "screen": "444x985",
+      "totalPings": 48,
+      "totalSessions": 7,
+      "screen": "985x444",
       "theme": "mahogany",
       "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
     }
@@ -19,10 +19,10 @@
       "devices": [
         "dev_1792152583715_59n7hdc"
       ],
-      "pings": 29
+      "pings": 48
     }
   },
   "songs": {
-    "Inno alla Gioia (Ode to Joy - Completo)": 2
+    "Inno alla Gioia (Ode to Joy - Completo)": 3
   }
 }

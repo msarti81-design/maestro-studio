@@ -63,9 +63,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
     onSelectView(view);
   };
 
-  // Shared card dimension and structure classes for pixel-perfect uniformity across all 7 cards
+  // Shared card dimension and structure classes for pixel-perfect uniformity across all 8 cards (2 rows of 4)
   const cardBaseClass =
-    'group relative w-[calc(50%-0.45rem)] md:w-[calc(25%-0.65rem)] p-3 sm:p-3.5 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden min-h-[165px] sm:min-h-[178px] shrink-0';
+    'group relative w-[calc(50%-0.45rem)] sm:w-[calc(25%-0.6rem)] p-3 sm:p-3.5 rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 flex flex-col justify-between overflow-hidden min-h-[165px] sm:min-h-[178px] shrink-0';
 
   return (
     <div className="relative max-w-6xl mx-auto px-3 sm:px-5 pt-2 pb-2.5 sm:pt-2.5 sm:pb-3 flex flex-col justify-between min-h-[calc(100vh-4rem)] select-none">

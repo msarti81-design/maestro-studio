@@ -215,19 +215,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>Scales</span>
           </button>
 
-          {/* Orecchio Assoluto (Ear Training) Button */}
-          <button
-            onClick={() => {
-              onInitAudio();
-              onSelectView('ear');
-            }}
-            className="flex items-center gap-1 px-2 py-1 bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border border-fuchsia-500/35 text-fuchsia-300 rounded-xl text-[10px] sm:text-xs font-black transition-all shadow-sm active:scale-95 cursor-pointer"
-            title="Orecchio Assoluto: Tastiera gigante per indovinare le note ad orecchio"
-          >
-            <span>👂</span>
-            <span className="hidden sm:inline">Orecchio</span>
-          </button>
-
           {/* Theme Selector Pills (Responsive) */}
           <div className="flex items-center bg-slate-900 border border-slate-800 p-0.5 rounded-xl gap-0.5">
             {STUDIO_THEMES.map((th) => (

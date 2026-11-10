@@ -2788,36 +2788,32 @@ export const PianoView: React.FC<PianoViewProps> = ({
         </div>
       )}
 
-      {/* 👂 ORECCHIO ASSOLUTO (EAR TRAINING STANDALONE TOP BAR) */}
+      {/* 👂 ORECCHIO ASSOLUTO (EAR TRAINING STANDALONE TOP BAR - STRICT SINGLE ROW) */}
       {(earTrainingStandalone || isEarTrainingOpen) && (
         <div
           style={{
-            paddingTop: 'max(env(safe-area-inset-top, 0px), 4px)',
-            paddingLeft: 'max(env(safe-area-inset-left, 0px), 8px)',
-            paddingRight: 'max(env(safe-area-inset-right, 0px), 8px)',
+            paddingTop: 'max(env(safe-area-inset-top, 0px), 2px)',
+            paddingLeft: 'max(env(safe-area-inset-left, 0px), 6px)',
+            paddingRight: 'max(env(safe-area-inset-right, 0px), 6px)',
           }}
-          className="bg-gradient-to-r from-slate-900 via-fuchsia-950/75 to-slate-900 border-b border-fuchsia-500/50 px-2 sm:px-3 py-1.5 flex items-center justify-between gap-2 shrink-0 z-20 text-[10px] sm:text-xs shadow-xl flex-wrap sm:flex-nowrap"
+          className="h-9 min-h-[36px] max-h-[38px] bg-gradient-to-r from-slate-900 via-fuchsia-950/75 to-slate-900 border-b border-fuchsia-500/50 px-2 flex items-center justify-between gap-1.5 shrink-0 z-20 text-[10px] sm:text-xs shadow-xl flex-nowrap overflow-x-auto scrollbar-none"
         >
-          {/* Left: Back to Menu, Title, Level Selector & Feedback */}
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+          {/* Left: Back to Menu, Level Selector & Feedback */}
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-nowrap">
             <button
               onClick={onBackToHome}
-              className="px-2 py-1 text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg flex items-center gap-1 transition-colors cursor-pointer shrink-0 font-bold"
+              className="px-2 py-0.5 text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md flex items-center gap-1 transition-colors cursor-pointer shrink-0 font-bold whitespace-nowrap"
               title="Torna al Menu Principale"
             >
-              <Home className="w-3.5 h-3.5 text-amber-400" />
+              <Home className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span>Menu</span>
             </button>
 
-            <div className="hidden md:flex px-2 py-1 rounded-lg bg-gradient-to-tr from-fuchsia-500 to-amber-400 text-slate-950 font-black text-[10px] shrink-0 shadow">
-              👂 Orecchio Assoluto
-            </div>
-
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5 text-[9px] sm:text-[10px] font-bold shrink-0">
+            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-md p-0.5 text-[9px] sm:text-[10px] font-bold shrink-0 flex-nowrap">
               {([
-                { id: 'base', label: '🌱 Base (Bianchi)' },
-                { id: 'expert', label: '🔥 Esperto (Tutti)' },
-                { id: 'maestro', label: '🏆 Maestro (3 Note)' },
+                { id: 'base', label: '🌱 Base' },
+                { id: 'expert', label: '🔥 Esperto' },
+                { id: 'maestro', label: '🏆 3 Note' },
               ] as const).map((lvl) => (
                 <button
                   key={lvl.id}
@@ -2838,7 +2834,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             </div>
 
             <div
-              className={`font-bold truncate px-2.5 py-1 rounded-lg border text-[10px] sm:text-xs flex-1 min-w-[140px] ${
+              className={`font-bold truncate px-2 py-0.5 rounded-md border text-[10px] sm:text-xs flex-1 min-w-[90px] ${
                 earFeedback.type === 'correct'
                   ? 'bg-emerald-950/90 border-emerald-400/60 text-emerald-300'
                   : earFeedback.type === 'higher' || earFeedback.type === 'lower'
@@ -2849,26 +2845,26 @@ export const PianoView: React.FC<PianoViewProps> = ({
               {earFeedback.text}
               {earHintShown && earTargetNotes[earMatchedIdx] && (
                 <span className="ml-1.5 text-fuchsia-300 font-black">
-                  (Indizio: inizia per {earTargetNotes[earMatchedIdx].slice(0, -1)} nell&apos;ottava {earTargetNotes[earMatchedIdx].slice(-1)})
+                  (Indizio: {earTargetNotes[earMatchedIdx].slice(0, -1)} • ottava {earTargetNotes[earMatchedIdx].slice(-1)})
                 </span>
               )}
             </div>
           </div>
 
-          {/* Right: Actions, Score & Material Switcher */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Right: Single-Row Ear Training Controls Only */}
+          <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
             <button
               onClick={() => playEarMysterySequence(earTargetNotes)}
-              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] sm:text-xs flex items-center gap-1 shadow cursor-pointer"
-              title="Riascolta la nota o sequenza misteriosa"
+              className="px-2.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-md text-[10px] sm:text-xs flex items-center gap-1 shadow cursor-pointer whitespace-nowrap shrink-0"
+              title="Ascolta la nota o sequenza misteriosa"
             >
-              <Volume2 className="w-3.5 h-3.5" />
-              <span>Riascolta</span>
+              <Volume2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Ascolta</span>
             </button>
 
             <button
               onClick={() => setEarHintShown(true)}
-              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-fuchsia-300 border border-fuchsia-500/40 rounded-lg text-[10px] font-bold cursor-pointer"
+              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-fuchsia-300 border border-fuchsia-500/40 rounded-md text-[10px] font-bold cursor-pointer whitespace-nowrap shrink-0"
               title="Mostra un piccolo indizio sulla nota misteriosa"
             >
               💡 Indizio
@@ -2876,43 +2872,16 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
             <button
               onClick={() => startNewEarRound()}
-              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold cursor-pointer"
+              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-[10px] font-bold cursor-pointer whitespace-nowrap shrink-0"
               title="Cambia nota misteriosa"
             >
               Salta
             </button>
 
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-mono">
+            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-mono whitespace-nowrap shrink-0">
               <span className="text-amber-400 font-black">⭐ {earScore}</span>
               <span className="text-emerald-400 font-bold">🔥 {earStreak}</span>
-              <span className="text-slate-400 hidden lg:inline">Record: {earBestStreak}</span>
             </div>
-
-            {onThemeChange && (
-              <button
-                onClick={() => {
-                  const order: StudioTheme[] = ['midnight', 'mahogany', 'marble', 'gold', 'carbon', 'neon'];
-                  const nextIdx = (order.indexOf(studioTheme) + 1) % order.length;
-                  onThemeChange(order[nextIdx]);
-                }}
-                className="px-2 py-1 font-bold rounded-lg border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap text-[10px]"
-                title="Cambia materiale della tastiera"
-              >
-                <span>
-                  {studioTheme === 'mahogany'
-                    ? '🪵'
-                    : studioTheme === 'marble'
-                    ? '🏛️'
-                    : studioTheme === 'gold'
-                    ? '👑'
-                    : studioTheme === 'carbon'
-                    ? '🏎️'
-                    : studioTheme === 'neon'
-                    ? '⚡'
-                    : '🎹'}
-                </span>
-              </button>
-            )}
           </div>
         </div>
       )}
