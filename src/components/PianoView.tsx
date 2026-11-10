@@ -659,11 +659,33 @@ export const PianoView: React.FC<PianoViewProps> = ({
       const waterfallCanvas = document.querySelector('canvas[data-waterfall-canvas="true"]') as HTMLCanvasElement | null;
       const pianoCanvas = document.querySelector('canvas[data-piano-canvas="true"]') as HTMLCanvasElement | null;
 
-      // Waterfall section (y: 116..760, height: 644)
+      // 1. Piano Keyboard section at the bottom (natural aspect ratio, no stretching)
+      // Standard piano keys have a ~3.2 : 1 to 4.5 : 1 width-to-height ratio for 10 keys
+      let pianoDrawnHeight = 300;
+      const pianoAvailableMaxHeight = 440;
+      const pianoBottomY = 1224; // immediately above footer watermark (1224..1280)
+
+      if (pianoCanvas && pianoCanvas.width > 0 && pianoCanvas.height > 0) {
+        // Natural height when scaled to fill width W (720px)
+        const naturalH = Math.round(W * (pianoCanvas.height / pianoCanvas.width));
+        // Keep it nicely proportioned without distortion
+        pianoDrawnHeight = Math.max(220, Math.min(pianoAvailableMaxHeight, naturalH));
+        const pianoDrawY = pianoBottomY - pianoDrawnHeight;
+
+        // Draw crisp with exact aspect ratio
+        ctx.drawImage(pianoCanvas, 0, 0, pianoCanvas.width, pianoCanvas.height, 0, pianoDrawY, W, pianoDrawnHeight);
+      }
+
+      // Separator rail position immediately above keyboard
+      const pianoDrawY = pianoBottomY - pianoDrawnHeight;
+      const railTop = pianoDrawY - 14;
       const wfTop = 116;
-      const wfHeight = 644;
+      const wfHeight = Math.max(100, railTop - wfTop);
+
+      // 2. Waterfall section (fills the upper-middle area naturally above the piano)
       if (waterfallCanvas && waterfallCanvas.width > 0 && waterfallCanvas.height > 0) {
-        ctx.drawImage(waterfallCanvas, 0, wfTop, W, wfHeight);
+        // Source canvas is sized for the screen; map its full width onto 720 and draw the falling notes
+        ctx.drawImage(waterfallCanvas, 0, 0, waterfallCanvas.width, waterfallCanvas.height, 0, wfTop, W, wfHeight);
       } else {
         // Stylish ambient stage backdrop when playing freehand without waterfall
         const stageGrad = ctx.createRadialGradient(W / 2, wfTop + wfHeight / 2, 30, W / 2, wfTop + wfHeight / 2, 380);
@@ -678,21 +700,16 @@ export const PianoView: React.FC<PianoViewProps> = ({
         ctx.fillText('🎹 VirtuKeys Studio', W / 2, wfTop + wfHeight / 2 - 20);
         ctx.fillStyle = '#94a3b8';
         ctx.font = '600 22px Inter, system-ui, sans-serif';
-        ctx.fillText('Zoom Note Centrali • Audio Puro HD', W / 2, wfTop + wfHeight / 2 + 25);
+        ctx.fillText('Zoom Note Centrali • Proporzioni HD', W / 2, wfTop + wfHeight / 2 + 25);
       }
 
-      // Red plush felt & gold rail separator between waterfall and keys (y: 760..774)
-      const railGrad = ctx.createLinearGradient(0, 760, 0, 774);
+      // Red plush felt & gold rail separator between waterfall and keys
+      const railGrad = ctx.createLinearGradient(0, railTop, 0, railTop + 14);
       railGrad.addColorStop(0, '#b45309');
       railGrad.addColorStop(0.5, '#fde047');
       railGrad.addColorStop(1, '#7f1d1d');
       ctx.fillStyle = railGrad;
-      ctx.fillRect(0, 760, W, 14);
-
-      // 3D Photorealistic Keyboard section (y: 774..1224, height: 450)
-      if (pianoCanvas && pianoCanvas.width > 0 && pianoCanvas.height > 0) {
-        ctx.drawImage(pianoCanvas, 0, 774, W, 450);
-      }
+      ctx.fillRect(0, railTop, W, 14);
 
       // Bottom Footer Watermark (y: 1224..1280)
       ctx.fillStyle = '#020617';
