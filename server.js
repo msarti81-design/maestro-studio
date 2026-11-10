@@ -159,6 +159,7 @@ async function startServer() {
   const communitySongsFile = path.join(dataDir, "community_songs.json");
   const postcardsFile = path.join(dataDir, "musical_postcards.json");
   const usersFile = path.join(dataDir, "users.json");
+  const analyticsFile = path.join(dataDir, "analytics.json");
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
@@ -171,6 +172,168 @@ async function startServer() {
   if (!fs.existsSync(usersFile)) {
     fs.writeFileSync(usersFile, JSON.stringify([], null, 2));
   }
+  if (!fs.existsSync(analyticsFile)) {
+    fs.writeFileSync(
+      analyticsFile,
+      JSON.stringify({ devices: {}, daily: {} }, null, 2)
+    );
+  }
+  const readAnalytics = () => {
+    try {
+      if (fs.existsSync(analyticsFile)) {
+        const raw = JSON.parse(fs.readFileSync(analyticsFile, "utf-8") || "{}");
+        return {
+          devices: raw.devices || {},
+          daily: raw.daily || {}
+        };
+      }
+    } catch (_) {
+    }
+    return { devices: {}, daily: {} };
+  };
+  const writeAnalytics = (data) => {
+    try {
+      fs.writeFileSync(analyticsFile, JSON.stringify(data, null, 2));
+    } catch (_) {
+    }
+  };
+  app.post(["/api/analytics/ping", "/Song/api/analytics/ping", "/song/api/analytics/ping"], (req, res) => {
+    try {
+      const { deviceId, username, platform, view, screen, isNewSession } = req.body || {};
+      if (!deviceId) {
+        return res.status(400).json({ success: false, error: "deviceId required" });
+      }
+      const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+      const todayKey = nowIso.slice(0, 10);
+      const data = readAnalytics();
+      const ua = String(req.headers["user-agent"] || "");
+      const detectedPlatform = platform || (ua.includes("Android") && ua.includes("wv") ? "Android App (APK)" : /Android|iPhone|iPad|Mobile/i.test(ua) ? "Browser Mobile" : "Browser PC");
+      const existing = data.devices[deviceId];
+      if (existing) {
+        const prevMs = new Date(existing.lastSeen).getTime();
+        const gapMinutes = (Date.now() - prevMs) / 6e4;
+        existing.username = username || existing.username || "Pianista";
+        existing.platform = detectedPlatform || existing.platform;
+        existing.lastSeen = nowIso;
+        existing.lastView = view || existing.lastView || "piano";
+        existing.totalPings = (existing.totalPings || 1) + 1;
+        if (isNewSession || gapMinutes > 20) {
+          existing.totalSessions = (existing.totalSessions || 1) + 1;
+        }
+        if (screen) existing.screen = screen;
+      } else {
+        data.devices[deviceId] = {
+          deviceId,
+          username: username || "Pianista",
+          platform: detectedPlatform,
+          firstSeen: nowIso,
+          lastSeen: nowIso,
+          lastView: view || "piano",
+          totalPings: 1,
+          totalSessions: 1,
+          screen: screen || ""
+        };
+      }
+      if (!data.daily[todayKey]) {
+        data.daily[todayKey] = { devices: [], pings: 0 };
+      }
+      if (!data.daily[todayKey].devices.includes(deviceId)) {
+        data.daily[todayKey].devices.push(deviceId);
+      }
+      data.daily[todayKey].pings = (data.daily[todayKey].pings || 0) + 1;
+      const dayKeys = Object.keys(data.daily).sort();
+      if (dayKeys.length > 45) {
+        for (let i = 0; i < dayKeys.length - 45; i++) {
+          delete data.daily[dayKeys[i]];
+        }
+      }
+      writeAnalytics(data);
+      return res.json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e?.message || "Analytics error" });
+    }
+  });
+  app.get(["/api/analytics/stats", "/Song/api/analytics/stats", "/song/api/analytics/stats"], (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      const data = readAnalytics();
+      let registeredUsers = [];
+      try {
+        if (fs.existsSync(usersFile)) {
+          registeredUsers = JSON.parse(fs.readFileSync(usersFile, "utf-8") || "[]");
+        }
+      } catch (_) {
+      }
+      let mergedChanged = false;
+      for (const u of registeredUsers) {
+        if (u.deviceId && !data.devices[u.deviceId]) {
+          data.devices[u.deviceId] = {
+            deviceId: u.deviceId,
+            username: u.username || "Pianista",
+            platform: "Registrato",
+            firstSeen: u.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
+            lastSeen: u.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
+            lastView: "home",
+            totalPings: 1,
+            totalSessions: 1
+          };
+          mergedChanged = true;
+        }
+      }
+      if (mergedChanged) {
+        writeAnalytics(data);
+      }
+      const nowMs = Date.now();
+      const todayKey = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      const allDevices = Object.values(data.devices).sort(
+        (a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime()
+      );
+      const onlineNow = allDevices.filter(
+        (d) => nowMs - new Date(d.lastSeen).getTime() <= 3.5 * 60 * 1e3
+      ).length;
+      const activeToday = allDevices.filter(
+        (d) => d.lastSeen.slice(0, 10) === todayKey
+      ).length;
+      const active7Days = allDevices.filter(
+        (d) => nowMs - new Date(d.lastSeen).getTime() <= 7 * 24 * 60 * 60 * 1e3
+      ).length;
+      const platformCounts = {
+        "Android App (APK)": 0,
+        "Browser Mobile": 0,
+        "Browser PC": 0,
+        Altro: 0
+      };
+      for (const d of allDevices) {
+        if (d.platform in platformCounts) {
+          platformCounts[d.platform]++;
+        } else {
+          platformCounts.Altro++;
+        }
+      }
+      const last14Days = [];
+      for (let i = 13; i >= 0; i--) {
+        const dt = new Date(nowMs - i * 864e5).toISOString().slice(0, 10);
+        const entry = data.daily[dt];
+        last14Days.push({
+          date: dt,
+          uniqueUsers: entry?.devices?.length || 0,
+          pings: entry?.pings || 0
+        });
+      }
+      return res.json({
+        success: true,
+        totalUniqueDevices: allDevices.length,
+        onlineNow,
+        activeToday,
+        active7Days,
+        platformCounts,
+        last14Days,
+        devices: allDevices.slice(0, 100)
+      });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e?.message || "Stats error" });
+    }
+  });
   app.post("/api/user/register-or-verify", (req, res) => {
     try {
       const { username, deviceId } = req.body;
@@ -935,7 +1098,7 @@ Return a JSON object containing:
       }
       res.status(200).send("<!DOCTYPE html><html><head><title>VirtuKeys</title></head><body><h1>VirtuKeys Studio</h1></body></html>");
     };
-    app.get(["/song", "/song/*", "/Song", "/Song/*", "/piano", "/piano/*", "/sheet", "/sheet/*", "/jam", "/jam/*", "/ai", "/ai/*", "/social", "/social/*"], (req, res, next) => {
+    app.get(["/song", "/song/*", "/Song", "/Song/*", "/piano", "/piano/*", "/sheet", "/sheet/*", "/jam", "/jam/*", "/ai", "/ai/*", "/social", "/social/*", "/stats", "/stats/*"], (req, res, next) => {
       if (path.extname(req.path)) {
         return next();
       }

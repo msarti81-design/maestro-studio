@@ -2353,19 +2353,52 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
   }, []);
 
-  // ZERO-LATENCY NATIVE LAYOUT:
-  // When in landscape (physical phone or Android native locked app), do NOT apply any transform: translate(-50%, -50%) rotate(0deg).
-  // Applying CSS transform creates an offscreen GPU compositing layer that delays touch hit-testing in Android WebViews.
-  // ALWAYS NATIVE FULLSCREEN LANDSCAPE:
-  // Container fills 100% of physical viewport (100vw x 100vh) without any transform rotation layer.
+  // Track exact visible browser viewport (handles mobile Chrome/Safari top URL bar without clipping bottom keys)
+  const [viewportBox, setViewportBox] = useState<{ height: number; offsetTop: number }>(() => ({
+    height: typeof window !== 'undefined' ? (window.visualViewport?.height || window.innerHeight) : 0,
+    offsetTop: typeof window !== 'undefined' ? (window.visualViewport?.offsetTop || 0) : 0,
+  }));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateViewport = () => {
+      const vv = window.visualViewport;
+      const nextH = Math.round(vv ? vv.height : window.innerHeight);
+      const nextTop = Math.round(vv ? vv.offsetTop : 0);
+      setViewportBox((prev) =>
+        prev.height === nextH && prev.offsetTop === nextTop
+          ? prev
+          : { height: nextH, offsetTop: nextTop }
+      );
+    };
+
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewport);
+      window.visualViewport.addEventListener('scroll', updateViewport);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewport);
+        window.visualViewport.removeEventListener('scroll', updateViewport);
+      }
+    };
+  }, []);
+
   const containerStyle: React.CSSProperties = {
     position: 'fixed',
-    top: 0,
+    top: viewportBox.offsetTop > 0 ? `${viewportBox.offsetTop}px` : 0,
     left: 0,
     right: 0,
-    bottom: 0,
     width: '100vw',
-    height: '100dvh',
+    height: viewportBox.height > 0 ? `${viewportBox.height}px` : '100dvh',
+    maxHeight: '100dvh',
     zIndex: 50,
     boxSizing: 'border-box',
     overflow: 'hidden',
@@ -3234,11 +3267,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         activeGuidanceTip={activeScaleExercise?.tips ? activeScaleExercise.tips[scaleActiveIdx % activeScaleExercise.tips.length] : (songGuidance?.tip || null)}
         guidanceHand={activeScaleExercise?.hand || songGuidance?.hand || 'right'}
         studentPressedNotesRef={studentPressedNotesRef}
-        className={
-          showWaterfall && activeSong
-            ? 'w-full flex-1 min-h-[160px] select-none touch-none relative'
-            : 'w-full flex-1 min-h-0 select-none touch-none relative'
-        }
+        className="w-full flex-1 min-h-0 select-none touch-none relative"
       />
 
       {/* OPTIONS MODAL */}

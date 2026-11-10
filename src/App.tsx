@@ -17,7 +17,9 @@ import { MetronomeModal } from './components/MetronomeModal';
 import { ScalesPracticeModal } from './components/ScalesPracticeModal';
 import { VersionModal } from './components/VersionModal';
 import { PlayStoreAssetsModal } from './components/PlayStoreAssetsModal';
-import { getStoredUsername, verifyAndLockUsername } from './utils/deviceIdentity';
+import { StatsView } from './components/StatsView';
+import { getStoredUsername, verifyAndLockUsername, getDeviceId } from './utils/deviceIdentity';
+import { getAppApiUrl, isNativePlatform } from './utils/networkHelper';
 import { audioEngine } from './utils/audioEngine';
 import { getThemeClasses, isValidStudioTheme } from './utils/themeHelper';
 
@@ -94,10 +96,15 @@ export default function App() {
     if (invite) return 'social';
 
     if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
+      if (pathname.endsWith('/stats') || pathname.endsWith('/stats/') || hash.startsWith('#stats')) {
+        return 'stats';
+      }
       if (hash.startsWith('#piano')) return 'piano';
       if (hash.startsWith('#sheet')) return 'sheet';
       if (hash.startsWith('#jam')) return 'jam';
+      if (hash.startsWith('#recordings')) return 'recordings';
       if (hash.startsWith('#social') || hash.startsWith('#challenge')) return 'social';
     }
 
@@ -147,8 +154,15 @@ export default function App() {
       }
     });
 
-    // Check for room invitation in URL and listen for URL changes
+    // Check for room invitation or #stats in URL and listen for URL changes
     const checkUrlInvite = () => {
+      if (typeof window !== 'undefined') {
+        const hash = window.location.hash.toLowerCase();
+        if (hash.startsWith('#stats')) {
+          setCurrentView('stats');
+          return;
+        }
+      }
       const invite = parseRoomInviteFromUrl();
       if (invite) {
         setPendingInvite(invite);
@@ -163,6 +177,44 @@ export default function App() {
       window.removeEventListener('popstate', checkUrlInvite);
     };
   }, [username]);
+
+  // Lightweight Anonymous Usage Analytics Heartbeat
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let isFirstPing = true;
+
+    const sendPing = () => {
+      try {
+        const deviceId = getDeviceId();
+        const isNative = isNativePlatform();
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+        const platform = isNative
+          ? 'Android App (APK)'
+          : isMobile
+          ? 'Browser Mobile'
+          : 'Browser PC';
+        const screen = `${window.screen?.width || window.innerWidth}x${window.screen?.height || window.innerHeight}`;
+
+        fetch(getAppApiUrl('/api/analytics/ping'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deviceId,
+            username: username || getStoredUsername(),
+            platform,
+            view: currentView,
+            screen,
+            isNewSession: isFirstPing,
+          }),
+        }).catch(() => {});
+        isFirstPing = false;
+      } catch (_) {}
+    };
+
+    sendPing();
+    const interval = setInterval(sendPing, 60000);
+    return () => clearInterval(interval);
+  }, [currentView, username]);
 
   const handleSelectView = (view: ViewMode | 'home') => {
     setCurrentView(view);
@@ -206,7 +258,7 @@ export default function App() {
   return (
     <div className={`${themeBgClass} flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 ${
       currentView === 'piano'
-        ? 'w-screen h-screen overflow-hidden fixed inset-0 touch-none'
+        ? 'w-screen h-[100dvh] overflow-hidden fixed inset-0 touch-none'
         : 'w-full min-h-screen h-full overflow-y-auto touch-pan-y'
     }`}>
       {currentView !== 'piano' && (
@@ -280,6 +332,9 @@ export default function App() {
             }}
             onNavigateToView={(v) => handleSelectView(v)}
           />
+        )}
+        {currentView === 'stats' && (
+          <StatsView onBackToHome={() => handleSelectView('home')} />
         )}
       </main>
 
