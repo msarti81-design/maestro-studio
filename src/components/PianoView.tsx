@@ -2511,6 +2511,46 @@ export const PianoView: React.FC<PianoViewProps> = ({
             Sustain
           </button>
 
+          {/* Quick 1-Tap Material Switcher Button */}
+          {onThemeChange && (
+            <button
+              onClick={() => {
+                const order: StudioTheme[] = ['midnight', 'mahogany', 'marble', 'gold', 'carbon', 'neon'];
+                const nextIdx = (order.indexOf(studioTheme) + 1) % order.length;
+                onThemeChange(order[nextIdx]);
+              }}
+              className="px-1.5 sm:px-2 py-0.5 font-bold rounded-md border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+              title="Cambia materiale della tastiera (Ivory, Wood, Marble, Gold, Carbon, Neon)"
+            >
+              <span>
+                {studioTheme === 'mahogany'
+                  ? '🪵'
+                  : studioTheme === 'marble'
+                  ? '🏛️'
+                  : studioTheme === 'gold'
+                  ? '👑'
+                  : studioTheme === 'carbon'
+                  ? '🏎️'
+                  : studioTheme === 'neon'
+                  ? '⚡'
+                  : '🎹'}
+              </span>
+              <span className="hidden md:inline text-[10px]">
+                {studioTheme === 'mahogany'
+                  ? 'Wood'
+                  : studioTheme === 'marble'
+                  ? 'Marble'
+                  : studioTheme === 'gold'
+                  ? 'Gold'
+                  : studioTheme === 'carbon'
+                  ? 'Carbon'
+                  : studioTheme === 'neon'
+                  ? 'Neon'
+                  : 'Ivory'}
+              </span>
+            </button>
+          )}
+
           {/* 3-DOTS OPTIONS MODAL BUTTON (Metronome, Volume, Keys, etc.) */}
           <button
             onClick={() => setIsOptionsModalOpen(true)}
@@ -3224,13 +3264,16 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <div>
                   <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2 flex items-center gap-1.5">
                     <Palette className="w-3.5 h-3.5 text-amber-400" />
-                    Visual Theme (Keys & Studio)
+                    Materiale Tastiera 3D (Zero Latency)
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
-                      { id: 'midnight', name: '🌙 Midnight Slate', desc: 'Dark & Gold' },
-                      { id: 'mahogany', name: '🪵 Classic Wood', desc: 'Vintage Mahogany' },
-                      { id: 'neon', name: '⚡ Cyber Neon', desc: 'Neon Arcade' },
+                      { id: 'midnight', name: '🎹 Concert Ivory', desc: 'Avorio & Ebano Steinway' },
+                      { id: 'mahogany', name: '🪵 Vintage Wood', desc: 'Acero & Palissandro 3D' },
+                      { id: 'marble', name: '🏛️ Carrara Marble', desc: 'Marmo Bianco & Portoro' },
+                      { id: 'gold', name: '👑 Royal Gold & Pearl', desc: 'Madreperla & Oro 24k' },
+                      { id: 'carbon', name: '🏎️ Titanium & Carbon', desc: 'Titanio & Fibra Carbonio' },
+                      { id: 'neon', name: '⚡ Cyber Synth', desc: 'Vetro Fumé & Laser' },
                     ].map((th) => (
                       <button
                         key={th.id}

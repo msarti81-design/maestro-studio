@@ -1,7 +1,7 @@
 import React from 'react';
 import { ViewMode, StudioTheme } from '../types';
 import { Piano, BookOpen, Layers, Volume2, VolumeX, Home, Music, Users, ShieldCheck, Key, User, Disc, Timer, Palette } from 'lucide-react';
-import { getThemeClasses } from '../utils/themeHelper';
+import { getThemeClasses, STUDIO_THEMES } from '../utils/themeHelper';
 import { midiEngine } from '../utils/midiEngine';
 import { APP_VERSION } from '../utils/versionInfo';
 
@@ -217,36 +217,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Theme Selector Pills (Responsive) */}
           <div className="flex items-center bg-slate-900 border border-slate-800 p-0.5 rounded-xl gap-0.5">
-            <button
-              onClick={() => onThemeChange('midnight')}
-              className={`px-1.5 sm:px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                studioTheme === 'midnight' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-              }`}
-              title="Midnight Slate Theme"
-            >
-              <span className="sm:hidden">🌙</span>
-              <span className="hidden sm:inline">🌙 Slate</span>
-            </button>
-            <button
-              onClick={() => onThemeChange('mahogany')}
-              className={`px-1.5 sm:px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                studioTheme === 'mahogany' ? 'bg-amber-600 text-amber-100 shadow' : 'text-slate-400 hover:text-white'
-              }`}
-              title="Classic Mahogany Wood Theme"
-            >
-              <span className="sm:hidden">🪵</span>
-              <span className="hidden sm:inline">🪵 Wood</span>
-            </button>
-            <button
-              onClick={() => onThemeChange('neon')}
-              className={`px-1.5 sm:px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                studioTheme === 'neon' ? 'bg-fuchsia-600 text-white shadow' : 'text-slate-400 hover:text-white'
-              }`}
-              title="Cyber Neon / Arcade Theme"
-            >
-              <span className="sm:hidden">⚡</span>
-              <span className="hidden sm:inline">⚡ Neon</span>
-            </button>
+            {STUDIO_THEMES.map((th) => (
+              <button
+                key={th.id}
+                onClick={() => onThemeChange(th.id)}
+                className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  studioTheme === th.id
+                    ? 'bg-amber-500 text-slate-950 shadow font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title={`${th.name} — ${th.desc}`}
+              >
+                <span className="lg:hidden">{th.icon}</span>
+                <span className="hidden lg:inline">{th.icon} {th.shortName}</span>
+              </button>
+            ))}
           </div>
 
           {/* Quick Metronome Button */}

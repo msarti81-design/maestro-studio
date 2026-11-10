@@ -1,7 +1,7 @@
 export type ViewMode = 'piano' | 'sheet' | 'jam' | 'social' | 'recordings';
 export type NoteNotationFormat = 'latin' | 'letter' | 'german' | 'numeric' | 'none';
 export type SoundProfile = 'concert' | 'studio' | 'bright' | 'warm' | 'cathedral';
-export type StudioTheme = 'midnight' | 'mahogany' | 'neon';
+export type StudioTheme = 'midnight' | 'mahogany' | 'marble' | 'gold' | 'carbon' | 'neon';
 
 export interface NoteEvent {
   note: string; // e.g. "C4"

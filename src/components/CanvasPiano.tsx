@@ -432,16 +432,28 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     };
   }, []);
 
-  // Pre-rendered Offscreen Procedural Textures for 0ms Photorealistic Wood & Ivory Rendering
+  // Pre-rendered Offscreen Procedural Textures for 0ms Photorealistic Multi-Material Rendering
   const texturesRef = useRef<{
     lightWoodPattern: CanvasPattern | null;
     darkWoodPattern: CanvasPattern | null;
     ivoryPattern: CanvasPattern | null;
+    carraraMarblePattern: CanvasPattern | null;
+    neroMarquinaPattern: CanvasPattern | null;
+    pearlPattern: CanvasPattern | null;
+    brushedGoldPattern: CanvasPattern | null;
+    brushedTitaniumPattern: CanvasPattern | null;
+    carbonFiberPattern: CanvasPattern | null;
     initialized: boolean;
   }>({
     lightWoodPattern: null,
     darkWoodPattern: null,
     ivoryPattern: null,
+    carraraMarblePattern: null,
+    neroMarquinaPattern: null,
+    pearlPattern: null,
+    brushedGoldPattern: null,
+    brushedTitaniumPattern: null,
+    carbonFiberPattern: null,
     initialized: false,
   });
 
@@ -450,7 +462,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
     texturesRef.current.initialized = true;
 
     try {
-      // 1. Photorealistic Honey Maple / Boxwood Texture for White Keys ('mahogany' / Wood theme)
+      // 1. Honey Maple / Boxwood Texture for White Keys ('mahogany' / Wood theme)
       const lwCanvas = document.createElement('canvas');
       lwCanvas.width = 256;
       lwCanvas.height = 512;
@@ -465,7 +477,6 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         lwCtx.fillStyle = baseGrad;
         lwCtx.fillRect(0, 0, 256, 512);
 
-        // Organic wood grain fibers & subtle cathedral rings
         for (let i = 0; i < 140; i++) {
           const xBase = (i / 140) * 256;
           const isDarkFiber = i % 3 === 0;
@@ -493,7 +504,6 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           lwCtx.stroke();
         }
 
-        // Fine wood pores (medullary rays)
         for (let p = 0; p < 220; p++) {
           const px = (p * 73) % 256;
           const py = (p * 131) % 500;
@@ -505,7 +515,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         texturesRef.current.lightWoodPattern = ctx.createPattern(lwCanvas, 'repeat');
       }
 
-      // 2. Photorealistic Rosewood / Makassar Ebony Texture for Black Keys ('mahogany' / Wood theme)
+      // 2. Rosewood / Makassar Ebony Texture for Black Keys ('mahogany' / Wood theme)
       const dwCanvas = document.createElement('canvas');
       dwCanvas.width = 192;
       dwCanvas.height = 384;
@@ -544,7 +554,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         texturesRef.current.darkWoodPattern = ctx.createPattern(dwCanvas, 'repeat');
       }
 
-      // 3. Subtle Polished Concert Ivory Texture for Classic White Keys ('midnight' theme)
+      // 3. Concert Ivory Texture ('midnight' theme)
       const ivCanvas = document.createElement('canvas');
       ivCanvas.width = 128;
       ivCanvas.height = 256;
@@ -558,6 +568,204 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ivCtx.fillRect(x, 0, 1, 256);
         }
         texturesRef.current.ivoryPattern = ctx.createPattern(ivCanvas, 'repeat');
+      }
+
+      // 4. Carrara White Marble Texture with Silver-Grey & Gold Veins ('marble' White Keys)
+      const cmCanvas = document.createElement('canvas');
+      cmCanvas.width = 256;
+      cmCanvas.height = 512;
+      const cmCtx = cmCanvas.getContext('2d');
+      if (cmCtx) {
+        const mGrad = cmCtx.createLinearGradient(0, 0, 256, 512);
+        mGrad.addColorStop(0, '#f8fafc');
+        mGrad.addColorStop(0.35, '#f1f5f9');
+        mGrad.addColorStop(0.65, '#ffffff');
+        mGrad.addColorStop(1, '#e2e8f0');
+        cmCtx.fillStyle = mGrad;
+        cmCtx.fillRect(0, 0, 256, 512);
+
+        // Soft mineral clouds
+        for (let c = 0; c < 18; c++) {
+          const cx = (c * 67) % 256;
+          const cy = (c * 97) % 512;
+          const r = 35 + (c % 4) * 20;
+          const rad = cmCtx.createRadialGradient(cx, cy, 2, cx, cy, r);
+          rad.addColorStop(0, 'rgba(148, 163, 184, 0.12)');
+          rad.addColorStop(1, 'rgba(148, 163, 184, 0)');
+          cmCtx.fillStyle = rad;
+          cmCtx.fillRect(0, 0, 256, 512);
+        }
+
+        // Organic branching marble veins (Grey + subtle Gold Calacatta veins)
+        for (let v = 0; v < 28; v++) {
+          const isGoldVein = v % 6 === 0;
+          const startX = (v * 43) % 256;
+          cmCtx.strokeStyle = isGoldVein
+            ? 'rgba(217, 159, 38, 0.22)'
+            : `rgba(100, 116, 139, ${0.12 + (v % 4) * 0.045})`;
+          cmCtx.lineWidth = isGoldVein ? 1.1 : 0.7 + (v % 3) * 0.65;
+
+          let currX = startX;
+          cmCtx.beginPath();
+          cmCtx.moveTo(currX, 0);
+          for (let y = 16; y <= 512; y += 16) {
+            currX += Math.sin(y * 0.045 + v * 1.9) * 5.5 + Math.cos(y * 0.09 - v) * 2.8;
+            cmCtx.lineTo(currX, y);
+          }
+          cmCtx.stroke();
+        }
+        texturesRef.current.carraraMarblePattern = ctx.createPattern(cmCanvas, 'repeat');
+      }
+
+      // 5. Nero Portoro / Black Marquina Marble with Gold Veins ('marble' Black Keys)
+      const nmCanvas = document.createElement('canvas');
+      nmCanvas.width = 192;
+      nmCanvas.height = 384;
+      const nmCtx = nmCanvas.getContext('2d');
+      if (nmCtx) {
+        nmCtx.fillStyle = '#0c0d10';
+        nmCtx.fillRect(0, 0, 192, 384);
+
+        for (let v = 0; v < 22; v++) {
+          const isGold = v % 2 === 0;
+          let currX = (v * 39) % 192;
+          nmCtx.strokeStyle = isGold
+            ? `rgba(234, 179, 8, ${0.24 + (v % 3) * 0.08})`
+            : 'rgba(226, 232, 240, 0.16)';
+          nmCtx.lineWidth = isGold ? 1.3 : 0.8;
+          nmCtx.beginPath();
+          nmCtx.moveTo(currX, 0);
+          for (let y = 16; y <= 384; y += 16) {
+            currX += Math.sin(y * 0.05 + v * 1.4) * 4.5;
+            nmCtx.lineTo(currX, y);
+          }
+          nmCtx.stroke();
+        }
+        texturesRef.current.neroMarquinaPattern = ctx.createPattern(nmCanvas, 'repeat');
+      }
+
+      // 6. Iridescent Mother-of-Pearl Texture ('gold' White Keys)
+      const prlCanvas = document.createElement('canvas');
+      prlCanvas.width = 256;
+      prlCanvas.height = 512;
+      const prlCtx = prlCanvas.getContext('2d');
+      if (prlCtx) {
+        const pGrad = prlCtx.createLinearGradient(0, 0, 256, 512);
+        pGrad.addColorStop(0, '#fffdf7');
+        pGrad.addColorStop(0.25, '#fef3c7');
+        pGrad.addColorStop(0.5, '#fdf2f8');
+        pGrad.addColorStop(0.75, '#ecfeff');
+        pGrad.addColorStop(1, '#fffbeb');
+        prlCtx.fillStyle = pGrad;
+        prlCtx.fillRect(0, 0, 256, 512);
+
+        for (let i = 0; i < 45; i++) {
+          const yBase = (i / 45) * 512;
+          prlCtx.strokeStyle =
+            i % 2 === 0 ? 'rgba(251, 191, 36, 0.11)' : 'rgba(255, 255, 255, 0.55)';
+          prlCtx.lineWidth = 3;
+          prlCtx.beginPath();
+          for (let x = 0; x <= 256; x += 16) {
+            const py = yBase + Math.sin(x * 0.04 + i) * 6;
+            if (x === 0) prlCtx.moveTo(x, py);
+            else prlCtx.lineTo(x, py);
+          }
+          prlCtx.stroke();
+        }
+        texturesRef.current.pearlPattern = ctx.createPattern(prlCanvas, 'repeat');
+      }
+
+      // 7. 24k Brushed Gold Ingot Texture ('gold' Black Keys)
+      const bgCanvas = document.createElement('canvas');
+      bgCanvas.width = 128;
+      bgCanvas.height = 256;
+      const bgCtx = bgCanvas.getContext('2d');
+      if (bgCtx) {
+        const gGrad = bgCtx.createLinearGradient(0, 0, 128, 0);
+        gGrad.addColorStop(0, '#92400e');
+        gGrad.addColorStop(0.25, '#eab308');
+        gGrad.addColorStop(0.5, '#fef08a');
+        gGrad.addColorStop(0.75, '#ca8a04');
+        gGrad.addColorStop(1, '#78350f');
+        bgCtx.fillStyle = gGrad;
+        bgCtx.fillRect(0, 0, 128, 256);
+
+        for (let i = 0; i < 128; i++) {
+          bgCtx.fillStyle =
+            i % 3 === 0
+              ? 'rgba(255, 255, 255, 0.16)'
+              : i % 2 === 0
+              ? 'rgba(120, 53, 15, 0.18)'
+              : 'rgba(250, 204, 21, 0.12)';
+          bgCtx.fillRect(i, 0, 1, 256);
+        }
+        texturesRef.current.brushedGoldPattern = ctx.createPattern(bgCanvas, 'repeat');
+      }
+
+      // 8. Brushed Aerospace Titanium Texture ('carbon' White Keys)
+      const btCanvas = document.createElement('canvas');
+      btCanvas.width = 128;
+      btCanvas.height = 256;
+      const btCtx = btCanvas.getContext('2d');
+      if (btCtx) {
+        const tGrad = btCtx.createLinearGradient(0, 0, 128, 0);
+        tGrad.addColorStop(0, '#cbd5e1');
+        tGrad.addColorStop(0.35, '#f1f5f9');
+        tGrad.addColorStop(0.65, '#94a3b8');
+        tGrad.addColorStop(1, '#cbd5e1');
+        btCtx.fillStyle = tGrad;
+        btCtx.fillRect(0, 0, 128, 256);
+
+        // Fine vertical brushed metal micro-lines
+        for (let i = 0; i < 128; i++) {
+          btCtx.fillStyle =
+            i % 2 === 0 ? 'rgba(255, 255, 255, 0.22)' : 'rgba(51, 65, 85, 0.12)';
+          btCtx.fillRect(i, 0, 1, 256);
+        }
+        texturesRef.current.brushedTitaniumPattern = ctx.createPattern(btCanvas, 'repeat');
+      }
+
+      // 9. True 3D Woven 2x2 Twill Carbon Fiber Texture ('carbon' Black Keys)
+      const cfCanvas = document.createElement('canvas');
+      cfCanvas.width = 16;
+      cfCanvas.height = 16;
+      const cfCtx = cfCanvas.getContext('2d');
+      if (cfCtx) {
+        cfCtx.fillStyle = '#09090b';
+        cfCtx.fillRect(0, 0, 16, 16);
+
+        // Diagonal woven carbon bundles with specular sheen
+        const drawBundle = (x: number, y: number, w: number, h: number, bright: boolean) => {
+          const g = cfCtx.createLinearGradient(x, y, x + w, y + h);
+          if (bright) {
+            g.addColorStop(0, '#27272a');
+            g.addColorStop(0.5, '#52525b');
+            g.addColorStop(1, '#18181b');
+          } else {
+            g.addColorStop(0, '#09090b');
+            g.addColorStop(0.5, '#27272a');
+            g.addColorStop(1, '#09090b');
+          }
+          cfCtx.fillStyle = g;
+          cfCtx.fillRect(x, y, w, h);
+        };
+
+        drawBundle(0, 0, 8, 8, true);
+        drawBundle(8, 8, 8, 8, true);
+        drawBundle(8, 0, 8, 8, false);
+        drawBundle(0, 8, 8, 8, false);
+
+        // Micro weave step highlight
+        cfCtx.strokeStyle = 'rgba(161, 161, 170, 0.22)';
+        cfCtx.lineWidth = 1;
+        cfCtx.beginPath();
+        cfCtx.moveTo(0, 8);
+        cfCtx.lineTo(8, 0);
+        cfCtx.moveTo(8, 16);
+        cfCtx.lineTo(16, 8);
+        cfCtx.stroke();
+
+        texturesRef.current.carbonFiberPattern = ctx.createPattern(cfCanvas, 'repeat');
       }
     } catch {
       // Fallback gracefully if offscreen canvas creation fails
@@ -602,11 +810,26 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       const pressedNotes = currentlyPressedNotesRef.current;
       const studentPressed = studentPressedNotesRef?.current || new Set();
 
-      const isMahogany = studioThemeRef.current === 'mahogany';
-      const isNeon = studioThemeRef.current === 'neon';
-      const { lightWoodPattern, darkWoodPattern, ivoryPattern } = texturesRef.current;
+      const theme = studioThemeRef.current;
+      const isMahogany = theme === 'mahogany';
+      const isMarble = theme === 'marble';
+      const isGold = theme === 'gold';
+      const isCarbon = theme === 'carbon';
+      const isNeon = theme === 'neon';
 
-      // --- 1. DRAW WHITE KEYS (3D SCULPTED) ---
+      const {
+        lightWoodPattern,
+        darkWoodPattern,
+        ivoryPattern,
+        carraraMarblePattern,
+        neroMarquinaPattern,
+        pearlPattern,
+        brushedGoldPattern,
+        brushedTitaniumPattern,
+        carbonFiberPattern,
+      } = texturesRef.current;
+
+      // --- 1. DRAW WHITE KEYS (3D SCULPTED MULTI-MATERIAL) ---
       whiteKeys.forEach((wk, idx) => {
         const isDemo = songPlaybackState.activeDemoNotes.has(wk.note);
         const isPressed = pressedNotes.has(wk.note) || studentPressed.has(wk.note) || isDemo;
@@ -618,7 +841,6 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         const gap = Math.max(1.2, Math.min(2.6, width / 420));
         const keyX = wk.x + gap / 2;
         const keyW = wk.width - gap;
-        // When pressed, key physically depresses slightly at the bottom edge
         const pressSink = isPressed ? 1.5 : 0;
         const keyH = wk.height - 2 + pressSink;
         const radius = Math.min(7, keyW * 0.2);
@@ -636,23 +858,21 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         }
         ctx.clip();
 
-        // A. Base Surface Texture (Wood Grain / Concert Ivory / Cyber Anodized)
+        const shiftX = (idx * 53) % 200;
+        const shiftY = (idx * 29) % 120;
+
+        // A. Base Surface Texture per Material
         if (isMahogany) {
           if (lightWoodPattern) {
             ctx.save();
-            // Unique grain offset per key so adjacent keys look like distinct timber cuts
-            const grainShiftX = (idx * 53) % 200;
-            const grainShiftY = (idx * 29) % 120;
-            ctx.translate(keyX - grainShiftX, wk.y - grainShiftY);
+            ctx.translate(keyX - shiftX, wk.y - shiftY);
             ctx.fillStyle = lightWoodPattern;
-            ctx.fillRect(grainShiftX, grainShiftY, keyW + 2, keyH + 2);
+            ctx.fillRect(shiftX, shiftY, keyW + 2, keyH + 2);
             ctx.restore();
           } else {
             ctx.fillStyle = '#f3dfb9';
             ctx.fillRect(keyX, wk.y, keyW, keyH);
           }
-
-          // 3D Cylindrical Key-Top Gloss & Warm Satin Varnish
           const woodSheen = ctx.createLinearGradient(keyX, wk.y, keyX, keyH);
           woodSheen.addColorStop(0, 'rgba(45, 20, 5, 0.34)');
           woodSheen.addColorStop(0.08, 'rgba(92, 48, 14, 0.08)');
@@ -660,6 +880,66 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           woodSheen.addColorStop(0.82, 'rgba(210, 155, 85, 0.12)');
           woodSheen.addColorStop(1, 'rgba(120, 65, 20, 0.28)');
           ctx.fillStyle = woodSheen;
+          ctx.fillRect(keyX, wk.y, keyW, keyH);
+        } else if (isMarble) {
+          if (carraraMarblePattern) {
+            ctx.save();
+            ctx.translate(keyX - shiftX, wk.y - shiftY);
+            ctx.fillStyle = carraraMarblePattern;
+            ctx.fillRect(shiftX, shiftY, keyW + 2, keyH + 2);
+            ctx.restore();
+          } else {
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(keyX, wk.y, keyW, keyH);
+          }
+          // Mirror-polished stone reflection
+          const marbleGloss = ctx.createLinearGradient(keyX, wk.y, keyX, keyH);
+          marbleGloss.addColorStop(0, 'rgba(15, 23, 42, 0.28)');
+          marbleGloss.addColorStop(0.1, 'rgba(255, 255, 255, 0.05)');
+          marbleGloss.addColorStop(0.48, 'rgba(255, 255, 255, 0.45)');
+          marbleGloss.addColorStop(0.88, 'rgba(203, 213, 225, 0.25)');
+          marbleGloss.addColorStop(1, 'rgba(100, 116, 139, 0.35)');
+          ctx.fillStyle = marbleGloss;
+          ctx.fillRect(keyX, wk.y, keyW, keyH);
+        } else if (isGold) {
+          if (pearlPattern) {
+            ctx.save();
+            ctx.translate(keyX - shiftX, wk.y - shiftY);
+            ctx.fillStyle = pearlPattern;
+            ctx.fillRect(shiftX, shiftY, keyW + 2, keyH + 2);
+            ctx.restore();
+          } else {
+            ctx.fillStyle = '#fffbeb';
+            ctx.fillRect(keyX, wk.y, keyW, keyH);
+          }
+          // Warm Imperial Pearl & Champagne Gold Lustre
+          const pearlSheen = ctx.createLinearGradient(keyX, wk.y, keyX, keyH);
+          pearlSheen.addColorStop(0, 'rgba(120, 53, 15, 0.25)');
+          pearlSheen.addColorStop(0.12, 'rgba(254, 243, 199, 0.15)');
+          pearlSheen.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)');
+          pearlSheen.addColorStop(0.85, 'rgba(253, 230, 138, 0.28)');
+          pearlSheen.addColorStop(1, 'rgba(180, 83, 9, 0.3)');
+          ctx.fillStyle = pearlSheen;
+          ctx.fillRect(keyX, wk.y, keyW, keyH);
+        } else if (isCarbon) {
+          if (brushedTitaniumPattern) {
+            ctx.save();
+            ctx.translate(keyX - (shiftX % 64), 0);
+            ctx.fillStyle = brushedTitaniumPattern;
+            ctx.fillRect(shiftX % 64, wk.y, keyW + 2, keyH + 2);
+            ctx.restore();
+          } else {
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(keyX, wk.y, keyW, keyH);
+          }
+          // Metallic cylindrical sheen
+          const metalSheen = ctx.createLinearGradient(keyX, wk.y, keyX, keyH);
+          metalSheen.addColorStop(0, 'rgba(9, 9, 11, 0.42)');
+          metalSheen.addColorStop(0.12, 'rgba(241, 245, 249, 0.18)');
+          metalSheen.addColorStop(0.42, 'rgba(255, 255, 255, 0.48)');
+          metalSheen.addColorStop(0.78, 'rgba(71, 85, 105, 0.28)');
+          metalSheen.addColorStop(1, 'rgba(30, 41, 59, 0.48)');
+          ctx.fillStyle = metalSheen;
           ctx.fillRect(keyX, wk.y, keyW, keyH);
         } else if (isNeon) {
           const neonBase = ctx.createLinearGradient(keyX, wk.y, keyX, keyH);
@@ -669,7 +949,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.fillStyle = neonBase;
           ctx.fillRect(keyX, wk.y, keyW, keyH);
         } else {
-          // Classic Concert Grand Ivory
+          // Classic Concert Grand Ivory ('midnight')
           if (ivoryPattern) {
             ctx.fillStyle = ivoryPattern;
             ctx.fillRect(keyX, wk.y, keyW, keyH);
@@ -687,27 +967,26 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.fillRect(keyX, wk.y, keyW, keyH);
         }
 
-        // B. Pressed Illumination Overlay (Preserves underlying Wood/Ivory texture!)
+        // B. Pressed Illumination Overlay (Preserves underlying Wood/Marble/Titanium/Pearl texture!)
         if (isPressed) {
           const pressGrad = ctx.createLinearGradient(keyX, wk.y, keyX, keyH);
           if (isStudent) {
             pressGrad.addColorStop(0, 'rgba(2, 132, 199, 0.65)');
             pressGrad.addColorStop(0.5, 'rgba(56, 189, 248, 0.55)');
             pressGrad.addColorStop(1, 'rgba(14, 165, 233, 0.78)');
-          } else if (isNeon) {
-            pressGrad.addColorStop(0, 'rgba(6, 182, 212, 0.55)');
-            pressGrad.addColorStop(0.5, 'rgba(34, 211, 238, 0.75)');
-            pressGrad.addColorStop(1, 'rgba(56, 189, 248, 0.9)');
+          } else if (isNeon || isCarbon) {
+            pressGrad.addColorStop(0, 'rgba(6, 182, 212, 0.48)');
+            pressGrad.addColorStop(0.5, 'rgba(34, 211, 238, 0.65)');
+            pressGrad.addColorStop(1, 'rgba(56, 189, 248, 0.82)');
           } else if (isMahogany) {
-            // Warm glowing amber varnish that lets the wood grain shine through
             pressGrad.addColorStop(0, 'rgba(146, 64, 14, 0.55)');
             pressGrad.addColorStop(0.35, 'rgba(245, 158, 11, 0.42)');
             pressGrad.addColorStop(0.75, 'rgba(251, 191, 36, 0.52)');
             pressGrad.addColorStop(1, 'rgba(217, 119, 6, 0.68)');
           } else {
-            pressGrad.addColorStop(0, 'rgba(217, 119, 6, 0.55)');
-            pressGrad.addColorStop(0.45, 'rgba(245, 158, 11, 0.68)');
-            pressGrad.addColorStop(1, 'rgba(251, 191, 36, 0.85)');
+            pressGrad.addColorStop(0, 'rgba(217, 119, 6, 0.48)');
+            pressGrad.addColorStop(0.45, 'rgba(245, 158, 11, 0.62)');
+            pressGrad.addColorStop(1, 'rgba(251, 191, 36, 0.78)');
           }
           ctx.fillStyle = pressGrad;
           ctx.fillRect(keyX, wk.y, keyW, keyH);
@@ -723,6 +1002,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         // C. 3D Lateral Bevel Highlights (Left light edge, Right shadow edge)
         ctx.fillStyle = isMahogany
           ? 'rgba(255, 248, 225, 0.55)'
+          : isGold
+          ? 'rgba(254, 240, 138, 0.85)'
           : isNeon
           ? 'rgba(56, 189, 248, 0.35)'
           : 'rgba(255, 255, 255, 0.9)';
@@ -730,9 +1011,11 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
 
         ctx.fillStyle = isMahogany
           ? 'rgba(82, 41, 12, 0.32)'
+          : isGold
+          ? 'rgba(161, 98, 7, 0.35)'
           : isNeon
           ? 'rgba(15, 23, 42, 0.8)'
-          : 'rgba(100, 116, 139, 0.3)';
+          : 'rgba(100, 116, 139, 0.32)';
         ctx.fillRect(keyX + keyW - 1.5, wk.y, 1.5, keyH - frontLipH);
 
         // D. 3D Sculpted Front Key Lip (Spessore frontale del tasto)
@@ -742,6 +1025,18 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           lipGrad.addColorStop(0, '#9c5a25');
           lipGrad.addColorStop(0.35, '#7c4318');
           lipGrad.addColorStop(1, '#4a250a');
+        } else if (isGold) {
+          lipGrad.addColorStop(0, '#facc15');
+          lipGrad.addColorStop(0.45, '#ca8a04');
+          lipGrad.addColorStop(1, '#713f12');
+        } else if (isMarble) {
+          lipGrad.addColorStop(0, '#e2e8f0');
+          lipGrad.addColorStop(0.45, '#94a3b8');
+          lipGrad.addColorStop(1, '#334155');
+        } else if (isCarbon) {
+          lipGrad.addColorStop(0, '#64748b');
+          lipGrad.addColorStop(0.45, '#334155');
+          lipGrad.addColorStop(1, '#0f172a');
         } else if (isNeon) {
           lipGrad.addColorStop(0, '#0284c7');
           lipGrad.addColorStop(1, '#0f172a');
@@ -756,6 +1051,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         // Crisp front chamfer specular highlight line right above the lip
         ctx.fillStyle = isMahogany
           ? 'rgba(255, 243, 210, 0.78)'
+          : isGold
+          ? '#fef08a'
           : isNeon
           ? '#38bdf8'
           : '#ffffff';
@@ -765,11 +1062,15 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         ctx.strokeStyle = isPressed
           ? isStudent
             ? '#38bdf8'
-            : isNeon
+            : isNeon || isCarbon
             ? '#22d3ee'
             : '#fde047'
           : isMahogany
           ? 'rgba(92, 48, 16, 0.55)'
+          : isGold
+          ? 'rgba(202, 138, 4, 0.55)'
+          : isCarbon
+          ? '#475569'
           : isNeon
           ? '#312e81'
           : '#94a3b8';
@@ -787,9 +1088,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         ctx.font = `800 ${fontSize}px system-ui, -apple-system, sans-serif`;
         const labelY = keyH - frontLipH - Math.max(11, keyH * 0.085);
 
-        // Subtle embossed text shadow for readability on wood grain
-        if (isMahogany && !isPressed) {
-          ctx.fillStyle = 'rgba(255, 248, 231, 0.75)';
+        if ((isMahogany || isMarble || isGold || isCarbon) && !isPressed) {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
           ctx.fillText(wk.label, keyX + keyW / 2, labelY + 1);
         }
 
@@ -799,6 +1099,10 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ? '#38bdf8'
           : isMahogany
           ? '#432008'
+          : isGold
+          ? '#713f12'
+          : isCarbon
+          ? '#0f172a'
           : '#334155';
         ctx.fillText(wk.label, keyX + keyW / 2, labelY);
 
@@ -812,9 +1116,9 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
             ? 'rgba(0,0,0,0.28)'
             : isNeon
             ? 'rgba(30, 27, 75, 0.85)'
-            : isMahogany
-            ? 'rgba(92, 48, 16, 0.18)'
-            : 'rgba(203, 213, 225, 0.7)';
+            : isMahogany || isGold
+            ? 'rgba(120, 53, 15, 0.18)'
+            : 'rgba(148, 163, 184, 0.35)';
           if (typeof ctx.roundRect === 'function') {
             ctx.beginPath();
             ctx.roundRect(badgeX, badgeY - badgeH / 2, badgeW, badgeH, 3);
@@ -826,16 +1130,16 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
             ? '#ffffff'
             : isNeon
             ? '#22d3ee'
-            : isMahogany
+            : isMahogany || isGold
             ? '#5c3010'
-            : '#475569';
+            : '#334155';
           ctx.fillText(wk.computerKey.toUpperCase(), keyX + keyW / 2, badgeY);
         }
 
         ctx.restore();
       });
 
-      // --- 2. DRAW BLACK KEYS (TRUE 3D BEVELED EBONY / ROSEWOOD PRISMS) ---
+      // --- 2. DRAW BLACK KEYS (TRUE 3D BEVELED PRISMS FOR ALL 6 MATERIALS) ---
       blackKeys.forEach((bk, idx) => {
         const isDemo = songPlaybackState.activeDemoNotes.has(bk.note);
         const isPressed = pressedNotes.has(bk.note) || studentPressed.has(bk.note) || isDemo;
@@ -876,7 +1180,6 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         }
         ctx.clip();
 
-        // Side bevel widths & bottom front slope height
         const sideBevel = Math.max(2.2, Math.min(5, keyW * 0.13));
         const frontSlopeH = isPressed
           ? Math.max(5, keyH * 0.065)
@@ -886,34 +1189,50 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         const deckX = keyX + sideBevel;
         const deckY = bk.y;
 
-        // Fill outer body (side walls & bottom slope base)
+        // Fill outer body (3D side flanks)
         const sideGrad = ctx.createLinearGradient(keyX, bk.y, keyX + keyW, bk.y);
         if (isPressed) {
           if (isStudent) {
             sideGrad.addColorStop(0, '#38bdf8');
             sideGrad.addColorStop(0.5, '#0284c7');
             sideGrad.addColorStop(1, '#0369a1');
-          } else if (isNeon) {
-            sideGrad.addColorStop(0, '#6ee7b7');
-            sideGrad.addColorStop(0.5, '#10b981');
-            sideGrad.addColorStop(1, '#047857');
+          } else if (isNeon || isCarbon) {
+            sideGrad.addColorStop(0, '#67e8f9');
+            sideGrad.addColorStop(0.5, '#06b6d4');
+            sideGrad.addColorStop(1, '#0e7490');
           } else {
             sideGrad.addColorStop(0, '#fde047');
             sideGrad.addColorStop(0.5, '#d97706');
             sideGrad.addColorStop(1, '#78350f');
           }
         } else if (isMahogany) {
-          // Left wall catches studio light, right wall in deep rosewood shadow
           sideGrad.addColorStop(0, '#5c2d14');
           sideGrad.addColorStop(0.25, '#3b1c0b');
           sideGrad.addColorStop(0.75, '#1f0d04');
           sideGrad.addColorStop(1, '#120702');
+        } else if (isGold) {
+          // 24k Gold Ingot Flanks
+          sideGrad.addColorStop(0, '#fef08a');
+          sideGrad.addColorStop(0.25, '#eab308');
+          sideGrad.addColorStop(0.75, '#a16207');
+          sideGrad.addColorStop(1, '#713f12');
+        } else if (isMarble) {
+          // Nero Portoro Stone Flanks
+          sideGrad.addColorStop(0, '#64748b');
+          sideGrad.addColorStop(0.25, '#1e293b');
+          sideGrad.addColorStop(0.8, '#090d16');
+          sideGrad.addColorStop(1, '#020617');
+        } else if (isCarbon) {
+          // Gunmetal Carbon Flanks
+          sideGrad.addColorStop(0, '#71717a');
+          sideGrad.addColorStop(0.25, '#27272a');
+          sideGrad.addColorStop(0.8, '#09090b');
+          sideGrad.addColorStop(1, '#000000');
         } else if (isNeon) {
           sideGrad.addColorStop(0, '#4a044e');
           sideGrad.addColorStop(0.5, '#1e1b4b');
           sideGrad.addColorStop(1, '#090d16');
         } else {
-          // Classic Ebony 3D flanks
           sideGrad.addColorStop(0, '#475569');
           sideGrad.addColorStop(0.22, '#1e293b');
           sideGrad.addColorStop(0.8, '#090d16');
@@ -932,12 +1251,20 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
 
         const slopeGrad = ctx.createLinearGradient(keyX, deckY + deckH, keyX, keyH);
         if (isPressed) {
-          slopeGrad.addColorStop(0, isStudent ? '#7dd3fc' : isNeon ? '#a7f3d0' : '#fef08a');
-          slopeGrad.addColorStop(1, isStudent ? '#0369a1' : isNeon ? '#065f46' : '#92400e');
+          slopeGrad.addColorStop(0, isStudent ? '#7dd3fc' : isNeon || isCarbon ? '#a5f3fc' : '#fef08a');
+          slopeGrad.addColorStop(1, isStudent ? '#0369a1' : isNeon || isCarbon ? '#155e75' : '#92400e');
         } else if (isMahogany) {
           slopeGrad.addColorStop(0, '#783c1a');
           slopeGrad.addColorStop(0.35, '#47220d');
           slopeGrad.addColorStop(1, '#1c0b03');
+        } else if (isGold) {
+          slopeGrad.addColorStop(0, '#fef9c3');
+          slopeGrad.addColorStop(0.4, '#eab308');
+          slopeGrad.addColorStop(1, '#854d0e');
+        } else if (isCarbon) {
+          slopeGrad.addColorStop(0, '#a1a1aa');
+          slopeGrad.addColorStop(0.35, '#3f3f46');
+          slopeGrad.addColorStop(1, '#18181b');
         } else if (isNeon) {
           slopeGrad.addColorStop(0, '#e879f9');
           slopeGrad.addColorStop(1, '#1e1b4b');
@@ -960,27 +1287,75 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         }
         ctx.clip();
 
+        const bShiftX = (idx * 37) % 140;
+        const bShiftY = (idx * 41) % 100;
+
         if (isMahogany) {
           if (darkWoodPattern) {
             ctx.save();
-            const shiftX = (idx * 37) % 140;
-            const shiftY = (idx * 41) % 100;
-            ctx.translate(deckX - shiftX, deckY - shiftY);
+            ctx.translate(deckX - bShiftX, deckY - bShiftY);
             ctx.fillStyle = darkWoodPattern;
-            ctx.fillRect(shiftX, shiftY, deckW + 2, deckH + 2);
+            ctx.fillRect(bShiftX, bShiftY, deckW + 2, deckH + 2);
             ctx.restore();
           } else {
             ctx.fillStyle = '#2b1408';
             ctx.fillRect(deckX, deckY, deckW, deckH);
           }
-
-          // Polished Rosewood / Ebony Lacquer Gradient
           const deckGloss = ctx.createLinearGradient(deckX, deckY, deckX, deckY + deckH);
           deckGloss.addColorStop(0, 'rgba(0, 0, 0, 0.45)');
           deckGloss.addColorStop(0.15, 'rgba(180, 95, 35, 0.14)');
           deckGloss.addColorStop(0.75, 'rgba(255, 215, 160, 0.12)');
           deckGloss.addColorStop(1, 'rgba(255, 225, 180, 0.24)');
           ctx.fillStyle = deckGloss;
+          ctx.fillRect(deckX, deckY, deckW, deckH);
+        } else if (isMarble) {
+          if (neroMarquinaPattern) {
+            ctx.save();
+            ctx.translate(deckX - bShiftX, deckY - bShiftY);
+            ctx.fillStyle = neroMarquinaPattern;
+            ctx.fillRect(bShiftX, bShiftY, deckW + 2, deckH + 2);
+            ctx.restore();
+          } else {
+            ctx.fillStyle = '#0c0d10';
+            ctx.fillRect(deckX, deckY, deckW, deckH);
+          }
+          const stoneGloss = ctx.createLinearGradient(deckX, deckY, deckX, deckY + deckH);
+          stoneGloss.addColorStop(0, 'rgba(0, 0, 0, 0.5)');
+          stoneGloss.addColorStop(0.25, 'rgba(255, 255, 255, 0.08)');
+          stoneGloss.addColorStop(1, 'rgba(254, 240, 138, 0.18)');
+          ctx.fillStyle = stoneGloss;
+          ctx.fillRect(deckX, deckY, deckW, deckH);
+        } else if (isGold) {
+          if (brushedGoldPattern) {
+            ctx.save();
+            ctx.translate(deckX - (bShiftX % 64), 0);
+            ctx.fillStyle = brushedGoldPattern;
+            ctx.fillRect(bShiftX % 64, deckY, deckW + 2, deckH + 2);
+            ctx.restore();
+          } else {
+            ctx.fillStyle = '#eab308';
+            ctx.fillRect(deckX, deckY, deckW, deckH);
+          }
+          const goldGloss = ctx.createLinearGradient(deckX, deckY, deckX, deckY + deckH);
+          goldGloss.addColorStop(0, 'rgba(66, 32, 6, 0.45)');
+          goldGloss.addColorStop(0.3, 'rgba(254, 249, 195, 0.35)');
+          goldGloss.addColorStop(0.75, 'rgba(202, 138, 4, 0.15)');
+          goldGloss.addColorStop(1, 'rgba(254, 240, 138, 0.5)');
+          ctx.fillStyle = goldGloss;
+          ctx.fillRect(deckX, deckY, deckW, deckH);
+        } else if (isCarbon) {
+          if (carbonFiberPattern) {
+            ctx.fillStyle = carbonFiberPattern;
+            ctx.fillRect(deckX, deckY, deckW, deckH);
+          } else {
+            ctx.fillStyle = '#18181b';
+            ctx.fillRect(deckX, deckY, deckW, deckH);
+          }
+          const cfSheen = ctx.createLinearGradient(deckX, deckY, deckX, deckY + deckH);
+          cfSheen.addColorStop(0, 'rgba(0, 0, 0, 0.5)');
+          cfSheen.addColorStop(0.4, 'rgba(255, 255, 255, 0.08)');
+          cfSheen.addColorStop(1, 'rgba(56, 189, 248, 0.18)');
+          ctx.fillStyle = cfSheen;
           ctx.fillRect(deckX, deckY, deckW, deckH);
         } else if (isNeon) {
           const neonDeck = ctx.createLinearGradient(deckX, deckY, deckX, deckY + deckH);
@@ -990,7 +1365,6 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.fillStyle = neonDeck;
           ctx.fillRect(deckX, deckY, deckW, deckH);
         } else {
-          // Classic Satin Ebony Top Deck
           const ebonyDeck = ctx.createLinearGradient(deckX, deckY, deckX, deckY + deckH);
           ebonyDeck.addColorStop(0, '#090d16');
           ebonyDeck.addColorStop(0.2, '#1e293b');
@@ -1000,15 +1374,15 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.fillRect(deckX, deckY, deckW, deckH);
         }
 
-        // Overlay warm glow on top deck when pressed (keeping wood/ebony grain visible!)
+        // Overlay warm/cool glow on top deck when pressed (keeping underlying material visible!)
         if (isPressed) {
           const activeDeckGrad = ctx.createLinearGradient(deckX, deckY, deckX, deckY + deckH);
           if (isStudent) {
             activeDeckGrad.addColorStop(0, 'rgba(3, 105, 161, 0.7)');
             activeDeckGrad.addColorStop(1, 'rgba(56, 189, 248, 0.85)');
-          } else if (isNeon) {
-            activeDeckGrad.addColorStop(0, 'rgba(16, 185, 129, 0.65)');
-            activeDeckGrad.addColorStop(1, 'rgba(52, 211, 153, 0.88)');
+          } else if (isNeon || isCarbon) {
+            activeDeckGrad.addColorStop(0, 'rgba(8, 145, 178, 0.65)');
+            activeDeckGrad.addColorStop(1, 'rgba(34, 211, 238, 0.88)');
           } else {
             activeDeckGrad.addColorStop(0, 'rgba(180, 83, 9, 0.62)');
             activeDeckGrad.addColorStop(0.6, 'rgba(245, 158, 11, 0.68)');
@@ -1023,8 +1397,14 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         // 2E. Crisp 3D Bevel Specular Rim around the Top Deck
         ctx.strokeStyle = isPressed
           ? '#fef08a'
+          : isGold
+          ? 'rgba(254, 249, 195, 0.85)'
           : isMahogany
           ? 'rgba(225, 150, 85, 0.48)'
+          : isMarble
+          ? 'rgba(253, 224, 71, 0.5)'
+          : isCarbon
+          ? 'rgba(125, 211, 252, 0.55)'
           : isNeon
           ? 'rgba(232, 121, 249, 0.7)'
           : 'rgba(148, 163, 184, 0.45)';
@@ -1041,8 +1421,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         ctx.strokeStyle = isPressed
           ? isStudent
             ? '#38bdf8'
-            : isNeon
-            ? '#6ee7b7'
+            : isNeon || isCarbon
+            ? '#67e8f9'
             : '#fde047'
           : '#050302';
         ctx.lineWidth = isPressed ? 1.8 : 1;
@@ -1066,10 +1446,14 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
           ctx.fillStyle = isPressed
             ? '#0f172a'
+            : isGold
+            ? '#422006'
             : isNeon
             ? '#fbcfe8'
-            : isMahogany
+            : isMahogany || isMarble
             ? '#fde68a'
+            : isCarbon
+            ? '#bae6fd'
             : '#e2e8f0';
 
           const labelY = deckY + deckH - Math.max(9, keyH * 0.09);
@@ -1079,7 +1463,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         }
       });
 
-      // --- 3. DRAW TOP GRAND PIANO MAHOGANY FALLBOARD & CRIMSON FELT RAIL ---
+      // --- 3. DRAW TOP GRAND PIANO FALLBOARD & PLUSH FELT RAIL ---
       ctx.save();
       const feltHeight = Math.max(7, Math.min(12, height * 0.038));
 
@@ -1090,29 +1474,51 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       ctx.fillStyle = railShadow;
       ctx.fillRect(0, feltHeight, width, 10);
 
-      // Upper Mahogany Wood Strip
+      // Upper Fallboard Strip (matches material)
       const woodRailH = Math.max(3, feltHeight * 0.45);
       if (isMahogany && darkWoodPattern) {
         ctx.fillStyle = darkWoodPattern;
         ctx.fillRect(0, 0, width, woodRailH);
+      } else if (isMarble && neroMarquinaPattern) {
+        ctx.fillStyle = neroMarquinaPattern;
+        ctx.fillRect(0, 0, width, woodRailH);
+      } else if (isCarbon && carbonFiberPattern) {
+        ctx.fillStyle = carbonFiberPattern;
+        ctx.fillRect(0, 0, width, woodRailH);
       } else {
-        ctx.fillStyle = isMahogany ? '#3b1808' : '#1e100d';
+        ctx.fillStyle = isGold ? '#422006' : '#1e100d';
         ctx.fillRect(0, 0, width, woodRailH);
       }
 
-      // Plush Crimson Velvet Felt Strip
+      // Plush Velvet Felt Strip
       const feltGrad = ctx.createLinearGradient(0, woodRailH, 0, feltHeight);
-      feltGrad.addColorStop(0, '#4c0519');
-      feltGrad.addColorStop(0.5, '#9f1239');
-      feltGrad.addColorStop(1, '#881337');
+      if (isCarbon) {
+        feltGrad.addColorStop(0, '#082f49');
+        feltGrad.addColorStop(0.5, '#0284c7');
+        feltGrad.addColorStop(1, '#0369a1');
+      } else if (isGold) {
+        feltGrad.addColorStop(0, '#3b0764');
+        feltGrad.addColorStop(0.5, '#7e22ce');
+        feltGrad.addColorStop(1, '#581c87');
+      } else {
+        feltGrad.addColorStop(0, '#4c0519');
+        feltGrad.addColorStop(0.5, '#9f1239');
+        feltGrad.addColorStop(1, '#881337');
+      }
       ctx.fillStyle = feltGrad;
       ctx.fillRect(0, woodRailH, width, feltHeight - woodRailH);
 
-      // 3D Metallic Brass Inlay Bar
+      // 3D Metallic Inlay Bar (Gold / Chrome)
       const brassGrad = ctx.createLinearGradient(0, feltHeight - 2, 0, feltHeight);
-      brassGrad.addColorStop(0, '#fef08a');
-      brassGrad.addColorStop(0.5, '#eab308');
-      brassGrad.addColorStop(1, '#854d0e');
+      if (isCarbon) {
+        brassGrad.addColorStop(0, '#f8fafc');
+        brassGrad.addColorStop(0.5, '#94a3b8');
+        brassGrad.addColorStop(1, '#334155');
+      } else {
+        brassGrad.addColorStop(0, '#fef08a');
+        brassGrad.addColorStop(0.5, '#eab308');
+        brassGrad.addColorStop(1, '#854d0e');
+      }
       ctx.fillStyle = brassGrad;
       ctx.fillRect(0, feltHeight - 1.8, width, 1.8);
 

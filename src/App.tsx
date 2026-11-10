@@ -19,6 +19,7 @@ import { VersionModal } from './components/VersionModal';
 import { PlayStoreAssetsModal } from './components/PlayStoreAssetsModal';
 import { getStoredUsername, verifyAndLockUsername } from './utils/deviceIdentity';
 import { audioEngine } from './utils/audioEngine';
+import { getThemeClasses, isValidStudioTheme } from './utils/themeHelper';
 
 import { ActiveSocialSession, SocialSessionResults, SocialRoomMode, ScaleExercise, InteractiveSong } from './types';
 
@@ -112,8 +113,8 @@ export default function App() {
   const [studioTheme, setStudioTheme] = useState<StudioTheme>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('maestro_studio_theme') as StudioTheme;
-        if (saved === 'midnight' || saved === 'mahogany' || saved === 'neon') return saved;
+        const saved = localStorage.getItem('maestro_studio_theme');
+        if (isValidStudioTheme(saved)) return saved;
       } catch (e) {}
     }
     return 'midnight';
@@ -200,10 +201,7 @@ export default function App() {
     audioEngine.setVolume(vol);
   };
 
-  const themeBgClass = 
-    studioTheme === 'mahogany' ? 'bg-[#1c0d06] text-[#fbf8f0]' :
-    studioTheme === 'neon' ? 'bg-[#05020f] text-cyan-100' :
-    'bg-slate-950 text-slate-100';
+  const themeBgClass = getThemeClasses(studioTheme).appBg;
 
   return (
     <div className={`${themeBgClass} flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950 ${
