@@ -117,23 +117,14 @@ jobs:
             echo "AAB pronto (Signed Release): release-output/VirtuKeys.aab"
           fi
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: VirtuKeys-Android-Artifacts
-          path: release-output/*
-          retention-days: 1
-
-      - name: Create GitHub Release
+      - name: Create GitHub Release (100% Private & Unlimited Storage - 0MB Actions Quota)
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-        continue-on-error: true
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "VirtuKeys Android v1.0.${{ github.run_number }}"
           body: |
-            ### 🎹 VirtuKeys - Pacchetto Android (APK & Persistent Signed AAB v1.0.${{ github.run_number }})
-            - **VirtuKeys.apk**: Ideale per test diretti.
+            ### 🎹 VirtuKeys - Pacchetto Android Privato (APK & Signed AAB v1.0.${{ github.run_number }})
+            - **VirtuKeys.apk**: Pronto da installare direttamente sul telefono.
             - **VirtuKeys.aab**: **App Bundle firmato con keystore persistente** (pronto per Google Play Console).
           files: |
             release-output/VirtuKeys.apk
