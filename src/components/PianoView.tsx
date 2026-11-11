@@ -497,15 +497,20 @@ export const PianoView: React.FC<PianoViewProps> = ({
     setTimeout(() => setToastMessage(null), 3200);
   }, []);
 
-  // --- VIRAL 9:16 REEL / TIKTOK / SHORTS VIDEO RECORDER (CENTRAL ZOOM) ---
+  // --- VIDEO RECORDING (VERTICAL 9:16 REEL & HORIZONTAL 16:9 WITH ROTATE BANNER) ---
+  type VideoRecordMode = 'vertical_reel' | 'horizontal_full';
+  const [isVideoMenuOpen, setIsVideoMenuOpen] = useState<boolean>(false);
+  const [activeVideoMode, setActiveVideoMode] = useState<VideoRecordMode>('vertical_reel');
   const [isReelRecording, setIsReelRecording] = useState<boolean>(false);
   const [reelRecordSeconds, setReelRecordSeconds] = useState<number>(0);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [recordedVideoBlob, setRecordedVideoBlob] = useState<Blob | null>(null);
-  const [recordedVideoExt, setRecordedVideoExt] = useState<string>('webm');
+  const [recordedVideoExt, setRecordedVideoExt] = useState<string>('mp4');
+  const [recordedVideoFilename, setRecordedVideoFilename] = useState<string>('VirtuKeys-Video.mp4');
   const reelRecorderRef = useRef<MediaRecorder | null>(null);
   const reelAnimFrameRef = useRef<number | null>(null);
   const reelTimerRef = useRef<number | null>(null);
+  const reelStartTimeRef = useRef<number>(0);
   const prevStartIdxBeforeReelRef = useRef<number | null>(null);
   const studioThemeRef = useRef<StudioTheme>(studioTheme);
   useEffect(() => {
@@ -547,6 +552,14 @@ export const PianoView: React.FC<PianoViewProps> = ({
         reelRecorderRef.current.stop();
       } catch (e) {}
     }
+    if (reelTimerRef.current) {
+      clearInterval(reelTimerRef.current);
+      reelTimerRef.current = null;
+    }
+    if (reelAnimFrameRef.current !== null) {
+      cancelAnimationFrame(reelAnimFrameRef.current);
+      reelAnimFrameRef.current = null;
+    }
     setIsReelRecording(false);
     setIsReelZoomed(false);
     if (prevStartIdxBeforeReelRef.current !== null) {
@@ -555,11 +568,14 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
   }, []);
 
-  const startReelVideoRecording = useCallback(async () => {
+  const startVideoRecording = useCallback(async (mode: VideoRecordMode) => {
     if (isReelRecording) {
       stopReelVideoRecording();
       return;
     }
+
+    setIsVideoMenuOpen(false);
+    setActiveVideoMode(mode);
 
     // Cleanup previous recorded video URL if any
     if (recordedVideoUrl) {
@@ -568,22 +584,34 @@ export const PianoView: React.FC<PianoViewProps> = ({
       setRecordedVideoBlob(null);
     }
 
-    // 1. Zoom keyboard onto the central 10 white keys & ensure waterfall is visible if a song exists
-    prevStartIdxBeforeReelRef.current = startWhiteKeyIdx;
-    const centerStart = computeCentralZoomStartIdx();
-    setIsReelZoomed(true);
-    setStartWhiteKeyIdx(centerStart);
+    // 1. If vertical mode: zoom keyboard onto central 10 white keys.
+    // If horizontal mode: keep user layout (or balanced) to capture the whole piano keyboard!
+    if (mode === 'vertical_reel') {
+      prevStartIdxBeforeReelRef.current = startWhiteKeyIdx;
+      const centerStart = computeCentralZoomStartIdx();
+      setIsReelZoomed(true);
+      setStartWhiteKeyIdx(centerStart);
+    } else {
+      setIsReelZoomed(false);
+    }
+
     if (activeSong && !showWaterfall) {
       setShowWaterfall(true);
     }
 
-    // Get internal stereo digital stream (automatically initializes AudioEngine)
+    // Ensure AudioContext is warm and running before recording begins
+    await audioEngine.ensureAudioContextRunning();
+
+    // Get internal stereo digital stream (with silent carrier keeping clock active)
     const audioStream = audioEngine.getRecordingAudioStream();
 
-    // 2. Create 9:16 vertical HD offscreen compositor canvas (720x1280)
+    // 2. Setup offscreen compositor canvas:
+    // Vertical: 720x1280 (9:16)
+    // Horizontal: 1280x720 (16:9)
     const compCanvas = document.createElement('canvas');
-    compCanvas.width = 720;
-    compCanvas.height = 1280;
+    const isVertical = mode === 'vertical_reel';
+    compCanvas.width = isVertical ? 720 : 1280;
+    compCanvas.height = isVertical ? 1280 : 720;
     const ctx = compCanvas.getContext('2d');
     if (!ctx) {
       showToast('Impossibile inizializzare il registratore video.');
@@ -599,9 +627,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
       neon: '⚡ Cyber Neon',
     };
 
+    reelStartTimeRef.current = performance.now();
+
     const renderCompositeFrame = () => {
       const W = compCanvas.width;
       const H = compCanvas.height;
+      const elapsedSec = (performance.now() - reelStartTimeRef.current) / 1000;
 
       // Studio background
       const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
@@ -611,43 +642,48 @@ export const PianoView: React.FC<PianoViewProps> = ({
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, W, H);
 
-      // Top Header Banner (0..120)
-      const headerGrad = ctx.createLinearGradient(0, 0, W, 115);
-      headerGrad.addColorStop(0, 'rgba(15, 23, 42, 0.96)');
-      headerGrad.addColorStop(1, 'rgba(30, 41, 59, 0.96)');
+      // Top Header Banner
+      const headerH = isVertical ? 115 : 68;
+      const headerGrad = ctx.createLinearGradient(0, 0, W, headerH);
+      headerGrad.addColorStop(0, 'rgba(15, 23, 42, 0.98)');
+      headerGrad.addColorStop(1, 'rgba(30, 41, 59, 0.98)');
       ctx.fillStyle = headerGrad;
-      ctx.fillRect(0, 0, W, 115);
+      ctx.fillRect(0, 0, W, headerH);
 
       // Gold accent line under header
       ctx.fillStyle = '#f59e0b';
-      ctx.fillRect(0, 113, W, 3);
+      ctx.fillRect(0, headerH - 2, W, 2);
 
       // Brand title: VirtuKeys
       ctx.fillStyle = '#fbbf24';
-      ctx.font = '900 32px Inter, system-ui, sans-serif';
+      ctx.font = isVertical ? '900 32px Inter, system-ui, sans-serif' : '900 24px Inter, system-ui, sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🎹 VirtuKeys', 28, 44);
+      ctx.fillText('🎹 VirtuKeys', isVertical ? 28 : 20, isVertical ? 44 : 26);
 
       // Song title subtitle
       const currentSongTitle = activeSongRef.current ? activeSongRef.current.title : 'Live Piano Performance';
       ctx.fillStyle = '#f8fafc';
-      ctx.font = '700 20px Inter, system-ui, sans-serif';
-      ctx.fillText(`🎵 ${currentSongTitle}`, 28, 84);
+      ctx.font = isVertical ? '700 20px Inter, system-ui, sans-serif' : '700 15px Inter, system-ui, sans-serif';
+      if (isVertical) {
+        ctx.fillText(`🎵 ${currentSongTitle}`, 28, 84);
+      } else {
+        ctx.fillText(`🎵 ${currentSongTitle}`, 220, 26);
+      }
 
       // Current 3D material pill on top-right
       const badgeText = themeBadges[studioThemeRef.current] || '🎹 Classic Ivory';
-      ctx.font = '800 18px Inter, system-ui, sans-serif';
+      ctx.font = isVertical ? '800 18px Inter, system-ui, sans-serif' : '800 14px Inter, system-ui, sans-serif';
       const metrics = ctx.measureText(badgeText);
-      const bw = metrics.width + 32;
-      const bh = 42;
-      const bx = W - bw - 24;
-      const by = 36;
+      const bw = metrics.width + (isVertical ? 32 : 24);
+      const bh = isVertical ? 42 : 32;
+      const bx = W - bw - (isVertical ? 24 : 16);
+      const by = isVertical ? 36 : 18;
       ctx.fillStyle = 'rgba(245, 158, 11, 0.18)';
       ctx.strokeStyle = 'rgba(245, 158, 11, 0.65)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.roundRect(bx, by, bw, bh, 12);
+      ctx.roundRect(bx, by, bw, bh, isVertical ? 12 : 8);
       ctx.fill();
       ctx.stroke();
 
@@ -659,35 +695,27 @@ export const PianoView: React.FC<PianoViewProps> = ({
       const waterfallCanvas = document.querySelector('canvas[data-waterfall-canvas="true"]') as HTMLCanvasElement | null;
       const pianoCanvas = document.querySelector('canvas[data-piano-canvas="true"]') as HTMLCanvasElement | null;
 
-      // 1. Piano Keyboard section at the bottom (natural aspect ratio, no stretching)
-      // Standard piano keys have a ~3.2 : 1 to 4.5 : 1 width-to-height ratio for 10 keys
-      let pianoDrawnHeight = 300;
-      const pianoAvailableMaxHeight = 440;
-      const pianoBottomY = 1224; // immediately above footer watermark (1224..1280)
+      // Layout geometry: Realistic, large piano proportions matching live app!
+      // In live app with waterfall, keyboard is prominent (~45% - 50% of height)
+      const footerH = isVertical ? 50 : 36;
+      const pianoBottomY = H - footerH;
+
+      // Generous, realistic piano height (keys look deep, bold and lifelike just like real piano)
+      const pianoDrawnHeight = isVertical ? 420 : 310;
+      const pianoDrawY = pianoBottomY - pianoDrawnHeight;
 
       if (pianoCanvas && pianoCanvas.width > 0 && pianoCanvas.height > 0) {
-        // Natural height when scaled to fill width W (720px)
-        const naturalH = Math.round(W * (pianoCanvas.height / pianoCanvas.width));
-        // Keep it nicely proportioned without distortion
-        pianoDrawnHeight = Math.max(220, Math.min(pianoAvailableMaxHeight, naturalH));
-        const pianoDrawY = pianoBottomY - pianoDrawnHeight;
-
-        // Draw crisp with exact aspect ratio
         ctx.drawImage(pianoCanvas, 0, 0, pianoCanvas.width, pianoCanvas.height, 0, pianoDrawY, W, pianoDrawnHeight);
       }
 
-      // Separator rail position immediately above keyboard
-      const pianoDrawY = pianoBottomY - pianoDrawnHeight;
-      const railTop = pianoDrawY - 14;
-      const wfTop = 116;
-      const wfHeight = Math.max(100, railTop - wfTop);
+      const railTop = pianoDrawY - (isVertical ? 14 : 10);
+      const wfTop = headerH;
+      const wfHeight = Math.max(80, railTop - wfTop);
 
-      // 2. Waterfall section (fills the upper-middle area naturally above the piano)
+      // Waterfall section
       if (waterfallCanvas && waterfallCanvas.width > 0 && waterfallCanvas.height > 0) {
-        // Source canvas is sized for the screen; map its full width onto 720 and draw the falling notes
         ctx.drawImage(waterfallCanvas, 0, 0, waterfallCanvas.width, waterfallCanvas.height, 0, wfTop, W, wfHeight);
       } else {
-        // Stylish ambient stage backdrop when playing freehand without waterfall
         const stageGrad = ctx.createRadialGradient(W / 2, wfTop + wfHeight / 2, 30, W / 2, wfTop + wfHeight / 2, 380);
         stageGrad.addColorStop(0, 'rgba(245, 158, 11, 0.14)');
         stageGrad.addColorStop(1, 'rgba(2, 6, 23, 0.95)');
@@ -696,43 +724,88 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
         ctx.fillStyle = '#fbbf24';
         ctx.textAlign = 'center';
-        ctx.font = '900 36px Inter, system-ui, sans-serif';
-        ctx.fillText('🎹 VirtuKeys Studio', W / 2, wfTop + wfHeight / 2 - 20);
+        ctx.font = isVertical ? '900 36px Inter, system-ui, sans-serif' : '900 28px Inter, system-ui, sans-serif';
+        ctx.fillText('🎹 VirtuKeys Studio', W / 2, wfTop + wfHeight / 2 - 16);
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '600 22px Inter, system-ui, sans-serif';
-        ctx.fillText('Zoom Note Centrali • Proporzioni HD', W / 2, wfTop + wfHeight / 2 + 25);
+        ctx.font = isVertical ? '600 22px Inter, system-ui, sans-serif' : '600 16px Inter, system-ui, sans-serif';
+        ctx.fillText(isVertical ? 'Zoom Note Centrali • Proporzioni HD' : 'Tastiera Completa • Audio Puro HD', W / 2, wfTop + wfHeight / 2 + 20);
       }
 
-      // Red plush felt & gold rail separator between waterfall and keys
-      const railGrad = ctx.createLinearGradient(0, railTop, 0, railTop + 14);
+      // Red plush felt & gold rail separator
+      const railH = isVertical ? 14 : 10;
+      const railGrad = ctx.createLinearGradient(0, railTop, 0, railTop + railH);
       railGrad.addColorStop(0, '#b45309');
       railGrad.addColorStop(0.5, '#fde047');
       railGrad.addColorStop(1, '#7f1d1d');
       ctx.fillStyle = railGrad;
-      ctx.fillRect(0, railTop, W, 14);
+      ctx.fillRect(0, railTop, W, railH);
 
-      // Bottom Footer Watermark (y: 1224..1280)
+      // Bottom Footer Watermark
       ctx.fillStyle = '#020617';
-      ctx.fillRect(0, 1224, W, 56);
+      ctx.fillRect(0, pianoBottomY, W, footerH);
       ctx.fillStyle = '#94a3b8';
-      ctx.font = '700 18px Inter, system-ui, sans-serif';
+      ctx.font = isVertical ? '700 18px Inter, system-ui, sans-serif' : '700 13px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('virtukeys.app • Suona gratis dal browser 🎹', W / 2, 1252);
+      ctx.fillText('virtukeys.app • Suona gratis dal browser 🎹', W / 2, pianoBottomY + footerH / 2 + 1);
+
+      // --- ULTRA-PRO CLEAN FLASHING "ROTATE YOUR PHONE" (SENZA SFONDO / NESSUN BOX) ---
+      // Scritta a tutto schermo, grandissima, luminosa al neon che lampeggia/pulsa direttamente sul video!
+      if (!isVertical && elapsedSec < 4.2) {
+        const fadeOut = elapsedSec > 3.4 ? Math.max(0, (4.2 - elapsedSec) / 0.8) : 1.0;
+        ctx.save();
+        ctx.globalAlpha = fadeOut;
+
+        // Pulso luminoso rapido e dinamico (effetto neon stroboscopico / battito)
+        const pulse = Math.abs(Math.sin(elapsedSec * 4.5));
+        const glowIntensity = 18 + pulse * 28;
+        const scale = 1.0 + pulse * 0.04;
+
+        ctx.translate(W / 2, H / 2 - 15);
+        ctx.scale(scale, scale);
+
+        // Icona rotazione animata
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '84px system-ui, sans-serif';
+        ctx.shadowColor = '#f59e0b';
+        ctx.shadowBlur = glowIntensity;
+        ctx.fillText('🔄', 0, -85);
+
+        // Scritta PRINCIPALE GIGANTE SENZA SFONDO "ROTATE YOUR PHONE"
+        ctx.font = '900 68px Inter, Montserrat, system-ui, sans-serif';
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = glowIntensity * 1.3;
+        ctx.fillStyle = pulse > 0.4 ? '#ffffff' : '#fef08a';
+        ctx.fillText('ROTATE YOUR PHONE', 0, 10);
+
+        // Doppio bagliore neon oro/arancio per renderla incredibilmente vibrante
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = `rgba(245, 158, 11, ${0.6 + 0.4 * pulse})`;
+        ctx.strokeText('ROTATE YOUR PHONE', 0, 10);
+
+        // Sottotitolo chiaro ed elegante
+        ctx.font = '800 22px Inter, system-ui, sans-serif';
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = '#fde68a';
+        ctx.fillText('⚡ Turn to Landscape for the Best Experience 🎹', 0, 75);
+
+        ctx.restore();
+      }
 
       reelAnimFrameRef.current = requestAnimationFrame(renderCompositeFrame);
     };
 
-    renderCompositeFrame();
-
-    // 3. Combine 30fps canvas video stream + internal Web Audio track
-    const videoStream = compCanvas.captureStream(30);
+    // 3. Combine 60 FPS canvas video stream + internal continuous Web Audio track
+    // 60 FPS ensures every rendered animation frame matches the 60Hz display refresh with zero judder or drift
+    const videoStream = compCanvas.captureStream(60);
     const combinedTracks: MediaStreamTrack[] = [...videoStream.getVideoTracks()];
     if (audioStream && audioStream.getAudioTracks().length > 0) {
       combinedTracks.push(...audioStream.getAudioTracks());
     }
     const combinedStream = new MediaStream(combinedTracks);
 
-    // Choose best supported MIME type (prefer MP4 on Safari/iOS/modern Chrome for direct TikTok/Reels upload)
+    // Choose best supported MIME type
     const mimeCandidates = [
       { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
       { mime: 'video/mp4', ext: 'mp4' },
@@ -753,7 +826,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
     try {
       const chunks: BlobPart[] = [];
       const recorder = selectedMime
-        ? new MediaRecorder(combinedStream, { mimeType: selectedMime, videoBitsPerSecond: 4500000 })
+        ? new MediaRecorder(combinedStream, {
+            mimeType: selectedMime,
+            videoBitsPerSecond: isVertical ? 5000000 : 6000000,
+            audioBitsPerSecond: 192000,
+          })
         : new MediaRecorder(combinedStream);
 
       recorder.ondataavailable = (ev) => {
@@ -763,19 +840,44 @@ export const PianoView: React.FC<PianoViewProps> = ({
       };
 
       recorder.onstop = () => {
-        const finalBlob = new Blob(chunks, { type: selectedMime || 'video/webm' });
+        const actualMime = selectedMime || recorder.mimeType || 'video/webm';
+        let finalExt = selectedExt;
+        if (actualMime.includes('mp4')) {
+          finalExt = 'mp4';
+        } else if (actualMime.includes('webm')) {
+          finalExt = 'webm';
+        }
+
+        const finalBlob = new Blob(chunks, { type: actualMime });
         const url = URL.createObjectURL(finalBlob);
+        const filename = `VirtuKeys-${isVertical ? 'Reel' : 'Full'}-${Date.now()}.${finalExt}`;
+
         setRecordedVideoBlob(finalBlob);
         setRecordedVideoUrl(url);
-        setRecordedVideoExt(selectedExt);
+        setRecordedVideoExt(finalExt);
+        setRecordedVideoFilename(filename);
       };
 
       reelRecorderRef.current = recorder;
-      recorder.start(200);
+
+      // CRITICAL ZERO-OFFSET SYNCHRONIZATION:
+      // Start the MediaRecorder and begin the composite rendering loop at the EXACT same instant
+      // so the canvas presentation timestamp matches the continuous audio carrier presentation timestamp from t=0.000s
+      recorder.start(100);
+      reelStartTimeRef.current = performance.now();
+      renderCompositeFrame();
+
       setIsReelRecording(true);
       setReelRecordSeconds(0);
-      showToast('🎬 Registrazione Video Verticale (Zoom Note Centrali) avviata!');
+      showToast(
+        isVertical
+          ? '🎬 Registrazione Video Verticale 9:16 (Zoom Note Centrali) avviata!'
+          : '🖥️ Registrazione Video Orizzontale 16:9 con intro "Rotate Phone" avviata!'
+      );
 
+      if (reelTimerRef.current) {
+        clearInterval(reelTimerRef.current);
+      }
       reelTimerRef.current = window.setInterval(() => {
         setReelRecordSeconds((prev) => prev + 1);
       }, 1000);
@@ -3017,23 +3119,91 @@ export const PianoView: React.FC<PianoViewProps> = ({
               <span className="hidden sm:inline">{isRecording ? 'Stop' : 'Rec'}</span>
             </button>
 
-            {/* Viral 9:16 Video / Reel Recorder with Auto Central Zoom */}
-            <button
-              onClick={startReelVideoRecording}
-              className={`px-1.5 sm:px-2 py-0.5 font-extrabold rounded-md border flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap ${
-                isReelRecording
-                  ? 'bg-rose-600 border-rose-400 text-white animate-pulse shadow-lg shadow-rose-600/40'
-                  : 'bg-gradient-to-r from-fuchsia-600/90 to-amber-500/90 hover:from-fuchsia-500 hover:to-amber-400 border-amber-300/50 text-white shadow-sm'
-              }`}
-              title="Registra Video Verticale 9:16 (TikTok / Reels / Shorts) con Zoom sulle note centrali e audio interno puro"
-            >
-              <span>{isReelRecording ? '⏹️' : '🎬'}</span>
-              <span>
-                {isReelRecording
-                  ? `Stop ${Math.floor(reelRecordSeconds / 60)}:${String(reelRecordSeconds % 60).padStart(2, '0')}`
-                  : 'Video'}
-              </span>
-            </button>
+            {/* Video Recording Button with 2 Options (Vertical Reel 9:16 vs Horizontal 16:9 with Rotate Banner) */}
+            <div>
+              {isReelRecording ? (
+                <button
+                  onClick={stopReelVideoRecording}
+                  className="px-1.5 sm:px-2 py-0.5 font-extrabold rounded-md border flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap bg-rose-600 border-rose-400 text-white animate-pulse shadow-lg shadow-rose-600/40"
+                  title="Ferma registrazione video e visualizza anteprima"
+                >
+                  <span>⏹️</span>
+                  <span>{`Stop ${Math.floor(reelRecordSeconds / 60)}:${String(reelRecordSeconds % 60).padStart(2, '0')}`}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsVideoMenuOpen((prev) => !prev)}
+                  className="px-1.5 sm:px-2 py-0.5 font-extrabold rounded-md border flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap bg-gradient-to-r from-fuchsia-600/90 to-amber-500/90 hover:from-fuchsia-500 hover:to-amber-400 border-amber-300/50 text-white shadow-sm"
+                  title="Scegli formato video: Verticale 9:16 per Reels/TikTok o Orizzontale 16:9 con intro 'Rotate Phone'"
+                >
+                  <span>🎬</span>
+                  <span>Video</span>
+                  <span className="text-[9px] opacity-80">▾</span>
+                </button>
+              )}
+            </div>
+
+            {/* 2-Option Video Mode Modal (Fixed viewport positioning to avoid overflow clipping) */}
+            {isVideoMenuOpen && !isReelRecording && (
+              <div className="fixed inset-0 z-50 flex items-start justify-end p-2 sm:p-4 bg-slate-950/60 backdrop-blur-xs">
+                <div
+                  className="fixed inset-0"
+                  onClick={() => setIsVideoMenuOpen(false)}
+                />
+                <div className="relative mt-8 sm:mt-10 mr-1 sm:mr-2 w-72 sm:w-80 bg-slate-900 border-2 border-amber-500/70 rounded-2xl shadow-2xl p-3 z-10 animate-in fade-in zoom-in-95 duration-150 space-y-2 text-left">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+                    <div className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <span>🎬</span>
+                      <span>Scegli Formato Video</span>
+                    </div>
+                    <button
+                      onClick={() => setIsVideoMenuOpen(false)}
+                      className="w-6 h-6 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Option 1: Vertical 9:16 (Central Zoom) */}
+                  <button
+                    onClick={() => startVideoRecording('vertical_reel')}
+                    className="w-full p-2.5 rounded-xl bg-slate-800/90 hover:bg-gradient-to-r hover:from-fuchsia-900/70 hover:to-amber-900/70 border border-slate-700/80 hover:border-amber-400/80 transition-all text-left flex items-start gap-2.5 cursor-pointer group shadow-sm"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-fuchsia-600/25 border border-fuchsia-500/50 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                      📱
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-black text-white flex items-center justify-between">
+                        <span>Verticale 9:16</span>
+                        <span className="text-[9px] bg-fuchsia-500/25 text-fuchsia-300 px-1.5 py-0.2 rounded font-mono font-bold">TikTok / Reels</span>
+                      </div>
+                      <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
+                        Zoom automatico sulle note centrali per video verticali da smartphone.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option 2: Horizontal 16:9 (Full Piano + "Rotate Your Phone" Glowing Intro) */}
+                  <button
+                    onClick={() => startVideoRecording('horizontal_full')}
+                    className="w-full p-2.5 rounded-xl bg-slate-800/90 hover:bg-gradient-to-r hover:from-amber-900/70 hover:to-yellow-900/70 border border-slate-700/80 hover:border-yellow-400/80 transition-all text-left flex items-start gap-2.5 cursor-pointer group shadow-sm"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-amber-600/25 border border-amber-500/50 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                      🔄
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-black text-white flex items-center justify-between">
+                        <span>Orizzontale 16:9</span>
+                        <span className="text-[9px] bg-amber-500/25 text-amber-300 px-1.5 py-0.2 rounded font-mono font-bold">Full / YouTube</span>
+                      </div>
+                      <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
+                        Tastiera completa con effetto luminoso iniziale <strong className="text-amber-300">"ROTATE YOUR PHONE"</strong> in inglese.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Sustain pedal toggle */}
             <button
@@ -4643,7 +4813,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       {/* VIRAL 9:16 VIDEO PREVIEW, DOWNLOAD & SHARE MODAL */}
       {recordedVideoUrl && (
         <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl max-w-md w-full p-4 sm:p-5 shadow-2xl flex flex-col items-center gap-3 max-h-[94vh] overflow-y-auto">
+          <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl max-w-lg w-full p-4 sm:p-5 shadow-2xl flex flex-col items-center gap-3 max-h-[94vh] overflow-y-auto">
             <div className="w-full flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🎬</span>
@@ -4652,7 +4822,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     Video VirtuKeys Pronto!
                   </h3>
                   <p className="text-[11px] text-amber-300 font-semibold">
-                    Formato Verticale 9:16 HD • Zoom Note Centrali
+                    {activeVideoMode === 'vertical_reel'
+                      ? 'Formato Verticale 9:16 HD • Zoom Note Centrali'
+                      : 'Formato Orizzontale 16:9 • Con Intro "Rotate Phone"'}
                   </p>
                 </div>
               </div>
@@ -4676,29 +4848,46 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 playsInline
                 autoPlay
                 loop
-                className="max-h-[52vh] w-auto object-contain"
+                className="max-h-[52vh] w-auto max-w-full object-contain"
               />
             </div>
 
             <div className="w-full flex flex-col sm:flex-row gap-2 pt-1">
-              <a
-                href={recordedVideoUrl}
-                download={`VirtuKeys-Reel-${Date.now()}.${recordedVideoExt}`}
+              <button
+                onClick={() => {
+                  if (!recordedVideoUrl || !recordedVideoBlob) return;
+                  const finalExt = recordedVideoExt === 'mp4' ? 'mp4' : 'webm';
+                  const filename = recordedVideoFilename.endsWith(`.${finalExt}`)
+                    ? recordedVideoFilename
+                    : `VirtuKeys-${activeVideoMode === 'vertical_reel' ? 'Reel' : 'Full'}-${Date.now()}.${finalExt}`;
+
+                  const link = document.createElement('a');
+                  link.href = recordedVideoUrl;
+                  link.download = filename;
+                  link.setAttribute('download', filename);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  showToast(`⬇️ Download avviato: ${filename}`);
+                }}
                 className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg text-center flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>⬇️</span>
                 <span>Scarica Video (.{recordedVideoExt.toUpperCase()})</span>
-              </a>
+              </button>
 
               {typeof navigator !== 'undefined' && 'share' in navigator && recordedVideoBlob && (
                 <button
                   onClick={async () => {
                     try {
-                      const file = new File(
-                        [recordedVideoBlob],
-                        `VirtuKeys-Reel.${recordedVideoExt}`,
-                        { type: recordedVideoBlob.type || 'video/webm' }
-                      );
+                      const finalExt = recordedVideoExt === 'mp4' ? 'mp4' : 'webm';
+                      const filename = recordedVideoFilename.endsWith(`.${finalExt}`)
+                        ? recordedVideoFilename
+                        : `VirtuKeys-${activeVideoMode === 'vertical_reel' ? 'Reel' : 'Full'}.${finalExt}`;
+
+                      const mimeType = recordedVideoBlob.type || (finalExt === 'mp4' ? 'video/mp4' : 'video/webm');
+                      const file = new File([recordedVideoBlob], filename, { type: mimeType });
+
                       if (navigator.canShare && navigator.canShare({ files: [file] })) {
                         await navigator.share({
                           title: '🎹 VirtuKeys Piano',
