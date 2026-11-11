@@ -51,6 +51,34 @@ export const STUDIO_THEMES: StudioThemeOption[] = [
     name: '⚡ Cyber Synth',
     desc: 'Vetro Fumé & Laser',
   },
+  {
+    id: 'emerald',
+    icon: '💎',
+    shortName: 'Emerald',
+    name: '💎 Emerald Jade',
+    desc: 'Giada Imperiale & Malachite',
+  },
+  {
+    id: 'ruby',
+    icon: '🔥',
+    shortName: 'Ruby',
+    name: '🔥 Magma Ruby',
+    desc: 'Quarzo Rosa & Rubino Lavico',
+  },
+  {
+    id: 'sapphire',
+    icon: '❄️',
+    shortName: 'Sapphire',
+    name: '❄️ Arctic Sapphire',
+    desc: 'Cristallo Ghiaccio & Zaffiro',
+  },
+  {
+    id: 'amethyst',
+    icon: '🔮',
+    shortName: 'Amethyst',
+    name: '🔮 Cosmic Amethyst',
+    desc: 'Opale Aurora & Ametista',
+  },
 ];
 
 export function isValidStudioTheme(val: unknown): val is StudioTheme {
@@ -60,7 +88,11 @@ export function isValidStudioTheme(val: unknown): val is StudioTheme {
     val === 'marble' ||
     val === 'gold' ||
     val === 'carbon' ||
-    val === 'neon'
+    val === 'neon' ||
+    val === 'emerald' ||
+    val === 'ruby' ||
+    val === 'sapphire' ||
+    val === 'amethyst'
   );
 }
 
@@ -120,6 +152,50 @@ export function getThemeClasses(theme: StudioTheme) {
         accentText: 'text-fuchsia-400',
         border: 'border-fuchsia-500/30',
         badge: 'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40',
+      };
+    case 'emerald':
+      return {
+        appBg: 'bg-[#031710] text-emerald-50',
+        navBg: 'bg-[#062419]/95 border-emerald-500/40 text-emerald-50',
+        cardBg: 'bg-[#072b1e] border-emerald-500/30 hover:border-emerald-400 text-emerald-50',
+        modalBg: 'bg-[#062419] border-emerald-500/50 text-emerald-50',
+        accentBtn: 'bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black',
+        accentText: 'text-emerald-400',
+        border: 'border-emerald-700/40',
+        badge: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40',
+      };
+    case 'ruby':
+      return {
+        appBg: 'bg-[#1a050a] text-rose-50',
+        navBg: 'bg-[#290810]/95 border-rose-500/40 text-rose-50',
+        cardBg: 'bg-[#330a14] border-rose-500/30 hover:border-rose-400 text-rose-50',
+        modalBg: 'bg-[#290810] border-rose-500/50 text-rose-50',
+        accentBtn: 'bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white font-black',
+        accentText: 'text-rose-400',
+        border: 'border-rose-700/40',
+        badge: 'bg-rose-500/20 text-rose-300 border border-rose-500/40',
+      };
+    case 'sapphire':
+      return {
+        appBg: 'bg-[#030d22] text-sky-50',
+        navBg: 'bg-[#071636]/95 border-cyan-400/40 text-sky-50',
+        cardBg: 'bg-[#0a1e47] border-cyan-500/30 hover:border-cyan-400 text-sky-50',
+        modalBg: 'bg-[#071636] border-cyan-500/50 text-sky-50',
+        accentBtn: 'bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 font-black',
+        accentText: 'text-cyan-400',
+        border: 'border-cyan-700/40',
+        badge: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40',
+      };
+    case 'amethyst':
+      return {
+        appBg: 'bg-[#120524] text-purple-50',
+        navBg: 'bg-[#1c0938]/95 border-purple-500/40 text-purple-50',
+        cardBg: 'bg-[#240c47] border-purple-500/30 hover:border-purple-400 text-purple-50',
+        modalBg: 'bg-[#1c0938] border-purple-500/50 text-purple-50',
+        accentBtn: 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white font-black',
+        accentText: 'text-purple-400',
+        border: 'border-purple-700/40',
+        badge: 'bg-purple-500/20 text-purple-300 border border-purple-500/40',
       };
     case 'midnight':
     default:

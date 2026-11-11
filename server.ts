@@ -102,6 +102,56 @@ async function startServer() {
     return res.status(404).send("print('v220.py not found')");
   });
 
+  // Short-lived in-memory buffer store for guaranteed native mobile/desktop video downloads with proper filename & extension
+  const tempVideoDownloads = new Map<string, { buffer: Buffer; mime: string; filename: string; expiresAt: number }>();
+
+  app.post(
+    "/api/video-download-prepare/:filename",
+    express.raw({ type: "*/*", limit: "100mb" }),
+    (req, res) => {
+      try {
+        const rawFilename = String(req.params.filename || `VirtuKeys_Video_${Date.now()}.mp4`);
+        const safeFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const isMp4 = safeFilename.toLowerCase().endsWith(".mp4");
+        const cleanMime = isMp4 ? "video/mp4" : "video/webm";
+        const bodyBuf = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || "");
+
+        const now = Date.now();
+        for (const [k, v] of tempVideoDownloads.entries()) {
+          if (v.expiresAt < now) tempVideoDownloads.delete(k);
+        }
+
+        const id = `${now}_${Math.random().toString(36).substring(2, 9)}`;
+        tempVideoDownloads.set(id, {
+          buffer: bodyBuf,
+          mime: cleanMime,
+          filename: safeFilename,
+          expiresAt: now + 5 * 60 * 1000,
+        });
+
+        return res.json({
+          ok: true,
+          downloadPath: `/api/video-download-file/${id}/${encodeURIComponent(safeFilename)}`,
+          filename: safeFilename,
+        });
+      } catch (err: any) {
+        return res.status(500).json({ error: err?.message || "Failed to prepare video download" });
+      }
+    }
+  );
+
+  app.get("/api/video-download-file/:id/:filename", (req, res) => {
+    const item = tempVideoDownloads.get(req.params.id);
+    if (!item) {
+      return res.status(404).send("Video download link expired or not found.");
+    }
+    res.setHeader("Content-Type", item.mime);
+    res.setHeader("Content-Length", String(item.buffer.length));
+    res.setHeader("Content-Disposition", `attachment; filename="${item.filename}"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).send(item.buffer);
+  });
+
   const httpServer = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
   wss.on("error", (err) => {

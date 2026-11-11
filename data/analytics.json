@@ -12,17 +12,66 @@
       "screen": "444x985",
       "theme": "mahogany",
       "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+    },
+    "dev_1794347587251_n4lyepp": {
+      "deviceId": "dev_1794347587251_n4lyepp",
+      "username": "Pianista_881",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-10T21:53:10.175Z",
+      "lastSeen": "2026-11-11T09:00:36.140Z",
+      "lastView": "piano",
+      "totalPings": 35,
+      "totalSessions": 17,
+      "screen": "985x444",
+      "theme": "carbon",
+      "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+    },
+    "dev_1792226201606_1h3tezw": {
+      "deviceId": "dev_1792226201606_1h3tezw",
+      "username": "Pianista_957",
+      "platform": "Browser Mobile",
+      "firstSeen": "2026-11-11T05:48:17.662Z",
+      "lastSeen": "2026-11-11T19:58:48.684Z",
+      "lastView": "piano",
+      "totalPings": 53,
+      "totalSessions": 35,
+      "screen": "444x985",
+      "theme": "ruby",
+      "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+    },
+    "dev_1794390163971_0oovbag": {
+      "deviceId": "dev_1794390163971_0oovbag",
+      "username": "Pianista_787",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-11T09:42:47.047Z",
+      "lastSeen": "2026-11-11T12:25:18.210Z",
+      "lastView": "piano",
+      "totalPings": 8,
+      "totalSessions": 4,
+      "screen": "985x444",
+      "theme": "mahogany",
+      "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
     }
   },
   "daily": {
     "2026-11-10": {
       "devices": [
-        "dev_1792152583715_59n7hdc"
+        "dev_1792152583715_59n7hdc",
+        "dev_1794347587251_n4lyepp"
       ],
-      "pings": 124
+      "pings": 130
+    },
+    "2026-11-11": {
+      "devices": [
+        "dev_1794347587251_n4lyepp",
+        "dev_1792226201606_1h3tezw",
+        "dev_1794390163971_0oovbag"
+      ],
+      "pings": 90
     }
   },
   "songs": {
-    "Inno alla Gioia (Ode to Joy - Completo)": 4
+    "Inno alla Gioia (Ode to Joy - Completo)": 20,
+    "Per Elisa (Für Elise - Completo)": 2
   }
 }

@@ -98,9 +98,24 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [isMelodyOnly, setIsMelodyOnly] = useState<boolean>(false);
-  const [showSparks, setShowSparks] = useState<boolean>(true);
-  const showSparksRef = useRef<boolean>(showSparks);
-  showSparksRef.current = showSparks;
+  type WaterfallFxMode =
+    | 'all'
+    | 'fireworks'
+    | 'aurora'
+    | 'lightning'
+    | 'fire'
+    | 'vortex'
+    | 'gold_rain'
+    | 'matrix'
+    | 'meteor'
+    | 'crystal'
+    | 'wave'
+    | 'stars'
+    | 'off';
+  const [fxMode, setFxMode] = useState<WaterfallFxMode>('all');
+  const fxModeRef = useRef<WaterfallFxMode>(fxMode);
+  fxModeRef.current = fxMode;
+  const [isFxPickerOpen, setIsFxPickerOpen] = useState<boolean>(false);
 
   // Smart 1-Hand Melody Filter: extracts the top vocal/lead melody line and removes simultaneous accompaniment chords
   const effectiveSong = useMemo<InteractiveSong>(() => {
@@ -317,13 +332,100 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const songFingeringRef = useRef(songFingering);
   songFingeringRef.current = songFingering;
 
-  // Lightweight zero-latency particle pool for Synthesia/YouTube impact sparks
+  // Lightweight zero-latency pools for 13 selectable show-stopping viral FX modes
   const sparksRef = useRef<
-    { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string; size: number }[]
+    {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      life: number;
+      maxLife: number;
+      color: string;
+      size: number;
+      kind: 'spark' | 'star' | 'ember' | 'prism' | 'music_note' | 'hex';
+      symbol?: string;
+      rot: number;
+      vRot: number;
+    }[]
   >([]);
 
+  const shockwavesRef = useRef<
+    {
+      x: number;
+      y: number;
+      width: number;
+      life: number;
+      maxLife: number;
+      color: string;
+    }[]
+  >([]);
+
+  const lightningBoltsRef = useRef<
+    {
+      x: number;
+      y: number;
+      points: { dx: number; dy: number }[];
+      branchPoints?: { startIdx: number; dx: number; dy: number }[];
+      life: number;
+      maxLife: number;
+      color: string;
+    }[]
+  >([]);
+
+  const fireworksRef = useRef<
+    {
+      x: number;
+      y: number;
+      targetY: number;
+      vy: number;
+      color: string;
+      exploded: boolean;
+    }[]
+  >([]);
+
+  const laserBeamsRef = useRef<
+    {
+      x: number;
+      width: number;
+      life: number;
+      maxLife: number;
+      color: string;
+    }[]
+  >([]);
+
+  const meteorsRef = useRef<
+    {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      len: number;
+      life: number;
+      maxLife: number;
+      color: string;
+    }[]
+  >([]);
+
+  const energyLevelRef = useRef<number>(0);
+
+  const bgStarsRef = useRef<
+    { xRatio: number; yRatio: number; size: number; speed: number; alpha: number; color: string; char?: string }[]
+  >(
+    Array.from({ length: 42 }, (_, idx) => ({
+      xRatio: ((idx * 37) % 100) / 100,
+      yRatio: ((idx * 61) % 100) / 100,
+      size: 1.1 + (idx % 3) * 0.9,
+      speed: 0.045 + (idx % 4) * 0.03,
+      alpha: 0.28 + (idx % 5) * 0.12,
+      color: idx % 3 === 0 ? '#38bdf8' : idx % 3 === 1 ? '#fbbf24' : '#c084fc',
+      char: ['0', '1', '♪', '♫', '7', '9', '♯', '♮'][idx % 8],
+    }))
+  );
+
   const spawnNoteSparks = useCallback((rawNoteName: string, isBlack?: boolean) => {
-    if (!showSparksRef.current || viewModeRef.current === 'sheet') return;
+    const mode = fxModeRef.current;
+    if (mode === 'off' || viewModeRef.current === 'sheet') return;
     const keyPos =
       keyPositionsMapRef.current.get(rawNoteName) ||
       keyPositionsMapRef.current.get(getTransposedNoteRef.current(rawNoteName));
@@ -332,28 +434,169 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
     const hitY = Math.max(20, dimsRef.current.height - 2);
     const centerX = keyPos.x + keyPos.width / 2;
     const black = isBlack ?? keyPos.type === 'black';
-    const palette = black
-      ? ['#fbbf24', '#f59e0b', '#fef08a', '#ffffff']
-      : ['#38bdf8', '#22d3ee', '#fbbf24', '#ffffff'];
+    const isLowNote = noteNameToMidiNumber(rawNoteName) < 60;
 
-    const pool = sparksRef.current;
-    // Cap particle pool at 64 so rendering cost is <0.05ms
-    if (pool.length > 56) {
-      pool.splice(0, 8);
+    // Boost reactive musical energy level
+    energyLevelRef.current = Math.min(1.0, energyLevelRef.current + 0.42);
+
+    const palette =
+      mode === 'fire' || mode === 'meteor'
+        ? ['#fde047', '#fb923c', '#f97316', '#ef4444', '#ffffff']
+        : mode === 'matrix'
+        ? ['#4ade80', '#22c55e', '#38bdf8', '#a7f3d0', '#ffffff']
+        : mode === 'gold_rain'
+        ? ['#fef08a', '#facc15', '#eab308', '#f59e0b', '#ffffff']
+        : mode === 'aurora' || mode === 'vortex' || mode === 'fireworks'
+        ? ['#22d3ee', '#a855f7', '#f472b6', '#fde047', '#34d399', '#ffffff']
+        : mode === 'crystal'
+        ? ['#67e8f9', '#38bdf8', '#c084fc', '#f472b6', '#ffffff']
+        : black
+        ? ['#fbbf24', '#f59e0b', '#fef08a', '#ffffff', '#f472b6']
+        : isLowNote
+        ? ['#fdba74', '#fb923c', '#fde047', '#ffffff', '#f43f5e']
+        : ['#38bdf8', '#22d3ee', '#a855f7', '#fde047', '#ffffff'];
+
+    // 1. Fireworks Shells ('fireworks' or 'all')
+    if (mode === 'fireworks' || mode === 'all') {
+      const fw = fireworksRef.current;
+      if (fw.length > 10) fw.splice(0, 2);
+      fw.push({
+        x: centerX,
+        y: hitY - 4,
+        targetY: Math.max(18, hitY * (0.2 + Math.random() * 0.38)),
+        vy: -(165 + Math.random() * 90),
+        color: palette[Math.floor(Math.random() * (palette.length - 1))],
+        exploded: false,
+      });
     }
 
-    for (let i = 0; i < 8; i++) {
-      const angle = -Math.PI * (0.15 + Math.random() * 0.7);
-      const speed = 35 + Math.random() * 75;
+    // 2. Vertical Aurora / Laser Beams ('aurora', 'matrix', or 'all')
+    if (mode === 'aurora' || mode === 'matrix' || mode === 'all') {
+      const beams = laserBeamsRef.current;
+      if (beams.length > 20) beams.splice(0, 4);
+      beams.push({
+        x: centerX,
+        width: Math.max(8, keyPos.width * 0.85),
+        life: 0,
+        maxLife: 0.42,
+        color: mode === 'matrix' ? '#22c55e' : palette[Math.floor(Math.random() * (palette.length - 1))],
+      });
+    }
+
+    // 3. Shooting Stars / Meteors ('meteor' or 'all')
+    if (mode === 'meteor' || mode === 'all') {
+      const mets = meteorsRef.current;
+      if (mets.length > 14) mets.splice(0, 3);
+      mets.push({
+        x: Math.random() * dimsRef.current.width * 0.85,
+        y: -10,
+        vx: 140 + Math.random() * 120,
+        vy: 160 + Math.random() * 110,
+        len: 35 + Math.random() * 30,
+        life: 0,
+        maxLife: 0.65,
+        color: palette[Math.floor(Math.random() * (palette.length - 1))],
+      });
+    }
+
+    // 4. Tesla Lightning Bolts ('lightning', 'vortex', or 'all')
+    if (mode === 'lightning' || mode === 'vortex' || mode === 'all') {
+      const bolts = lightningBoltsRef.current;
+      if (bolts.length > 18) bolts.splice(0, 4);
+      const boltCount = mode === 'lightning' ? 2 : 1;
+      for (let b = 0; b < boltCount; b++) {
+        const segments = 6;
+        const maxH = 48 + Math.random() * 52;
+        const pts: { dx: number; dy: number }[] = [{ dx: 0, dy: 0 }];
+        let curX = 0;
+        for (let s = 1; s <= segments; s++) {
+          curX += (Math.random() - 0.5) * 20;
+          pts.push({ dx: curX, dy: -(maxH * (s / segments)) });
+        }
+        bolts.push({
+          x: centerX + (Math.random() - 0.5) * Math.max(4, keyPos.width * 0.4),
+          y: hitY - 2,
+          points: pts,
+          branchPoints: [
+            {
+              startIdx: 2,
+              dx: pts[2].dx + (Math.random() > 0.5 ? 16 : -16),
+              dy: pts[2].dy - 15 - Math.random() * 14,
+            },
+          ],
+          life: 0,
+          maxLife: 0.24 + Math.random() * 0.12,
+          color: black ? '#fde047' : isLowNote ? '#fb923c' : '#38bdf8',
+        });
+      }
+    }
+
+    // 5. Shockwave rings
+    const waves = shockwavesRef.current;
+    if (waves.length > 22) waves.splice(0, 4);
+    waves.push({
+      x: centerX,
+      y: hitY,
+      width: Math.max(14, keyPos.width * 1.15),
+      life: 0,
+      maxLife: 0.4,
+      color: mode === 'matrix' ? '#4ade80' : black ? '#fbbf24' : isLowNote ? '#fb923c' : '#38bdf8',
+    });
+
+    // 6. Particle fountain (Musical notes, Hexagons, Prisms, Starbursts, Embers)
+    const pool = sparksRef.current;
+    if (pool.length > 140) {
+      pool.splice(0, 24);
+    }
+
+    const noteSymbols = ['♪', '♫', '𝄞', '✦', '♬'];
+    const count = mode === 'wave' ? 8 : 14;
+    for (let i = 0; i < count; i++) {
+      const angle = -Math.PI * (0.1 + Math.random() * 0.8);
+      const speed = mode === 'fire' || mode === 'gold_rain' ? 32 + Math.random() * 75 : 48 + Math.random() * 115;
+      let kind: 'spark' | 'star' | 'ember' | 'prism' | 'music_note' | 'hex' = 'spark';
+      if (mode === 'gold_rain') {
+        kind = i % 2 === 0 ? 'music_note' : 'star';
+      } else if (mode === 'matrix') {
+        kind = i % 2 === 0 ? 'hex' : 'prism';
+      } else if (mode === 'crystal') {
+        kind = i % 2 === 0 ? 'prism' : 'star';
+      } else if (mode === 'fire' || mode === 'meteor') {
+        kind = i % 3 === 0 ? 'star' : 'ember';
+      } else if (mode === 'stars' || mode === 'aurora' || mode === 'vortex') {
+        kind = i % 2 === 0 ? 'star' : 'spark';
+      } else if (mode === 'all') {
+        const kinds: ('spark' | 'star' | 'ember' | 'prism' | 'music_note' | 'hex')[] = [
+          'music_note',
+          'prism',
+          'star',
+          'ember',
+          'hex',
+          'spark',
+        ];
+        kind = kinds[i % kinds.length];
+      }
+
       pool.push({
-        x: centerX + (Math.random() - 0.5) * Math.max(6, keyPos.width * 0.6),
+        x: centerX + (Math.random() - 0.5) * Math.max(6, keyPos.width * 0.8),
         y: hitY - 2,
         vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 15,
+        vy: Math.sin(angle) * speed - (kind === 'ember' || kind === 'music_note' ? 42 : 20),
         life: 0,
-        maxLife: 0.28 + Math.random() * 0.22,
+        maxLife: kind === 'music_note' || kind === 'ember' ? 0.58 + Math.random() * 0.3 : 0.35 + Math.random() * 0.25,
         color: palette[i % palette.length],
-        size: 1.8 + Math.random() * 2.2,
+        size:
+          kind === 'music_note'
+            ? 11 + Math.random() * 5
+            : kind === 'prism' || kind === 'hex'
+            ? 3.8 + Math.random() * 2.8
+            : kind === 'star'
+            ? 3.5 + Math.random() * 2.5
+            : 2.2 + Math.random() * 2.4,
+        kind,
+        symbol: noteSymbols[i % noteSymbols.length],
+        rot: Math.random() * Math.PI,
+        vRot: (Math.random() - 0.5) * 9,
       });
     }
   }, []);
@@ -896,6 +1139,10 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         }
       } else {
         // --- RENDER FALLING NOTES WATERFALL (CASCATA) ---
+        const curFx = fxModeRef.current;
+        energyLevelRef.current = Math.max(0, energyLevelRef.current - deltaSec * 1.4);
+        const energy = energyLevelRef.current;
+
         // Vertical lane guides - Batched single-path fill for zero GPU overhead
         const currentNumWhiteKeys = numWhiteKeysRef.current;
         const whiteWidth = width / Math.max(1, currentNumWhiteKeys);
@@ -905,6 +1152,124 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           ctx.rect(i * whiteWidth, 0, whiteWidth, hitLineY);
         }
         ctx.fill();
+
+        // --- BACKGROUND FX 1: REACTIVE STARFIELD, MATRIX DIGITAL RAIN OR GOLDEN BOKEH ---
+        if (curFx === 'stars' || curFx === 'matrix' || curFx === 'gold_rain' || curFx === 'all') {
+          ctx.save();
+          const stars = bgStarsRef.current;
+          const speedBoost = 1 + energy * 3.5;
+          for (let s = 0; s < stars.length; s++) {
+            const st = stars[s];
+            st.yRatio = (st.yRatio + st.speed * deltaSec * speedBoost) % 1.0;
+            const sx = st.xRatio * width;
+            const sy = st.yRatio * hitLineY;
+            const twinkle = 0.65 + 0.35 * Math.sin(now * 0.006 + s * 1.7);
+            ctx.globalAlpha = st.alpha * twinkle * (0.75 + energy * 0.5);
+            if (curFx === 'matrix') {
+              ctx.fillStyle = s % 3 === 0 ? '#4ade80' : '#22c55e';
+              ctx.font = 'bold 10px monospace';
+              ctx.fillText(st.char || '1', sx, sy);
+            } else {
+              ctx.fillStyle = curFx === 'gold_rain' ? '#facc15' : st.color;
+              ctx.beginPath();
+              ctx.arc(sx, sy, st.size * (1 + energy * 0.5), 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          ctx.restore();
+        }
+
+        // --- BACKGROUND FX 2: SUPERNOVA VORTEX / WARP GALAXY ('vortex' or 'all') ---
+        if (curFx === 'vortex' || curFx === 'all') {
+          ctx.save();
+          const cx = width / 2;
+          const cy = hitLineY * 0.48;
+          const rotBase = now * 0.0025;
+          const maxR = Math.min(width * 0.35, hitLineY * 0.85) * (0.85 + energy * 0.35);
+          for (let ring = 0; ring < 4; ring++) {
+            const r = maxR * ((ring + 1) / 4);
+            ctx.beginPath();
+            ctx.ellipse(
+              cx,
+              cy,
+              r * 1.8,
+              r * 0.55,
+              rotBase * (ring % 2 === 0 ? 1 : -1.3) + ring * 0.6,
+              0,
+              Math.PI * 1.65
+            );
+            ctx.strokeStyle =
+              ring % 2 === 0
+                ? `rgba(168, 85, 247, ${0.14 + energy * 0.28})`
+                : `rgba(34, 211, 238, ${0.14 + energy * 0.28})`;
+            ctx.lineWidth = 2.2 + energy * 2;
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // --- BACKGROUND FX 3: NORTHERN LIGHTS AURORA RIBBONS ('aurora' or 'all') ---
+        if (curFx === 'aurora' || curFx === 'all') {
+          ctx.save();
+          const aPhase = now * 0.003;
+          const aGrad = ctx.createLinearGradient(0, 0, width, 0);
+          aGrad.addColorStop(0, `rgba(16, 185, 129, ${0.12 + energy * 0.22})`);
+          aGrad.addColorStop(0.5, `rgba(56, 189, 248, ${0.16 + energy * 0.26})`);
+          aGrad.addColorStop(1, `rgba(168, 85, 247, ${0.14 + energy * 0.24})`);
+          ctx.fillStyle = aGrad;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          for (let x = 0; x <= width; x += 20) {
+            const ay =
+              hitLineY * 0.32 +
+              Math.sin(x * 0.012 + aPhase) * (14 + energy * 18) +
+              Math.cos(x * 0.025 - aPhase * 1.4) * 10;
+            ctx.lineTo(x, ay);
+          }
+          ctx.lineTo(width, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // --- BACKGROUND FX 4: SYMPHONIC BEAT WAVE VISUALIZER ('wave' or 'all') ---
+        if (curFx === 'wave' || curFx === 'all') {
+          ctx.save();
+          const centerY = hitLineY * 0.52;
+          const amp = 8 + energy * (hitLineY * 0.28);
+          const phase = now * 0.006;
+
+          const numBars = 32;
+          const barW = width / numBars;
+          for (let b = 0; b < numBars; b++) {
+            const waveVal = Math.abs(Math.sin(phase * 1.3 + b * 0.45) * Math.cos(phase * 0.8 - b * 0.25));
+            const bh = (6 + waveVal * amp * 1.45) * (0.35 + energy * 0.95);
+            ctx.fillStyle = b % 2 === 0 ? 'rgba(56, 189, 248, 0.11)' : 'rgba(168, 85, 247, 0.11)';
+            ctx.fillRect(b * barW + 2, hitLineY - bh, Math.max(2, barW - 4), bh);
+          }
+
+          for (let wLayer = 0; wLayer < 2; wLayer++) {
+            ctx.beginPath();
+            const freq = wLayer === 0 ? 0.018 : 0.028;
+            const layerSpeed = wLayer === 0 ? phase : -phase * 1.25;
+            for (let x = 0; x <= width; x += 14) {
+              const env = Math.sin((x / width) * Math.PI);
+              const y =
+                centerY +
+                Math.sin(x * freq + layerSpeed) * amp * env * (wLayer === 0 ? 1 : 0.65) +
+                Math.cos(x * 0.045 - phase * 1.6) * (amp * 0.35 * env);
+              if (x === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle =
+              wLayer === 0
+                ? `rgba(56, 189, 248, ${0.24 + energy * 0.42})`
+                : `rgba(244, 114, 182, ${0.2 + energy * 0.36})`;
+            ctx.lineWidth = wLayer === 0 ? 2.5 : 1.7;
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
 
         // Smooth 3.8s travel speed for falling notes
         const travelTime = 3.8;
@@ -980,38 +1345,46 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(noteX + 2, yBottom - 4, Math.max(1, noteWidth - 4), 3);
           } else {
-            // Active falling note with glossy crystal gradient & rounded border
-            const grad = ctx.createLinearGradient(noteX, yTop, noteX, yBottom);
+            // Active falling note: CRISP 3D CRYSTAL BAR (ZERO COMET TAIL)
             const isLeft = selectedHandRef.current === 'left' || (selectedHandRef.current === 'both' && noteNameToMidiNumber(n.note) < 60);
 
+            let topColor = '#7dd3fc';
+            let midColor = '#0284c7';
+            let botColor = '#1e40af';
+            let glowHex = '#38bdf8';
+
             if (playModeRef.current === 'fingering') {
-              // Color by Finger (1 to 5) when in Fingering Mode
               const fingerNum = songFingeringRef.current[i] || 1;
               if (fingerNum === 1) {
-                grad.addColorStop(0, '#fbbf24'); grad.addColorStop(0.35, '#f59e0b'); grad.addColorStop(1, '#b45309'); // Thumb: Amber
+                topColor = '#fde047'; midColor = '#f59e0b'; botColor = '#b45309'; glowHex = '#fbbf24';
               } else if (fingerNum === 2) {
-                grad.addColorStop(0, '#22d3ee'); grad.addColorStop(0.35, '#06b6d4'); grad.addColorStop(1, '#0e7490'); // Index: Cyan
+                topColor = '#67e8f9'; midColor = '#06b6d4'; botColor = '#0e7490'; glowHex = '#22d3ee';
               } else if (fingerNum === 3) {
-                grad.addColorStop(0, '#34d399'); grad.addColorStop(0.35, '#10b981'); grad.addColorStop(1, '#047857'); // Middle: Emerald
+                topColor = '#6ee7b7'; midColor = '#10b981'; botColor = '#047857'; glowHex = '#34d399';
               } else if (fingerNum === 4) {
-                grad.addColorStop(0, '#c084fc'); grad.addColorStop(0.35, '#a855f7'); grad.addColorStop(1, '#6b21a8'); // Ring: Purple
+                topColor = '#d8b4fe'; midColor = '#a855f7'; botColor = '#6b21a8'; glowHex = '#c084fc';
               } else {
-                grad.addColorStop(0, '#f472b6'); grad.addColorStop(0.35, '#ec4899'); grad.addColorStop(1, '#be185d'); // Pinky: Pink
+                topColor = '#f9a8d4'; midColor = '#ec4899'; botColor = '#be185d'; glowHex = '#f472b6';
+              }
+            } else if (isLeft) {
+              if (isBlack) {
+                topColor = '#fda4af'; midColor = '#e11d48'; botColor = '#881337'; glowHex = '#fb7185';
+              } else {
+                topColor = '#fdba74'; midColor = '#f97316'; botColor = '#c2410c'; glowHex = '#fb923c';
               }
             } else {
-              // Color by Hand (Right Hand = Blue/Cyan, Left Hand = Warm Amber/Coral)
-              if (isLeft) {
-                // Warm Amber/Coral for Left Hand (Mano Sinistra)
-                grad.addColorStop(0, '#fdba74');
-                grad.addColorStop(0.35, '#f97316');
-                grad.addColorStop(1, '#c2410c');
+              if (isBlack) {
+                topColor = '#d8b4fe'; midColor = '#9333ea'; botColor = '#4c1d95'; glowHex = '#c084fc';
               } else {
-                // Electric Cyan/Sapphire Blue for Right Hand (Mano Destra)
-                grad.addColorStop(0, '#7dd3fc');
-                grad.addColorStop(0.35, '#0284c7');
-                grad.addColorStop(1, '#1e40af');
+                topColor = '#7dd3fc'; midColor = '#0284c7'; botColor = '#1e40af'; glowHex = '#38bdf8';
               }
             }
+
+            // Main 3D Crystal Note Bar (Clean, sharp edges, no trailing tail)
+            const grad = ctx.createLinearGradient(noteX, yTop, noteX, yBottom);
+            grad.addColorStop(0, topColor);
+            grad.addColorStop(0.4, midColor);
+            grad.addColorStop(1, botColor);
 
             ctx.beginPath();
             if (typeof ctx.roundRect === 'function') {
@@ -1022,27 +1395,68 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             ctx.fillStyle = grad;
             ctx.fill();
 
+            // Inner glowing neon core spine
+            if (noteWidth >= 7 && noteHeight >= 12) {
+              const coreW = Math.max(1.5, noteWidth * 0.22);
+              const coreGrad = ctx.createLinearGradient(noteX, yTop + 2, noteX, yBottom - 2);
+              coreGrad.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+              coreGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.42)');
+              coreGrad.addColorStop(1, 'rgba(255, 255, 255, 0.78)');
+              ctx.fillStyle = coreGrad;
+              ctx.fillRect(noteX + (noteWidth - coreW) / 2, yTop + 3, coreW, Math.max(2, noteHeight - 6));
+            }
+
             // Sleek translucent border with specular glow
             ctx.strokeStyle = playModeRef.current === 'fingering'
-              ? 'rgba(255, 255, 255, 0.85)'
+              ? 'rgba(255, 255, 255, 0.9)'
               : isLeft
-              ? 'rgba(254, 215, 170, 0.75)'
-              : 'rgba(186, 230, 253, 0.75)';
-            ctx.lineWidth = 1.3;
+              ? 'rgba(254, 215, 170, 0.85)'
+              : 'rgba(186, 230, 253, 0.85)';
+            ctx.lineWidth = 1.4;
             ctx.stroke();
 
             // Top glassy highlight cap
             if (noteHeight > 10 && noteWidth > 6) {
-              ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
               ctx.beginPath();
               ctx.ellipse(noteX + noteWidth / 2, yTop + 3.5, Math.max(2, (noteWidth - 4) / 2), 2, 0, 0, Math.PI * 2);
               ctx.fill();
             }
 
-            // Bottom impact leading edge glow
-            if (noteHeight > 10 && noteWidth > 4) {
-              ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-              ctx.fillRect(noteX + 1, yBottom - 3, Math.max(1, noteWidth - 2), 2);
+            // Bottom laser impact leading edge & SUSTAINED KEY ENERGY FOUNTAIN while note crosses hitLineY
+            if (noteHeight > 8 && noteWidth > 4) {
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(noteX + 1, yBottom - 3.5, Math.max(1, noteWidth - 2), 2.5);
+            }
+            if (curFx !== 'off' && yBottom >= hitLineY - 2 && yTop <= hitLineY) {
+              const cx = noteX + noteWidth / 2;
+              // Blinding plasma contact flare on the keyboard line for the entire duration of the held note
+              const flareR = Math.max(10, noteWidth * 1.15);
+              const spotGrad = ctx.createRadialGradient(cx, hitLineY - 1, 1, cx, hitLineY - 1, flareR);
+              spotGrad.addColorStop(0, '#ffffff');
+              spotGrad.addColorStop(0.45, glowHex);
+              spotGrad.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = spotGrad;
+              ctx.beginPath();
+              ctx.arc(cx, hitLineY - 1, flareR, Math.PI, Math.PI * 2);
+              ctx.fill();
+
+              // Continuous micro-sparks while a long note is being held
+              if (isPlayingRef.current && Math.random() < 0.28 && sparksRef.current.length < 130) {
+                sparksRef.current.push({
+                  x: cx + (Math.random() - 0.5) * noteWidth * 0.6,
+                  y: hitLineY - 2,
+                  vx: (Math.random() - 0.5) * 55,
+                  vy: -(35 + Math.random() * 65),
+                  life: 0,
+                  maxLife: 0.26 + Math.random() * 0.15,
+                  color: Math.random() > 0.4 ? glowHex : '#ffffff',
+                  size: 1.8 + Math.random() * 1.8,
+                  kind: curFx === 'gold_rain' ? 'star' : 'spark',
+                  rot: 0,
+                  vRot: 4,
+                });
+              }
             }
           }
 
@@ -1107,8 +1521,200 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           }
         }
 
-        // Pass 3: Synthesia / YouTube Key Impact Sparks & Flares (0ms CPU pool)
-        if (showSparksRef.current && sparksRef.current.length > 0) {
+        // --- FOREGROUND FX: VERTICAL HOLOGRAPHIC LASER BEAMS ('aurora', 'matrix', 'all') ---
+        if ((curFx === 'aurora' || curFx === 'matrix' || curFx === 'all') && laserBeamsRef.current.length > 0) {
+          const beams = laserBeamsRef.current;
+          ctx.save();
+          for (let bIdx = beams.length - 1; bIdx >= 0; bIdx--) {
+            const bm = beams[bIdx];
+            bm.life += deltaSec;
+            if (bm.life >= bm.maxLife) {
+              beams.splice(bIdx, 1);
+              continue;
+            }
+            const alpha = Math.max(0, 1 - bm.life / bm.maxLife);
+            const bGrad = ctx.createLinearGradient(bm.x, 0, bm.x, hitLineY);
+            bGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+            bGrad.addColorStop(0.45, bm.color);
+            bGrad.addColorStop(1, '#ffffff');
+            ctx.globalAlpha = alpha * 0.55;
+            ctx.fillStyle = bGrad;
+            const curW = bm.width * (0.4 + 0.6 * alpha);
+            ctx.fillRect(bm.x - curW / 2, 0, curW, hitLineY);
+          }
+          ctx.restore();
+        }
+
+        // --- FOREGROUND FX: SHOOTING STARS / METEOR SHOWER ('meteor', 'all') ---
+        if ((curFx === 'meteor' || curFx === 'all') && meteorsRef.current.length > 0) {
+          const mets = meteorsRef.current;
+          ctx.save();
+          for (let mIdx = mets.length - 1; mIdx >= 0; mIdx--) {
+            const m = mets[mIdx];
+            m.life += deltaSec;
+            if (m.life >= m.maxLife || m.y > hitLineY + 20) {
+              mets.splice(mIdx, 1);
+              continue;
+            }
+            m.x += m.vx * deltaSec;
+            m.y += m.vy * deltaSec;
+            const alpha = Math.max(0, 1 - m.life / m.maxLife);
+            const tailX = m.x - (m.vx / 200) * m.len;
+            const tailY = m.y - (m.vy / 200) * m.len;
+            const mGrad = ctx.createLinearGradient(tailX, tailY, m.x, m.y);
+            mGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+            mGrad.addColorStop(0.7, m.color);
+            mGrad.addColorStop(1, '#ffffff');
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = mGrad;
+            ctx.lineWidth = 2.6;
+            ctx.beginPath();
+            ctx.moveTo(tailX, tailY);
+            ctx.lineTo(m.x, m.y);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // --- FOREGROUND FX: PYROTECHNIC FIREWORKS MORTARS ('fireworks', 'all') ---
+        if ((curFx === 'fireworks' || curFx === 'all') && fireworksRef.current.length > 0) {
+          const fw = fireworksRef.current;
+          ctx.save();
+          for (let fIdx = fw.length - 1; fIdx >= 0; fIdx--) {
+            const shell = fw[fIdx];
+            shell.y += shell.vy * deltaSec;
+            // Draw rising rocket trail
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(shell.x, shell.y, 2.6, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (shell.y <= shell.targetY && !shell.exploded) {
+              shell.exploded = true;
+              fw.splice(fIdx, 1);
+              // Spawn 360-degree firework explosion burst!
+              const pool = sparksRef.current;
+              const ringColors = ['#fde047', '#22d3ee', '#f472b6', '#a855f7', '#4ade80', '#ffffff'];
+              for (let k = 0; k < 18; k++) {
+                const ang = (Math.PI * 2 * k) / 18;
+                const spd = 55 + Math.random() * 55;
+                pool.push({
+                  x: shell.x,
+                  y: shell.y,
+                  vx: Math.cos(ang) * spd,
+                  vy: Math.sin(ang) * spd,
+                  life: 0,
+                  maxLife: 0.48 + Math.random() * 0.2,
+                  color: ringColors[k % ringColors.length],
+                  size: 2.8 + Math.random() * 1.8,
+                  kind: k % 2 === 0 ? 'star' : 'spark',
+                  rot: ang,
+                  vRot: 6,
+                });
+              }
+            }
+          }
+          ctx.restore();
+        }
+
+        // --- FOREGROUND FX: FIRE & PLASMA HORIZON ('fire', 'meteor', or 'all') ---
+        if (curFx === 'fire' || curFx === 'meteor' || curFx === 'all') {
+          ctx.save();
+          const flameMaxH = 14 + energy * 32;
+          const fireGrad = ctx.createLinearGradient(0, hitLineY - flameMaxH, 0, hitLineY);
+          fireGrad.addColorStop(0, 'rgba(239, 68, 68, 0)');
+          fireGrad.addColorStop(0.55, `rgba(249, 115, 22, ${0.22 + energy * 0.38})`);
+          fireGrad.addColorStop(1, `rgba(254, 240, 138, ${0.48 + energy * 0.45})`);
+          ctx.fillStyle = fireGrad;
+          ctx.beginPath();
+          ctx.moveTo(0, hitLineY);
+          const fPhase = now * 0.012;
+          for (let x = 0; x <= width; x += 12) {
+            const flicker =
+              Math.sin(x * 0.05 + fPhase) * 0.5 +
+              Math.cos(x * 0.11 - fPhase * 1.4) * 0.5;
+            const fy = hitLineY - Math.max(3, (0.55 + 0.45 * flicker) * flameMaxH);
+            ctx.lineTo(x, fy);
+          }
+          ctx.lineTo(width, hitLineY);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // --- FOREGROUND FX: EXPANDING SONIC SHOCKWAVES ---
+        if (curFx !== 'off' && shockwavesRef.current.length > 0) {
+          const waves = shockwavesRef.current;
+          ctx.save();
+          for (let wIdx = waves.length - 1; wIdx >= 0; wIdx--) {
+            const w = waves[wIdx];
+            w.life += deltaSec;
+            if (w.life >= w.maxLife) {
+              waves.splice(wIdx, 1);
+              continue;
+            }
+            const progress = w.life / w.maxLife;
+            const alpha = Math.max(0, 1 - progress);
+
+            const rx = w.width * (0.5 + progress * 1.65);
+            const ry = 4 + progress * 16;
+            ctx.globalAlpha = alpha * 0.92;
+            ctx.strokeStyle = progress < 0.3 ? '#ffffff' : w.color;
+            ctx.lineWidth = Math.max(1, 2.8 * (1 - progress));
+            ctx.beginPath();
+            ctx.ellipse(w.x, w.y - 2, rx, ry, 0, Math.PI, Math.PI * 2);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // --- FOREGROUND FX: TESLA LIGHTNING ARCS ('lightning', 'vortex', or 'all') ---
+        if ((curFx === 'lightning' || curFx === 'vortex' || curFx === 'all') && lightningBoltsRef.current.length > 0) {
+          const bolts = lightningBoltsRef.current;
+          ctx.save();
+          for (let bIdx = bolts.length - 1; bIdx >= 0; bIdx--) {
+            const b = bolts[bIdx];
+            b.life += deltaSec;
+            if (b.life >= b.maxLife) {
+              bolts.splice(bIdx, 1);
+              continue;
+            }
+            const alpha = Math.max(0, 1 - b.life / b.maxLife);
+
+            ctx.globalAlpha = alpha * 0.88;
+            ctx.strokeStyle = b.color;
+            ctx.lineWidth = 3.4;
+            ctx.beginPath();
+            for (let p = 0; p < b.points.length; p++) {
+              const pt = b.points[p];
+              const jitterX = p === 0 ? 0 : (Math.random() - 0.5) * 4.0;
+              if (p === 0) ctx.moveTo(b.x + pt.dx, b.y + pt.dy);
+              else ctx.lineTo(b.x + pt.dx + jitterX, b.y + pt.dy);
+            }
+            ctx.stroke();
+
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+
+            if (b.branchPoints) {
+              for (const br of b.branchPoints) {
+                const origin = b.points[br.startIdx] || b.points[0];
+                ctx.beginPath();
+                ctx.moveTo(b.x + origin.dx, b.y + origin.dy);
+                ctx.lineTo(b.x + br.dx, b.y + br.dy);
+                ctx.strokeStyle = b.color;
+                ctx.lineWidth = 1.6;
+                ctx.stroke();
+              }
+            }
+          }
+          ctx.restore();
+        }
+
+        // --- FOREGROUND FX: MUSICAL NOTES, HEXAGONS, PRISMS, STARBURSTS & EMBERS ---
+        if (curFx !== 'off' && sparksRef.current.length > 0) {
           const pool = sparksRef.current;
           ctx.save();
           for (let sIdx = pool.length - 1; sIdx >= 0; sIdx--) {
@@ -1120,21 +1726,80 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             }
             sp.x += sp.vx * deltaSec;
             sp.y += sp.vy * deltaSec;
-            sp.vy += 120 * deltaSec; // subtle gravity arc
+            sp.vy += (sp.kind === 'ember' || sp.kind === 'music_note' ? -22 : sp.kind === 'prism' || sp.kind === 'hex' ? 60 : 125) * deltaSec;
+            sp.rot += sp.vRot * deltaSec;
             const alpha = Math.max(0, 1 - sp.life / sp.maxLife);
             ctx.globalAlpha = alpha;
             ctx.fillStyle = sp.color;
-            ctx.beginPath();
-            ctx.arc(sp.x, sp.y, sp.size * alpha + 0.6, 0, Math.PI * 2);
-            ctx.fill();
+
+            if (sp.kind === 'music_note') {
+              ctx.font = `900 ${Math.round(sp.size)}px sans-serif`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(sp.symbol || '♪', sp.x, sp.y);
+            } else if (sp.kind === 'hex') {
+              const r = sp.size * (0.65 + 0.55 * alpha);
+              ctx.save();
+              ctx.translate(sp.x, sp.y);
+              ctx.rotate(sp.rot);
+              ctx.beginPath();
+              for (let h = 0; h < 6; h++) {
+                const ha = (Math.PI / 3) * h;
+                if (h === 0) ctx.moveTo(Math.cos(ha) * r, Math.sin(ha) * r);
+                else ctx.lineTo(Math.cos(ha) * r, Math.sin(ha) * r);
+              }
+              ctx.closePath();
+              ctx.strokeStyle = sp.color;
+              ctx.lineWidth = 1.5;
+              ctx.stroke();
+              ctx.restore();
+            } else if (sp.kind === 'prism') {
+              const r = sp.size * (0.6 + 0.6 * alpha);
+              ctx.save();
+              ctx.translate(sp.x, sp.y);
+              ctx.rotate(sp.rot);
+              ctx.beginPath();
+              ctx.moveTo(0, -r * 1.5);
+              ctx.lineTo(r * 1.1, 0);
+              ctx.lineTo(0, r * 1.5);
+              ctx.lineTo(-r * 1.1, 0);
+              ctx.closePath();
+              ctx.fill();
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 0.8;
+              ctx.stroke();
+              ctx.restore();
+            } else if (sp.kind === 'star') {
+              const r = sp.size * (0.5 + 0.7 * alpha);
+              ctx.save();
+              ctx.translate(sp.x, sp.y);
+              ctx.rotate(sp.rot);
+              ctx.beginPath();
+              ctx.moveTo(0, -r * 1.8);
+              ctx.quadraticCurveTo(r * 0.25, -r * 0.25, r * 1.8, 0);
+              ctx.quadraticCurveTo(r * 0.25, r * 0.25, 0, r * 1.8);
+              ctx.quadraticCurveTo(-r * 0.25, r * 0.25, -r * 1.8, 0);
+              ctx.quadraticCurveTo(-r * 0.25, -r * 0.25, 0, -r * 1.8);
+              ctx.closePath();
+              ctx.fill();
+              ctx.restore();
+            } else {
+              ctx.beginPath();
+              ctx.arc(sp.x, sp.y, sp.size * alpha + 0.6, 0, Math.PI * 2);
+              ctx.fill();
+            }
           }
           ctx.restore();
         }
       }
 
-      // Target hit line (Gold bar right above piano keys)
-      ctx.fillStyle = '#f59e0b';
-      ctx.fillRect(0, hitLineY - 1, width, 3);
+      // Target hit line (Luminous gold & white plasma bar right above piano keys)
+      const hitBarGrad = ctx.createLinearGradient(0, hitLineY - 2, 0, hitLineY + 2);
+      hitBarGrad.addColorStop(0, '#fef08a');
+      hitBarGrad.addColorStop(0.5, '#f59e0b');
+      hitBarGrad.addColorStop(1, '#b45309');
+      ctx.fillStyle = hitBarGrad;
+      ctx.fillRect(0, hitLineY - 2, width, 4);
 
       animationFrameRef.current = requestAnimationFrame(render);
     };
@@ -1324,22 +1989,44 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             <span>🪄 1 Mano</span>
           </button>
 
-          {/* ✨ Effetti Particellari Synthesia/YouTube sui Tasti */}
+          {/* ✨ Selettore 13 Effetti Visivi Spettacolari (Tap per aprire galleria o ciclare) */}
           <button
-            onClick={() => {
-              const next = !showSparks;
-              setShowSparks(next);
-              showSparksRef.current = next;
-              if (!next) sparksRef.current = [];
-            }}
-            className={`px-1.5 py-0.5 text-[9px] font-bold rounded flex items-center gap-0.5 transition-all border cursor-pointer whitespace-nowrap ${
-              showSparks
-                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300'
+            onClick={() => setIsFxPickerOpen((v) => !v)}
+            className={`px-1.5 py-0.5 text-[9px] font-black rounded flex items-center gap-0.5 transition-all border cursor-pointer whitespace-nowrap ${
+              fxMode !== 'off'
+                ? 'bg-gradient-to-r from-amber-500/25 via-fuchsia-500/25 to-cyan-500/25 border-amber-400/70 text-amber-300 shadow-sm'
                 : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white'
             }`}
-            title="Attiva/Disattiva scintille luminose stile YouTube/Synthesia quando le note toccano i tasti"
+            title="Scegli tra i 13 Effetti Visivi Spettacolari per i tuoi Video!"
           >
-            <span>✨ FX</span>
+            <span>
+              {fxMode === 'all'
+                ? '👑 Ultra Mix'
+                : fxMode === 'fireworks'
+                ? '🎆 Fuochi'
+                : fxMode === 'aurora'
+                ? '🌈 Laser'
+                : fxMode === 'lightning'
+                ? '⚡ Fulmini'
+                : fxMode === 'fire'
+                ? '🔥 Lava'
+                : fxMode === 'vortex'
+                ? '🌀 Portale'
+                : fxMode === 'gold_rain'
+                ? '🎵 Note Oro'
+                : fxMode === 'matrix'
+                ? '🟢 Matrix'
+                : fxMode === 'meteor'
+                ? '☄️ Meteore'
+                : fxMode === 'crystal'
+                ? '💎 Cristalli'
+                : fxMode === 'wave'
+                ? '🌊 Onde'
+                : fxMode === 'stars'
+                ? '🌌 Stelle'
+                : '🚫 FX Off'}
+            </span>
+            <span className="text-[8px] opacity-80">▾</span>
           </button>
 
           {/* Loop A-B Studio a Sezioni Controls */}
@@ -1685,6 +2372,67 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 Got It!
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING 13-FX GALLERY PICKER BAR */}
+      {isFxPickerOpen && (
+        <div className="absolute top-8 left-2 right-2 z-40 bg-slate-950/95 border border-amber-500/50 rounded-xl p-2 shadow-2xl backdrop-blur-md animate-in fade-in">
+          <div className="flex items-center justify-between mb-1.5 px-1">
+            <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider">
+              ✨ Scegli Effetto Spettacolare per il Video (13 Modalità • 0ms Lag)
+            </span>
+            <button
+              onClick={() => setIsFxPickerOpen(false)}
+              className="text-slate-400 hover:text-white text-xs font-bold px-1.5 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-1">
+            {([
+              { id: 'all', label: '👑 Ultra Mix', desc: 'Tutti insieme!' },
+              { id: 'fireworks', label: '🎆 Fuochi', desc: 'Esplosioni 360°' },
+              { id: 'aurora', label: '🌈 Laser Aurora', desc: 'Raggi verticali' },
+              { id: 'lightning', label: '⚡ Fulmini Tesla', desc: 'Archi elettrici' },
+              { id: 'fire', label: '🔥 Inferno Lava', desc: 'Fiamme & braci' },
+              { id: 'vortex', label: '🌀 Portale 3D', desc: 'Galassia & onde' },
+              { id: 'gold_rain', label: '🎵 Note Oro 24K', desc: 'Simboli ♪ ♫ 𝄞' },
+              { id: 'matrix', label: '🟢 Cyber Matrix', desc: 'Pioggia digitale' },
+              { id: 'meteor', label: '☄️ Meteore', desc: 'Stelle cadenti' },
+              { id: 'crystal', label: '💎 Cristalli', desc: 'Prismi diamante' },
+              { id: 'wave', label: '🌊 Onde Audio', desc: 'Equalizzatore' },
+              { id: 'stars', label: '🌌 Galassia', desc: 'Cielo stellato' },
+              { id: 'off', label: '🚫 Nessuno', desc: 'Solo note pulite' },
+            ] as const).map((item) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setFxMode(item.id);
+                  fxModeRef.current = item.id;
+                  if (item.id === 'off') {
+                    sparksRef.current = [];
+                    shockwavesRef.current = [];
+                    lightningBoltsRef.current = [];
+                    fireworksRef.current = [];
+                    laserBeamsRef.current = [];
+                    meteorsRef.current = [];
+                  }
+                  setIsFxPickerOpen(false);
+                  setLoopFeedbackMessage(`✨ Effetto attivo: ${item.label} (${item.desc})`);
+                  setTimeout(() => setLoopFeedbackMessage(null), 2400);
+                }}
+                className={`px-2 py-1 rounded-lg border text-left transition-all cursor-pointer flex flex-col ${
+                  fxMode === item.id
+                    ? 'bg-amber-500/25 border-amber-400 text-amber-200 font-black shadow'
+                    : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <span className="text-[10px] font-extrabold truncate">{item.label}</span>
+                <span className="text-[8px] text-slate-400 truncate">{item.desc}</span>
+              </button>
+            ))}
           </div>
         </div>
       )}
