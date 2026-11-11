@@ -71,6 +71,7 @@ class AudioEngine {
   private masterGain: Tone.Gain | null = null;
   private masterCompressor: Tone.Compressor | null = null;
   private masterLimiter: Tone.Limiter | null = null;
+  private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
 
   // Jam Band drums
   private drumSynth: Tone.MembraneSynth | null = null;
@@ -130,7 +131,7 @@ class AudioEngine {
     if (this.isInitialized && Tone.context.state === 'running') return;
 
     try {
-      Tone.context.lookAhead = 0.05; // 50ms buffer lookahead avoids audio thread starvation in WebView
+      Tone.context.lookAhead = 0.01; // Ultra-low 10ms buffer lookahead ensures exact audio-visual synchronization
       await Tone.start();
 
       const rawCtx = Tone.context.rawContext as AudioContext;
@@ -262,14 +263,14 @@ class AudioEngine {
     } catch (e) {}
   }
 
-  private ensureAudioContextRunning() {
+  async ensureAudioContextRunning(): Promise<void> {
     try {
       if (Tone.context.state !== 'running') {
-        Tone.context.resume().catch(() => {});
+        await Tone.context.resume().catch(() => {});
       }
       const rawCtx = Tone.context.rawContext as AudioContext;
       if (rawCtx && (rawCtx.state === 'suspended' || (rawCtx.state as any) === 'interrupted')) {
-        rawCtx.resume().catch(() => {});
+        await rawCtx.resume().catch(() => {});
       }
     } catch (e) {}
   }
@@ -753,6 +754,60 @@ class AudioEngine {
       osc.start(now);
       osc.stop(now + 0.04);
     } catch (e) {}
+  }
+
+  getRecordingAudioStream(): MediaStream | null {
+    try {
+      this.init().catch(() => {});
+      this.buildAudioGraph();
+      const rawCtx = Tone.context.rawContext as AudioContext;
+      if (!rawCtx || typeof rawCtx.createMediaStreamDestination !== 'function') {
+        return null;
+      }
+      if (!this.mediaStreamDest) {
+        this.mediaStreamDest = rawCtx.createMediaStreamDestination();
+        if (this.masterLimiter) {
+          Tone.connect(this.masterLimiter, this.mediaStreamDest);
+        }
+        if (this.drumSynth) {
+          Tone.connect(this.drumSynth, this.mediaStreamDest);
+        }
+        if (this.hihatSynth) {
+          Tone.connect(this.hihatSynth, this.mediaStreamDest);
+        }
+        if (this.snareSynth) {
+          Tone.connect(this.snareSynth, this.mediaStreamDest);
+        }
+
+        // CRITICAL AUDIO-VIDEO ZERO-LATENCY SYNCHRONIZATION:
+        // Web Audio createMediaStreamDestination() only emits real-time audio sample buffers
+        // when an active audio node is sending sound. Without an active carrier, MediaRecorder
+        // stalls the audio track until the first piano key is struck, which misaligns audio from video!
+        // We connect an inaudible continuous 0-amplitude carrier to ensure audio clock packets run
+        // continuously from t=0.000s in exact lockstep with video canvas frames.
+        try {
+          if (typeof rawCtx.createConstantSource === 'function') {
+            const silentCarrier = rawCtx.createConstantSource();
+            silentCarrier.offset.value = 0;
+            silentCarrier.connect(this.mediaStreamDest);
+            silentCarrier.start();
+          } else {
+            const osc = rawCtx.createOscillator();
+            const gain = rawCtx.createGain();
+            gain.gain.value = 0;
+            osc.connect(gain);
+            gain.connect(this.mediaStreamDest);
+            osc.start();
+          }
+        } catch (syncErr) {
+          console.warn("Silent carrier sync node setup:", syncErr);
+        }
+      }
+      return this.mediaStreamDest.stream;
+    } catch (e) {
+      console.warn("Could not create recording audio stream:", e);
+      return null;
+    }
   }
 }
 

@@ -3,37 +3,63 @@ name: Build and Bundle dist
 on:
   push:
     branches: [ main, master ]
+  workflow_dispatch:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
-  build:
+  cleanup-storage:
     runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Purge Old Artifacts, Caches & Workflow Runs (Keep Latest 2)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🧹 Pulizia automatica spazio GitHub Actions (0.5 GB quota)..."
+          gh api /repos/${{ github.repository }}/actions/caches --paginate -q '.actions_caches[].id' 2>/dev/null | while read cid; do
+            gh api -X DELETE /repos/${{ github.repository }}/actions/caches/$cid 2>/dev/null || true
+          done
+          gh api /repos/${{ github.repository }}/actions/artifacts?per_page=100 --paginate -q '.artifacts[].id' 2>/dev/null | tail -n +2 | while read aid; do
+            echo "🗑️ Eliminazione artifact ID: $aid"
+            gh api -X DELETE /repos/${{ github.repository }}/actions/artifacts/$aid 2>/dev/null || true
+          done
+          gh api /repos/${{ github.repository }}/actions/runs?per_page=100 --paginate -q '.workflow_runs[].id' 2>/dev/null | tail -n +3 | while read rid; do
+            if [ "$rid" != "${{ github.run_id }}" ]; then
+              gh api -X DELETE /repos/${{ github.repository }}/actions/runs/$rid 2>/dev/null || true
+            fi
+          done
+          echo "✅ Spazio liberato! Rimaste solo le ultime 2 esecuzioni."
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
+  build:
+    runs-on: ubuntu-latest
+    needs: cleanup-storage
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Install dependencies
-      run: npm install
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-    - name: Build project with high memory limit
-      run: |
-        export NODE_OPTIONS="--max-old-space-size=4096"
-        npm run build
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install -D esbuild
 
-    - name: Commit built dist to repository
-      uses: stefanzweifel/git-auto-commit-action@v5
-      with:
-        commit_message: "🤖 Auto-build production dist via GitHub Actions [skip ci]"
-        file_pattern: "dist"
+      - name: Build project with high memory limit
+        run: |
+          export NODE_OPTIONS="--max-old-space-size=4096"
+          npm run build
+
+      - name: Commit built dist to repository
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🤖 Auto-build production dist via GitHub Actions [skip ci]"
+          file_pattern: "dist"

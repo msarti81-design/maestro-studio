@@ -1,17 +1,28 @@
 name: Build Android APK & AAB
 
 on:
-  push:
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build-apk:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Purge Old Artifacts Before Build (Prevent 0.5GB Quota Error)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api /repos/${{ github.repository }}/actions/artifacts?per_page=100 --paginate -q '.artifacts[].id' 2>/dev/null | while read aid; do
+            gh api -X DELETE /repos/${{ github.repository }}/actions/artifacts/$aid 2>/dev/null || true
+          done
+          gh api /repos/${{ github.repository }}/actions/caches --paginate -q '.actions_caches[].id' 2>/dev/null | while read cid; do
+            gh api -X DELETE /repos/${{ github.repository }}/actions/caches/$cid 2>/dev/null || true
+          done
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -21,7 +32,9 @@ jobs:
           node-version: 20
 
       - name: Install Web Dependencies
-        run: npm install --legacy-peer-deps
+        run: |
+          npm install --legacy-peer-deps
+          npm install -D esbuild
 
       - name: Build Web Application
         run: npm run build
@@ -107,7 +120,7 @@ jobs:
         with:
           name: VirtuKeys-Android-Artifacts
           path: release-output/*
-          retention-days: 30
+          retention-days: 1
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

@@ -66,6 +66,10 @@ interface PianoViewProps {
   onOpenScalesModal?: () => void;
   activeScaleExercise?: ScaleExercise | null;
   onCloseScaleExercise?: () => void;
+  onNavigateToView?: (view: any) => void;
+  selectedSongToPlay?: InteractiveSong | null;
+  onClearSelectedSong?: () => void;
+  earTrainingStandalone?: boolean;
 }
 
 import { ALL_PIANO_KEYS, ALL_WHITE_KEYS } from '../data/pianoKeys';
@@ -117,6 +121,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
   onOpenScalesModal,
   activeScaleExercise,
   onCloseScaleExercise,
+  onNavigateToView,
+  selectedSongToPlay,
+  onClearSelectedSong,
+  earTrainingStandalone = false,
 }) => {
   const sessionStartTimeRef = useRef<number>(Date.now());
   const notesCountRef = useRef<number>(0);
@@ -207,10 +215,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
   };
 
-  // Keyboard Layout
+  // Keyboard Layout & Viral Reel Central Zoom (10 white keys)
   const [keyboardLayout, setKeyboardLayout] = useState<KeyboardLayoutType>('balanced');
+  const [isReelZoomed, setIsReelZoomed] = useState<boolean>(false);
 
   const windowSize = useMemo(() => {
+    if (isReelZoomed) return 10;
     switch (keyboardLayout) {
       case 'compact':
         return 14;
@@ -220,7 +230,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       default:
         return 21;
     }
-  }, [keyboardLayout]);
+  }, [keyboardLayout, isReelZoomed]);
 
   const maxStartWhiteIdx = Math.max(0, ALL_WHITE_KEYS.length - windowSize);
 
@@ -341,6 +351,15 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordStartTime, setRecordStartTime] = useState<number>(0);
   const recordedNotesRef = useRef<RecordedNote[]>([]);
+
+  // Synchronize externally selected song to play in waterfall mode (from Composer or Library)
+  useEffect(() => {
+    if (selectedSongToPlay) {
+      setActiveSong(selectedSongToPlay);
+      setShowWaterfall(true);
+      if (onClearSelectedSong) onClearSelectedSong();
+    }
+  }, [selectedSongToPlay]);
 
   // Options Modal
   const [isOptionsModalOpen, setIsOptionsModalOpen] = useState<boolean>(false);
@@ -478,6 +497,414 @@ export const PianoView: React.FC<PianoViewProps> = ({
     setTimeout(() => setToastMessage(null), 3200);
   }, []);
 
+  // --- VIDEO RECORDING (VERTICAL 9:16 REEL & HORIZONTAL 16:9 WITH ROTATE BANNER) ---
+  type VideoRecordMode = 'vertical_reel' | 'horizontal_full';
+  const [isVideoMenuOpen, setIsVideoMenuOpen] = useState<boolean>(false);
+  const [activeVideoMode, setActiveVideoMode] = useState<VideoRecordMode>('vertical_reel');
+  const [isReelRecording, setIsReelRecording] = useState<boolean>(false);
+  const [reelRecordSeconds, setReelRecordSeconds] = useState<number>(0);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const [recordedVideoBlob, setRecordedVideoBlob] = useState<Blob | null>(null);
+  const [recordedVideoExt, setRecordedVideoExt] = useState<string>('mp4');
+  const [recordedVideoFilename, setRecordedVideoFilename] = useState<string>('VirtuKeys-Video.mp4');
+  const reelRecorderRef = useRef<MediaRecorder | null>(null);
+  const reelAnimFrameRef = useRef<number | null>(null);
+  const reelTimerRef = useRef<number | null>(null);
+  const reelStartTimeRef = useRef<number>(0);
+  const prevStartIdxBeforeReelRef = useRef<number | null>(null);
+  const studioThemeRef = useRef<StudioTheme>(studioTheme);
+  useEffect(() => {
+    studioThemeRef.current = studioTheme;
+  }, [studioTheme]);
+  const activeSongRef = useRef<InteractiveSong | null>(activeSong);
+  useEffect(() => {
+    activeSongRef.current = activeSong;
+  }, [activeSong]);
+
+  const computeCentralZoomStartIdx = useCallback((): number => {
+    const zoomWin = 10;
+    const maxIdx = Math.max(0, ALL_WHITE_KEYS.length - zoomWin);
+    if (activeSong && activeSong.notes && activeSong.notes.length > 0) {
+      const indices = activeSong.notes
+        .map((n) => getWhiteKeyIndexForNote(n.note))
+        .filter((idx) => idx !== -1)
+        .sort((a, b) => a - b);
+      if (indices.length > 0) {
+        const medianIdx = indices[Math.floor(indices.length / 2)];
+        return Math.max(0, Math.min(maxIdx, Math.round(medianIdx - zoomWin / 2)));
+      }
+    }
+    // Default central register: B3..D5 (around C4..C5, white key index 22)
+    return Math.min(22, maxIdx);
+  }, [activeSong, getWhiteKeyIndexForNote]);
+
+  const stopReelVideoRecording = useCallback(() => {
+    if (reelAnimFrameRef.current) {
+      cancelAnimationFrame(reelAnimFrameRef.current);
+      reelAnimFrameRef.current = null;
+    }
+    if (reelTimerRef.current) {
+      window.clearInterval(reelTimerRef.current);
+      reelTimerRef.current = null;
+    }
+    if (reelRecorderRef.current && reelRecorderRef.current.state !== 'inactive') {
+      try {
+        reelRecorderRef.current.stop();
+      } catch (e) {}
+    }
+    if (reelTimerRef.current) {
+      clearInterval(reelTimerRef.current);
+      reelTimerRef.current = null;
+    }
+    if (reelAnimFrameRef.current !== null) {
+      cancelAnimationFrame(reelAnimFrameRef.current);
+      reelAnimFrameRef.current = null;
+    }
+    setIsReelRecording(false);
+    setIsReelZoomed(false);
+    if (prevStartIdxBeforeReelRef.current !== null) {
+      setStartWhiteKeyIdx(prevStartIdxBeforeReelRef.current);
+      prevStartIdxBeforeReelRef.current = null;
+    }
+  }, []);
+
+  const startVideoRecording = useCallback(async (mode: VideoRecordMode) => {
+    if (isReelRecording) {
+      stopReelVideoRecording();
+      return;
+    }
+
+    setIsVideoMenuOpen(false);
+    setActiveVideoMode(mode);
+
+    // Cleanup previous recorded video URL if any
+    if (recordedVideoUrl) {
+      URL.revokeObjectURL(recordedVideoUrl);
+      setRecordedVideoUrl(null);
+      setRecordedVideoBlob(null);
+    }
+
+    // 1. If vertical mode: zoom keyboard onto central 10 white keys.
+    // If horizontal mode: keep user layout (or balanced) to capture the whole piano keyboard!
+    if (mode === 'vertical_reel') {
+      prevStartIdxBeforeReelRef.current = startWhiteKeyIdx;
+      const centerStart = computeCentralZoomStartIdx();
+      setIsReelZoomed(true);
+      setStartWhiteKeyIdx(centerStart);
+    } else {
+      setIsReelZoomed(false);
+    }
+
+    if (activeSong && !showWaterfall) {
+      setShowWaterfall(true);
+    }
+
+    // Ensure AudioContext is warm and running before recording begins
+    await audioEngine.ensureAudioContextRunning();
+
+    // Get internal stereo digital stream (with silent carrier keeping clock active)
+    const audioStream = audioEngine.getRecordingAudioStream();
+
+    // 2. Setup offscreen compositor canvas:
+    // Vertical: 720x1280 (9:16)
+    // Horizontal: 1280x720 (16:9)
+    const compCanvas = document.createElement('canvas');
+    const isVertical = mode === 'vertical_reel';
+    compCanvas.width = isVertical ? 720 : 1280;
+    compCanvas.height = isVertical ? 1280 : 720;
+    const ctx = compCanvas.getContext('2d');
+    if (!ctx) {
+      showToast('Impossibile inizializzare il registratore video.');
+      return;
+    }
+
+    const themeBadges: Record<StudioTheme, string> = {
+      midnight: '🎹 Classic Ivory',
+      mahogany: '🪵 Imperial Wood',
+      marble: '🏛️ Carrara Marble',
+      gold: '👑 24K Royal Gold',
+      carbon: '🏎️ Titanium Carbon',
+      neon: '⚡ Cyber Neon',
+    };
+
+    reelStartTimeRef.current = performance.now();
+
+    const renderCompositeFrame = () => {
+      const W = compCanvas.width;
+      const H = compCanvas.height;
+      const elapsedSec = (performance.now() - reelStartTimeRef.current) / 1000;
+
+      // Studio background
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+      bgGrad.addColorStop(0, '#020617');
+      bgGrad.addColorStop(0.5, '#090d16');
+      bgGrad.addColorStop(1, '#020617');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, W, H);
+
+      // Top Header Banner
+      const headerH = isVertical ? 115 : 68;
+      const headerGrad = ctx.createLinearGradient(0, 0, W, headerH);
+      headerGrad.addColorStop(0, 'rgba(15, 23, 42, 0.98)');
+      headerGrad.addColorStop(1, 'rgba(30, 41, 59, 0.98)');
+      ctx.fillStyle = headerGrad;
+      ctx.fillRect(0, 0, W, headerH);
+
+      // Gold accent line under header
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(0, headerH - 2, W, 2);
+
+      // Brand title: VirtuKeys
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = isVertical ? '900 32px Inter, system-ui, sans-serif' : '900 24px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🎹 VirtuKeys', isVertical ? 28 : 20, isVertical ? 44 : 26);
+
+      // Song title subtitle
+      const currentSongTitle = activeSongRef.current ? activeSongRef.current.title : 'Live Piano Performance';
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = isVertical ? '700 20px Inter, system-ui, sans-serif' : '700 15px Inter, system-ui, sans-serif';
+      if (isVertical) {
+        ctx.fillText(`🎵 ${currentSongTitle}`, 28, 84);
+      } else {
+        ctx.fillText(`🎵 ${currentSongTitle}`, 220, 26);
+      }
+
+      // Current 3D material pill on top-right
+      const badgeText = themeBadges[studioThemeRef.current] || '🎹 Classic Ivory';
+      ctx.font = isVertical ? '800 18px Inter, system-ui, sans-serif' : '800 14px Inter, system-ui, sans-serif';
+      const metrics = ctx.measureText(badgeText);
+      const bw = metrics.width + (isVertical ? 32 : 24);
+      const bh = isVertical ? 42 : 32;
+      const bx = W - bw - (isVertical ? 24 : 16);
+      const by = isVertical ? 36 : 18;
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.18)';
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.65)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, isVertical ? 12 : 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#fde68a';
+      ctx.textAlign = 'center';
+      ctx.fillText(badgeText, bx + bw / 2, by + bh / 2 + 1);
+
+      // Live canvases from DOM
+      const waterfallCanvas = document.querySelector('canvas[data-waterfall-canvas="true"]') as HTMLCanvasElement | null;
+      const pianoCanvas = document.querySelector('canvas[data-piano-canvas="true"]') as HTMLCanvasElement | null;
+
+      // Layout geometry: Realistic, large piano proportions matching live app!
+      // In live app with waterfall, keyboard is prominent (~45% - 50% of height)
+      const footerH = isVertical ? 50 : 36;
+      const pianoBottomY = H - footerH;
+
+      // Generous, realistic piano height (keys look deep, bold and lifelike just like real piano)
+      const pianoDrawnHeight = isVertical ? 420 : 310;
+      const pianoDrawY = pianoBottomY - pianoDrawnHeight;
+
+      if (pianoCanvas && pianoCanvas.width > 0 && pianoCanvas.height > 0) {
+        ctx.drawImage(pianoCanvas, 0, 0, pianoCanvas.width, pianoCanvas.height, 0, pianoDrawY, W, pianoDrawnHeight);
+      }
+
+      const railTop = pianoDrawY - (isVertical ? 14 : 10);
+      const wfTop = headerH;
+      const wfHeight = Math.max(80, railTop - wfTop);
+
+      // Waterfall section
+      if (waterfallCanvas && waterfallCanvas.width > 0 && waterfallCanvas.height > 0) {
+        ctx.drawImage(waterfallCanvas, 0, 0, waterfallCanvas.width, waterfallCanvas.height, 0, wfTop, W, wfHeight);
+      } else {
+        const stageGrad = ctx.createRadialGradient(W / 2, wfTop + wfHeight / 2, 30, W / 2, wfTop + wfHeight / 2, 380);
+        stageGrad.addColorStop(0, 'rgba(245, 158, 11, 0.14)');
+        stageGrad.addColorStop(1, 'rgba(2, 6, 23, 0.95)');
+        ctx.fillStyle = stageGrad;
+        ctx.fillRect(0, wfTop, W, wfHeight);
+
+        ctx.fillStyle = '#fbbf24';
+        ctx.textAlign = 'center';
+        ctx.font = isVertical ? '900 36px Inter, system-ui, sans-serif' : '900 28px Inter, system-ui, sans-serif';
+        ctx.fillText('🎹 VirtuKeys Studio', W / 2, wfTop + wfHeight / 2 - 16);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = isVertical ? '600 22px Inter, system-ui, sans-serif' : '600 16px Inter, system-ui, sans-serif';
+        ctx.fillText(isVertical ? 'Zoom Note Centrali • Proporzioni HD' : 'Tastiera Completa • Audio Puro HD', W / 2, wfTop + wfHeight / 2 + 20);
+      }
+
+      // Red plush felt & gold rail separator
+      const railH = isVertical ? 14 : 10;
+      const railGrad = ctx.createLinearGradient(0, railTop, 0, railTop + railH);
+      railGrad.addColorStop(0, '#b45309');
+      railGrad.addColorStop(0.5, '#fde047');
+      railGrad.addColorStop(1, '#7f1d1d');
+      ctx.fillStyle = railGrad;
+      ctx.fillRect(0, railTop, W, railH);
+
+      // Bottom Footer Watermark
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(0, pianoBottomY, W, footerH);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = isVertical ? '700 18px Inter, system-ui, sans-serif' : '700 13px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('virtukeys.app • Suona gratis dal browser 🎹', W / 2, pianoBottomY + footerH / 2 + 1);
+
+      // --- ULTRA-PRO CLEAN FLASHING "ROTATE YOUR PHONE" (SENZA SFONDO / NESSUN BOX) ---
+      // Scritta a tutto schermo, grandissima, luminosa al neon che lampeggia/pulsa direttamente sul video!
+      if (!isVertical && elapsedSec < 4.2) {
+        const fadeOut = elapsedSec > 3.4 ? Math.max(0, (4.2 - elapsedSec) / 0.8) : 1.0;
+        ctx.save();
+        ctx.globalAlpha = fadeOut;
+
+        // Pulso luminoso rapido e dinamico (effetto neon stroboscopico / battito)
+        const pulse = Math.abs(Math.sin(elapsedSec * 4.5));
+        const glowIntensity = 18 + pulse * 28;
+        const scale = 1.0 + pulse * 0.04;
+
+        ctx.translate(W / 2, H / 2 - 15);
+        ctx.scale(scale, scale);
+
+        // Icona rotazione animata
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '84px system-ui, sans-serif';
+        ctx.shadowColor = '#f59e0b';
+        ctx.shadowBlur = glowIntensity;
+        ctx.fillText('🔄', 0, -85);
+
+        // Scritta PRINCIPALE GIGANTE SENZA SFONDO "ROTATE YOUR PHONE"
+        ctx.font = '900 68px Inter, Montserrat, system-ui, sans-serif';
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = glowIntensity * 1.3;
+        ctx.fillStyle = pulse > 0.4 ? '#ffffff' : '#fef08a';
+        ctx.fillText('ROTATE YOUR PHONE', 0, 10);
+
+        // Doppio bagliore neon oro/arancio per renderla incredibilmente vibrante
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = `rgba(245, 158, 11, ${0.6 + 0.4 * pulse})`;
+        ctx.strokeText('ROTATE YOUR PHONE', 0, 10);
+
+        // Sottotitolo chiaro ed elegante
+        ctx.font = '800 22px Inter, system-ui, sans-serif';
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = '#fde68a';
+        ctx.fillText('⚡ Turn to Landscape for the Best Experience 🎹', 0, 75);
+
+        ctx.restore();
+      }
+
+      reelAnimFrameRef.current = requestAnimationFrame(renderCompositeFrame);
+    };
+
+    // 3. Combine 60 FPS canvas video stream + internal continuous Web Audio track
+    // 60 FPS ensures every rendered animation frame matches the 60Hz display refresh with zero judder or drift
+    const videoStream = compCanvas.captureStream(60);
+    const combinedTracks: MediaStreamTrack[] = [...videoStream.getVideoTracks()];
+    if (audioStream && audioStream.getAudioTracks().length > 0) {
+      combinedTracks.push(...audioStream.getAudioTracks());
+    }
+    const combinedStream = new MediaStream(combinedTracks);
+
+    // Choose best supported MIME type
+    const mimeCandidates = [
+      { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
+      { mime: 'video/mp4', ext: 'mp4' },
+      { mime: 'video/webm;codecs=vp9,opus', ext: 'webm' },
+      { mime: 'video/webm;codecs=vp8,opus', ext: 'webm' },
+      { mime: 'video/webm', ext: 'webm' },
+    ];
+    let selectedMime = '';
+    let selectedExt = 'webm';
+    for (const c of mimeCandidates) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(c.mime)) {
+        selectedMime = c.mime;
+        selectedExt = c.ext;
+        break;
+      }
+    }
+
+    try {
+      const chunks: BlobPart[] = [];
+      const recorder = selectedMime
+        ? new MediaRecorder(combinedStream, {
+            mimeType: selectedMime,
+            videoBitsPerSecond: isVertical ? 5000000 : 6000000,
+            audioBitsPerSecond: 192000,
+          })
+        : new MediaRecorder(combinedStream);
+
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) {
+          chunks.push(ev.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const actualMime = selectedMime || recorder.mimeType || 'video/webm';
+        let finalExt = selectedExt;
+        if (actualMime.includes('mp4')) {
+          finalExt = 'mp4';
+        } else if (actualMime.includes('webm')) {
+          finalExt = 'webm';
+        }
+
+        const finalBlob = new Blob(chunks, { type: actualMime });
+        const url = URL.createObjectURL(finalBlob);
+        const filename = `VirtuKeys-${isVertical ? 'Reel' : 'Full'}-${Date.now()}.${finalExt}`;
+
+        setRecordedVideoBlob(finalBlob);
+        setRecordedVideoUrl(url);
+        setRecordedVideoExt(finalExt);
+        setRecordedVideoFilename(filename);
+      };
+
+      reelRecorderRef.current = recorder;
+
+      // CRITICAL ZERO-OFFSET SYNCHRONIZATION:
+      // Start the MediaRecorder and begin the composite rendering loop at the EXACT same instant
+      // so the canvas presentation timestamp matches the continuous audio carrier presentation timestamp from t=0.000s
+      recorder.start(100);
+      reelStartTimeRef.current = performance.now();
+      renderCompositeFrame();
+
+      setIsReelRecording(true);
+      setReelRecordSeconds(0);
+      showToast(
+        isVertical
+          ? '🎬 Registrazione Video Verticale 9:16 (Zoom Note Centrali) avviata!'
+          : '🖥️ Registrazione Video Orizzontale 16:9 con intro "Rotate Phone" avviata!'
+      );
+
+      if (reelTimerRef.current) {
+        clearInterval(reelTimerRef.current);
+      }
+      reelTimerRef.current = window.setInterval(() => {
+        setReelRecordSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Failed to start MediaRecorder:', err);
+      stopReelVideoRecording();
+      showToast('Errore nell’avvio della registrazione video.');
+    }
+  }, [
+    isReelRecording,
+    stopReelVideoRecording,
+    recordedVideoUrl,
+    startWhiteKeyIdx,
+    computeCentralZoomStartIdx,
+    activeSong,
+    showWaterfall,
+    showToast,
+  ]);
+
+  // Cleanup video recorder on unmount
+  useEffect(() => {
+    return () => {
+      if (reelAnimFrameRef.current) cancelAnimationFrame(reelAnimFrameRef.current);
+      if (reelTimerRef.current) clearInterval(reelTimerRef.current);
+    };
+  }, []);
+
   // --- REAL-TIME CHORD DETECTOR STATE ---
   const [isChordDetectorOpen, setIsChordDetectorOpen] = useState<boolean>(false);
   const [activeChordNotes, setActiveChordNotes] = useState<string[]>([]);
@@ -501,6 +928,124 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }, 250);
     return () => clearInterval(interval);
   }, [isChordDetectorOpen]);
+
+  // --- 👂 ORECCHIO ASSOLUTO (EAR TRAINING MINI-GAME) STATE ---
+  const [isEarTrainingOpen, setIsEarTrainingOpen] = useState<boolean>(Boolean(earTrainingStandalone));
+  const [earLevel, setEarLevel] = useState<'base' | 'expert' | 'maestro'>('base');
+  const [earTargetNotes, setEarTargetNotes] = useState<string[]>([]);
+  const [earMatchedIdx, setEarMatchedIdx] = useState<number>(0);
+  const [earScore, setEarScore] = useState<number>(0);
+  const [earStreak, setEarStreak] = useState<number>(0);
+  const [earBestStreak, setEarBestStreak] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('maestro_ear_best_streak') || 0);
+    } catch {
+      return 0;
+    }
+  });
+  const [earHintShown, setEarHintShown] = useState<boolean>(false);
+  const [earFeedback, setEarFeedback] = useState<{
+    text: string;
+    type: 'neutral' | 'correct' | 'higher' | 'lower';
+  }>({
+    text: 'Ascolta la nota misteriosa e premila sulla tastiera!',
+    type: 'neutral',
+  });
+
+  const isEarTrainingOpenRef = useRef<boolean>(isEarTrainingOpen);
+  isEarTrainingOpenRef.current = isEarTrainingOpen;
+  const earTargetNotesRef = useRef<string[]>(earTargetNotes);
+  earTargetNotesRef.current = earTargetNotes;
+  const earMatchedIdxRef = useRef<number>(earMatchedIdx);
+  earMatchedIdxRef.current = earMatchedIdx;
+  const earLevelRef = useRef<'base' | 'expert' | 'maestro'>(earLevel);
+  earLevelRef.current = earLevel;
+
+  const playEarMysterySequence = useCallback(
+    (notesToPlay: string[]) => {
+      if (!notesToPlay || notesToPlay.length === 0) return;
+      audioEngine.init().catch(() => {});
+      notesToPlay.forEach((n, idx) => {
+        setTimeout(() => {
+          audioEngine.playNote(n, '4n', instrument);
+        }, idx * 430);
+      });
+    },
+    [instrument]
+  );
+
+  const startNewEarRound = useCallback(
+    (levelOverride?: 'base' | 'expert' | 'maestro') => {
+      const lvl = levelOverride || earLevelRef.current;
+      const whitePool = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+      const chromaticPool = ['C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4', 'C5'];
+      const pool = lvl === 'base' ? whitePool : chromaticPool;
+      const count = lvl === 'maestro' ? 3 : 1;
+
+      const picked: string[] = [];
+      for (let i = 0; i < count; i++) {
+        let candidate = pool[Math.floor(Math.random() * pool.length)];
+        if (picked.length > 0 && candidate === picked[picked.length - 1]) {
+          candidate = pool[(pool.indexOf(candidate) + 2) % pool.length];
+        }
+        picked.push(candidate);
+      }
+
+      setEarTargetNotes(picked);
+      earTargetNotesRef.current = picked;
+      setEarMatchedIdx(0);
+      earMatchedIdxRef.current = 0;
+      setEarHintShown(false);
+      setEarFeedback({
+        text:
+          count === 1
+            ? '👂 Ascolta la nota misteriosa e suonala sulla tastiera!'
+            : '👂 Ascolta la sequenza di 3 note e replicala nell’ordine giusto!',
+        type: 'neutral',
+      });
+
+      // Center keyboard around C4-C5 so the target octave is right in front of the player
+      const c4Idx = getWhiteKeyIndexForNote('C4');
+      if (c4Idx !== -1) {
+        const opt = Math.max(0, Math.min(maxStartWhiteIdx, Math.round(c4Idx - windowSize / 2 + 4)));
+        setStartWhiteKeyIdx(opt);
+      }
+
+      setTimeout(() => {
+        playEarMysterySequence(picked);
+      }, 180);
+    },
+    [getWhiteKeyIndexForNote, maxStartWhiteIdx, playEarMysterySequence, windowSize]
+  );
+
+  // Auto-start first mystery note when entering dedicated Orecchio Assoluto mode from the main menu
+  useEffect(() => {
+    if (earTrainingStandalone) {
+      setIsEarTrainingOpen(true);
+      isEarTrainingOpenRef.current = true;
+      setShowWaterfall(false);
+      startNewEarRound('base');
+    }
+  }, [earTrainingStandalone]);
+
+  // Report song & keyboard material to lightweight analytics when song waterfall is active
+  useEffect(() => {
+    if (!showWaterfall || !activeSong?.title) return;
+    try {
+      const clientId = getOrCreateClientId();
+      fetch(getAppApiUrl('/api/analytics/ping'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId: localStorage.getItem('maestro_device_id') || clientId,
+          username,
+          view: 'piano',
+          theme: studioTheme,
+          songTitle: activeSong.title,
+        }),
+      }).catch(() => {});
+    } catch (_) {}
+  }, [showWaterfall, activeSong?.title, studioTheme, username]);
 
   // --- PALESTRA DELLE SCALE & MANO TRASPARENTE STATE ---
   const [scaleActiveIdx, setScaleActiveIdx] = useState<number>(0);
@@ -1761,11 +2306,72 @@ export const PianoView: React.FC<PianoViewProps> = ({
       }
     }
 
+    // 👂 Orecchio Assoluto (Ear Training Mini-Game) interactive check
+    if (isEarTrainingOpenRef.current && earTargetNotesRef.current.length > 0) {
+      const targets = earTargetNotesRef.current;
+      const curIdx = earMatchedIdxRef.current;
+      const expected = targets[curIdx];
+      if (expected) {
+        if (note === expected) {
+          const nextIdx = curIdx + 1;
+          if (nextIdx >= targets.length) {
+            const pts = earLevelRef.current === 'maestro' ? 250 : earLevelRef.current === 'expert' ? 150 : 100;
+            setEarScore((s) => s + pts);
+            setEarStreak((st) => {
+              const nextSt = st + 1;
+              setEarBestStreak((best) => {
+                const updated = Math.max(best, nextSt);
+                try {
+                  localStorage.setItem('maestro_ear_best_streak', String(updated));
+                } catch {}
+                return updated;
+              });
+              return nextSt;
+            });
+            setEarFeedback({
+              text: `✅ ESATTO! Era ${targets.join(' → ')}! (+${pts} pt) — Nuova nota in arrivo...`,
+              type: 'correct',
+            });
+            earTargetNotesRef.current = [];
+            setTimeout(() => {
+              if (isEarTrainingOpenRef.current) {
+                startNewEarRound();
+              }
+            }, 1100);
+          } else {
+            setEarMatchedIdx(nextIdx);
+            earMatchedIdxRef.current = nextIdx;
+            setEarFeedback({
+              text: `✨ Nota ${nextIdx}/${targets.length} presa (${expected})! Ora indovina la nota #${nextIdx + 1}...`,
+              type: 'correct',
+            });
+          }
+        } else {
+          const playedKeyIdx = ALL_PIANO_KEYS.findIndex((k) => k.note === note);
+          const expectedKeyIdx = ALL_PIANO_KEYS.findIndex((k) => k.note === expected);
+          setEarStreak(0);
+          if (playedKeyIdx !== -1 && expectedKeyIdx !== -1) {
+            if (playedKeyIdx < expectedKeyIdx) {
+              setEarFeedback({
+                text: `⬆️ Hai premuto ${note}: la nota misteriosa è PIÙ ACUTA (vai più a destra 👉)`,
+                type: 'higher',
+              });
+            } else {
+              setEarFeedback({
+                text: `⬇️ Hai premuto ${note}: la nota misteriosa è PIÙ GRAVE (vai più a sinistra 👈)`,
+                type: 'lower',
+              });
+            }
+          }
+        }
+      }
+    }
+
     if (isRecording) {
       const now = (Date.now() - recordStartTime) / 1000;
       recordedNotesRef.current.push({ note, time: now, duration: 0.5 });
     }
-  }, [instrument, isRecording, recordStartTime, getTransposedNote, socialSession, isSimulatingStudentMode, showToast, activeScaleExercise, scaleMode, scaleActiveIdx, isScaleLoop]);
+  }, [instrument, isRecording, recordStartTime, getTransposedNote, socialSession, isSimulatingStudentMode, showToast, activeScaleExercise, scaleMode, scaleActiveIdx, isScaleLoop, startNewEarRound]);
 
   const handleCanvasNoteDown = useCallback((baseNote: string) => {
     triggerNoteHit(baseNote);
@@ -2285,6 +2891,16 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
   };
 
+  const handleStartPianoRecording = () => {
+    setIsLibraryOpen(false);
+    if (!isRecording) {
+      recordedNotesRef.current = [];
+      setRecordStartTime(Date.now());
+      setIsRecording(true);
+      showToast('🔴 Registrazione avviata! Suona liberamente sul pianoforte.');
+    }
+  };
+
   const toggleFullscreen = async () => {
     try {
       if (typeof window !== 'undefined' && (window as any).Capacitor) {
@@ -2328,19 +2944,52 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
   }, []);
 
-  // ZERO-LATENCY NATIVE LAYOUT:
-  // When in landscape (physical phone or Android native locked app), do NOT apply any transform: translate(-50%, -50%) rotate(0deg).
-  // Applying CSS transform creates an offscreen GPU compositing layer that delays touch hit-testing in Android WebViews.
-  // ALWAYS NATIVE FULLSCREEN LANDSCAPE:
-  // Container fills 100% of physical viewport (100vw x 100vh) without any transform rotation layer.
+  // Track exact visible browser viewport (handles mobile Chrome/Safari top URL bar without clipping bottom keys)
+  const [viewportBox, setViewportBox] = useState<{ height: number; offsetTop: number }>(() => ({
+    height: typeof window !== 'undefined' ? (window.visualViewport?.height || window.innerHeight) : 0,
+    offsetTop: typeof window !== 'undefined' ? (window.visualViewport?.offsetTop || 0) : 0,
+  }));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateViewport = () => {
+      const vv = window.visualViewport;
+      const nextH = Math.round(vv ? vv.height : window.innerHeight);
+      const nextTop = Math.round(vv ? vv.offsetTop : 0);
+      setViewportBox((prev) =>
+        prev.height === nextH && prev.offsetTop === nextTop
+          ? prev
+          : { height: nextH, offsetTop: nextTop }
+      );
+    };
+
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewport);
+      window.visualViewport.addEventListener('scroll', updateViewport);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewport);
+        window.visualViewport.removeEventListener('scroll', updateViewport);
+      }
+    };
+  }, []);
+
   const containerStyle: React.CSSProperties = {
     position: 'fixed',
-    top: 0,
+    top: viewportBox.offsetTop > 0 ? `${viewportBox.offsetTop}px` : 0,
     left: 0,
     right: 0,
-    bottom: 0,
     width: '100vw',
-    height: '100dvh',
+    height: viewportBox.height > 0 ? `${viewportBox.height}px` : '100dvh',
+    maxHeight: '100dvh',
     zIndex: 50,
     boxSizing: 'border-box',
     overflow: 'hidden',
@@ -2352,158 +3001,384 @@ export const PianoView: React.FC<PianoViewProps> = ({
       style={containerStyle}
       className="bg-slate-950 flex flex-col h-full w-full overflow-hidden select-none touch-none p-0 m-0"
     >
-      {/* ULTRA-COMPACT SINGLE-ROW TOP BAR */}
-      <div
-        style={{
-          paddingTop: 'max(env(safe-area-inset-top, 0px), 2px)',
-          paddingLeft: 'max(env(safe-area-inset-left, 0px), 6px)',
-          paddingRight: 'max(env(safe-area-inset-right, 0px), 6px)',
-        }}
-        className="h-8 min-h-[32px] max-h-[34px] bg-slate-900/95 border-b border-slate-800/80 px-1 sm:px-2 flex items-center justify-between flex-nowrap overflow-x-auto scrollbar-none shrink-0 z-20 text-[10px] sm:text-[11px]"
-      >
-        {/* Left: Essential navigation and toggles */}
-        <div className="flex items-center gap-1 shrink-0 flex-nowrap">
-          {socialSession ? (
-            <button
-              onClick={handleExitToSocialResults}
-              className="px-2 py-0.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 text-white font-black rounded-md flex items-center gap-1 shadow transition-all active:scale-95 animate-pulse cursor-pointer text-[10px]"
-              title="Esci dal duello e vedi esiti"
-            >
-              <span>🏁 ESCI ({socialSession.roomId})</span>
-            </button>
-          ) : (
-            <button
-              onClick={onBackToHome}
-              className="px-1.5 py-0.5 text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-750 rounded-md flex items-center gap-1 transition-colors cursor-pointer"
-              title="Torna al Menu Principale"
-            >
-              <Home className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline font-bold">Menu</span>
-            </button>
-          )}
-
-          {/* Spartiti / Library */}
-          <button
-            onClick={() => setIsLibraryOpen(true)}
-            className="px-1.5 sm:px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-md flex items-center gap-1 shadow-sm transition-all active:scale-95 cursor-pointer"
-            title="Apri libreria spartiti"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Spartiti</span>
-          </button>
-
-          {/* Palestra Scale Button */}
-          {onOpenScalesModal && (
-            <button
-              onClick={onOpenScalesModal}
-              className={`px-1.5 sm:px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer ${
-                activeScaleExercise
-                  ? 'bg-amber-500 text-slate-950 font-black shadow ring-1 ring-amber-300'
-                  : 'bg-slate-800/80 hover:bg-slate-750 text-amber-300 border border-amber-500/30'
-              }`}
-              title="Palestra di Scale & Diteggiatura"
-            >
-              <Layers className="w-3 h-3 text-amber-400" />
-              <span className="hidden xs:inline">Scale</span>
-            </button>
-          )}
-
-          {/* Chord Detector Button */}
-          <button
-            onClick={() => setIsChordDetectorOpen(true)}
-            className="px-1.5 sm:px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer"
-            title="Analizzatore di Accordi in Tempo Reale"
-          >
-            <Music className="w-3 h-3 text-amber-400" />
-            <span className="hidden xs:inline">Accordi</span>
-          </button>
-
-          {/* Toggle Falling Notes (ON / OFF) */}
-          <button
-            onClick={() => {
-              const next = !showWaterfall;
-              setShowWaterfall(next);
-              if (!next) {
-                setSongGuidance(null);
-              }
-            }}
-            className={`px-2 py-0.5 font-bold rounded-md flex items-center gap-1 transition-all cursor-pointer ${
-              showWaterfall
-                ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 shadow-sm'
-                : 'bg-slate-800/90 hover:bg-slate-750 text-slate-300 border border-slate-700'
-            }`}
-            title={showWaterfall ? 'Note a cascata ATTIVE. Clicca per disattivare (solo pianoforte)' : 'Attiva note a cascata (Waterfall)'}
-          >
-            <Sparkles className={`w-3 h-3 ${showWaterfall ? 'text-cyan-400' : 'text-slate-400'}`} />
-            <span>Note {showWaterfall ? 'ON' : 'OFF'}</span>
-          </button>
-        </div>
-
-        {/* Center: Song info or Title */}
-        <div className="flex items-center gap-1.5 min-w-0 px-2 justify-center truncate">
-          {activeSong ? (
-            <div className="flex items-center gap-1 font-semibold text-slate-200 text-[10px] sm:text-[11px] truncate">
-              <span className="text-amber-400 truncate max-w-[120px] sm:max-w-[200px] font-bold">
-                🎵 {activeSong.title}
-              </span>
-              <span className="text-slate-400 hidden md:inline truncate">&bull; {activeSong.author}</span>
-            </div>
-          ) : (
-            <span className="font-bold text-slate-400 text-[10px] sm:text-[11px] truncate tracking-wide hidden sm:inline">
-              🎹 VirtuKeys Piano Studio
-            </span>
-          )}
-        </div>
-
-        {/* Right: Pedale, Rec & Options 3-dots */}
-        <div className="flex items-center gap-1 shrink-0 flex-nowrap">
-          {/* Record button */}
-          <button
-            onClick={toggleRecording}
-            className={`px-1.5 sm:px-2 py-0.5 font-bold rounded-md flex items-center gap-1 transition-colors cursor-pointer ${
-              isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-800 hover:bg-slate-750 text-slate-300'
-            }`}
-            title={isRecording ? 'Termina registrazione' : 'Registra'}
-          >
-            <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-white' : 'bg-red-500'}`} />
-            <span className="hidden sm:inline">{isRecording ? 'Stop' : 'Rec'}</span>
-          </button>
-
-          {/* Sustain pedal toggle */}
-          <button
-            onClick={() => {
-              const next = !sustain;
-              setSustain(next);
-              audioEngine.setSustain(next);
-            }}
-            className={`px-1.5 sm:px-2 py-0.5 font-semibold rounded-md border transition-colors cursor-pointer ${
-              sustain
-                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold'
-                : 'bg-slate-800/80 border-slate-700/80 text-slate-400 hover:text-white'
-            }`}
-            title="Sustain (Pedal)"
-          >
-            Sustain
-          </button>
-
-          {/* 3-DOTS OPTIONS MODAL BUTTON (Metronome, Volume, Keys, etc.) */}
-          <button
-            onClick={() => setIsOptionsModalOpen(true)}
-            className="p-1 px-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/40 rounded-md transition-all flex items-center gap-1 cursor-pointer"
-            title="All options and tools (Metronome, Volume, Keys, Microphone...)"
-          >
-            <MoreHorizontal className="w-3.5 h-3.5" />
-            {isPianoMetronomeActive && (
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+      {/* ULTRA-COMPACT SINGLE-ROW TOP BAR (Hidden in dedicated Ear Training mode) */}
+      {!earTrainingStandalone && (
+        <div
+          style={{
+            paddingTop: 'max(env(safe-area-inset-top, 0px), 2px)',
+            paddingLeft: 'max(env(safe-area-inset-left, 0px), 6px)',
+            paddingRight: 'max(env(safe-area-inset-right, 0px), 6px)',
+          }}
+          className="h-8 min-h-[32px] max-h-[34px] bg-slate-900/95 border-b border-slate-800/80 px-1 sm:px-2 flex items-center justify-between flex-nowrap overflow-x-auto scrollbar-none shrink-0 z-20 text-[10px] sm:text-[11px]"
+        >
+          {/* Left: Essential navigation and toggles */}
+          <div className="flex items-center gap-1 shrink-0 flex-nowrap">
+            {socialSession ? (
+              <button
+                onClick={handleExitToSocialResults}
+                className="px-2 py-0.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 text-white font-black rounded-md flex items-center gap-1 shadow transition-all active:scale-95 animate-pulse cursor-pointer text-[10px]"
+                title="Esci dal duello e vedi esiti"
+              >
+                <span>🏁 ESCI ({socialSession.roomId})</span>
+              </button>
+            ) : (
+              <button
+                onClick={onBackToHome}
+                className="px-1.5 py-0.5 text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-750 rounded-md flex items-center gap-1 transition-colors cursor-pointer"
+                title="Torna al Menu Principale"
+              >
+                <Home className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline font-bold">Menu</span>
+              </button>
             )}
-          </button>
+
+            {/* Spartiti / Library */}
+            <button
+              onClick={() => setIsLibraryOpen(true)}
+              className="px-1.5 sm:px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-md flex items-center gap-1 shadow-sm transition-all active:scale-95 cursor-pointer"
+              title="Apri libreria spartiti"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Spartiti</span>
+            </button>
+
+            {/* Palestra Scale Button */}
+            {onOpenScalesModal && (
+              <button
+                onClick={onOpenScalesModal}
+                className={`px-1.5 sm:px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer ${
+                  activeScaleExercise
+                    ? 'bg-amber-500 text-slate-950 font-black shadow ring-1 ring-amber-300'
+                    : 'bg-slate-800/80 hover:bg-slate-750 text-amber-300 border border-amber-500/30'
+                }`}
+                title="Palestra di Scale & Diteggiatura"
+              >
+                <Layers className="w-3 h-3 text-amber-400" />
+                <span className="hidden xs:inline">Scale</span>
+              </button>
+            )}
+
+            {/* Chord Detector Button */}
+            <button
+              onClick={() => setIsChordDetectorOpen(true)}
+              className="px-1.5 sm:px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer"
+              title="Analizzatore di Accordi in Tempo Reale"
+            >
+              <Music className="w-3 h-3 text-amber-400" />
+              <span className="hidden xs:inline">Accordi</span>
+            </button>
+
+            {/* Toggle Falling Notes (ON / OFF) */}
+            <button
+              onClick={() => {
+                const next = !showWaterfall;
+                setShowWaterfall(next);
+                if (!next) {
+                  setSongGuidance(null);
+                }
+              }}
+              className={`px-2 py-0.5 font-bold rounded-md flex items-center gap-1 transition-all cursor-pointer ${
+                showWaterfall
+                  ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 shadow-sm'
+                  : 'bg-slate-800/90 hover:bg-slate-750 text-slate-300 border border-slate-700'
+              }`}
+              title={showWaterfall ? 'Note a cascata ATTIVE. Clicca per disattivare (solo pianoforte)' : 'Attiva note a cascata (Waterfall)'}
+            >
+              <Sparkles className={`w-3 h-3 ${showWaterfall ? 'text-cyan-400' : 'text-slate-400'}`} />
+              <span>Note {showWaterfall ? 'ON' : 'OFF'}</span>
+            </button>
+          </div>
+
+          {/* Center: Song info or Title */}
+          <div className="flex items-center gap-1.5 min-w-0 px-2 justify-center truncate">
+            {activeSong ? (
+              <div className="flex items-center gap-1 font-semibold text-slate-200 text-[10px] sm:text-[11px] truncate">
+                <span className="text-amber-400 truncate max-w-[120px] sm:max-w-[200px] font-bold">
+                  🎵 {activeSong.title}
+                </span>
+                <span className="text-slate-400 hidden md:inline truncate">&bull; {activeSong.author}</span>
+              </div>
+            ) : (
+              <span className="font-bold text-slate-400 text-[10px] sm:text-[11px] truncate tracking-wide hidden sm:inline">
+                🎹 VirtuKeys Piano Studio
+              </span>
+            )}
+          </div>
+
+          {/* Right: Pedale, Rec & Options 3-dots */}
+          <div className="flex items-center gap-1 shrink-0 flex-nowrap">
+            {/* Record button */}
+            <button
+              onClick={toggleRecording}
+              className={`px-1.5 sm:px-2 py-0.5 font-bold rounded-md flex items-center gap-1 transition-colors cursor-pointer ${
+                isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-800 hover:bg-slate-750 text-slate-300'
+              }`}
+              title={isRecording ? 'Termina registrazione' : 'Registra'}
+            >
+              <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-white' : 'bg-red-500'}`} />
+              <span className="hidden sm:inline">{isRecording ? 'Stop' : 'Rec'}</span>
+            </button>
+
+            {/* Video Recording Button with 2 Options (Vertical Reel 9:16 vs Horizontal 16:9 with Rotate Banner) */}
+            <div>
+              {isReelRecording ? (
+                <button
+                  onClick={stopReelVideoRecording}
+                  className="px-1.5 sm:px-2 py-0.5 font-extrabold rounded-md border flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap bg-rose-600 border-rose-400 text-white animate-pulse shadow-lg shadow-rose-600/40"
+                  title="Ferma registrazione video e visualizza anteprima"
+                >
+                  <span>⏹️</span>
+                  <span>{`Stop ${Math.floor(reelRecordSeconds / 60)}:${String(reelRecordSeconds % 60).padStart(2, '0')}`}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsVideoMenuOpen((prev) => !prev)}
+                  className="px-1.5 sm:px-2 py-0.5 font-extrabold rounded-md border flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap bg-gradient-to-r from-fuchsia-600/90 to-amber-500/90 hover:from-fuchsia-500 hover:to-amber-400 border-amber-300/50 text-white shadow-sm"
+                  title="Scegli formato video: Verticale 9:16 per Reels/TikTok o Orizzontale 16:9 con intro 'Rotate Phone'"
+                >
+                  <span>🎬</span>
+                  <span>Video</span>
+                  <span className="text-[9px] opacity-80">▾</span>
+                </button>
+              )}
+            </div>
+
+            {/* 2-Option Video Mode Modal (Fixed viewport positioning to avoid overflow clipping) */}
+            {isVideoMenuOpen && !isReelRecording && (
+              <div className="fixed inset-0 z-50 flex items-start justify-end p-2 sm:p-4 bg-slate-950/60 backdrop-blur-xs">
+                <div
+                  className="fixed inset-0"
+                  onClick={() => setIsVideoMenuOpen(false)}
+                />
+                <div className="relative mt-8 sm:mt-10 mr-1 sm:mr-2 w-72 sm:w-80 bg-slate-900 border-2 border-amber-500/70 rounded-2xl shadow-2xl p-3 z-10 animate-in fade-in zoom-in-95 duration-150 space-y-2 text-left">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+                    <div className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <span>🎬</span>
+                      <span>Scegli Formato Video</span>
+                    </div>
+                    <button
+                      onClick={() => setIsVideoMenuOpen(false)}
+                      className="w-6 h-6 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Option 1: Vertical 9:16 (Central Zoom) */}
+                  <button
+                    onClick={() => startVideoRecording('vertical_reel')}
+                    className="w-full p-2.5 rounded-xl bg-slate-800/90 hover:bg-gradient-to-r hover:from-fuchsia-900/70 hover:to-amber-900/70 border border-slate-700/80 hover:border-amber-400/80 transition-all text-left flex items-start gap-2.5 cursor-pointer group shadow-sm"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-fuchsia-600/25 border border-fuchsia-500/50 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                      📱
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-black text-white flex items-center justify-between">
+                        <span>Verticale 9:16</span>
+                        <span className="text-[9px] bg-fuchsia-500/25 text-fuchsia-300 px-1.5 py-0.2 rounded font-mono font-bold">TikTok / Reels</span>
+                      </div>
+                      <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
+                        Zoom automatico sulle note centrali per video verticali da smartphone.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option 2: Horizontal 16:9 (Full Piano + "Rotate Your Phone" Glowing Intro) */}
+                  <button
+                    onClick={() => startVideoRecording('horizontal_full')}
+                    className="w-full p-2.5 rounded-xl bg-slate-800/90 hover:bg-gradient-to-r hover:from-amber-900/70 hover:to-yellow-900/70 border border-slate-700/80 hover:border-yellow-400/80 transition-all text-left flex items-start gap-2.5 cursor-pointer group shadow-sm"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-amber-600/25 border border-amber-500/50 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                      🔄
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-black text-white flex items-center justify-between">
+                        <span>Orizzontale 16:9</span>
+                        <span className="text-[9px] bg-amber-500/25 text-amber-300 px-1.5 py-0.2 rounded font-mono font-bold">Full / YouTube</span>
+                      </div>
+                      <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
+                        Tastiera completa con effetto luminoso iniziale <strong className="text-amber-300">"ROTATE YOUR PHONE"</strong> in inglese.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Sustain pedal toggle */}
+            <button
+              onClick={() => {
+                const next = !sustain;
+                setSustain(next);
+                audioEngine.setSustain(next);
+              }}
+              className={`px-1.5 sm:px-2 py-0.5 font-semibold rounded-md border transition-colors cursor-pointer ${
+                sustain
+                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold'
+                  : 'bg-slate-800/80 border-slate-700/80 text-slate-400 hover:text-white'
+              }`}
+              title="Sustain (Pedal)"
+            >
+              Sustain
+            </button>
+
+            {/* Quick 1-Tap Material Switcher Button */}
+            {onThemeChange && (
+              <button
+                onClick={() => {
+                  const order: StudioTheme[] = ['midnight', 'mahogany', 'marble', 'gold', 'carbon', 'neon'];
+                  const nextIdx = (order.indexOf(studioTheme) + 1) % order.length;
+                  onThemeChange(order[nextIdx]);
+                }}
+                className="px-1.5 sm:px-2 py-0.5 font-bold rounded-md border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                title="Cambia materiale della tastiera (Ivory, Wood, Marble, Gold, Carbon, Neon)"
+              >
+                <span>
+                  {studioTheme === 'mahogany'
+                    ? '🪵'
+                    : studioTheme === 'marble'
+                    ? '🏛️'
+                    : studioTheme === 'gold'
+                    ? '👑'
+                    : studioTheme === 'carbon'
+                    ? '🏎️'
+                    : studioTheme === 'neon'
+                    ? '⚡'
+                    : '🎹'}
+                </span>
+                <span className="hidden md:inline text-[10px]">
+                  {studioTheme === 'mahogany'
+                    ? 'Wood'
+                    : studioTheme === 'marble'
+                    ? 'Marble'
+                    : studioTheme === 'gold'
+                    ? 'Gold'
+                    : studioTheme === 'carbon'
+                    ? 'Carbon'
+                    : studioTheme === 'neon'
+                    ? 'Neon'
+                    : 'Ivory'}
+                </span>
+              </button>
+            )}
+
+            {/* 3-DOTS OPTIONS MODAL BUTTON (Metronome, Volume, Keys, etc.) */}
+            <button
+              onClick={() => setIsOptionsModalOpen(true)}
+              className="p-1 px-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/40 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+              title="All options and tools (Metronome, Volume, Keys, Microphone...)"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+              {isPianoMetronomeActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div className="fixed top-12 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 border border-amber-300 animate-in fade-in slide-in-from-top-3 text-xs sm:text-sm pointer-events-none">
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* 👂 ORECCHIO ASSOLUTO (EAR TRAINING STANDALONE TOP BAR - STRICT SINGLE ROW) */}
+      {(earTrainingStandalone || isEarTrainingOpen) && (
+        <div
+          style={{
+            paddingTop: 'max(env(safe-area-inset-top, 0px), 2px)',
+            paddingLeft: 'max(env(safe-area-inset-left, 0px), 6px)',
+            paddingRight: 'max(env(safe-area-inset-right, 0px), 6px)',
+          }}
+          className="h-9 min-h-[36px] max-h-[38px] bg-gradient-to-r from-slate-900 via-fuchsia-950/75 to-slate-900 border-b border-fuchsia-500/50 px-2 flex items-center justify-between gap-1.5 shrink-0 z-20 text-[10px] sm:text-xs shadow-xl flex-nowrap overflow-x-auto scrollbar-none"
+        >
+          {/* Left: Back to Menu, Level Selector & Feedback */}
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-nowrap">
+            <button
+              onClick={onBackToHome}
+              className="px-2 py-0.5 text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md flex items-center gap-1 transition-colors cursor-pointer shrink-0 font-bold whitespace-nowrap"
+              title="Torna al Menu Principale"
+            >
+              <Home className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Menu</span>
+            </button>
+
+            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-md p-0.5 text-[9px] sm:text-[10px] font-bold shrink-0 flex-nowrap">
+              {([
+                { id: 'base', label: '🌱 Base' },
+                { id: 'expert', label: '🔥 Esperto' },
+                { id: 'maestro', label: '🏆 3 Note' },
+              ] as const).map((lvl) => (
+                <button
+                  key={lvl.id}
+                  onClick={() => {
+                    setEarLevel(lvl.id);
+                    earLevelRef.current = lvl.id;
+                    startNewEarRound(lvl.id);
+                  }}
+                  className={`px-1.5 sm:px-2 py-0.5 rounded transition-all cursor-pointer whitespace-nowrap ${
+                    earLevel === lvl.id
+                      ? 'bg-amber-500 text-slate-950 font-black shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {lvl.label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              className={`font-bold truncate px-2 py-0.5 rounded-md border text-[10px] sm:text-xs flex-1 min-w-[90px] ${
+                earFeedback.type === 'correct'
+                  ? 'bg-emerald-950/90 border-emerald-400/60 text-emerald-300'
+                  : earFeedback.type === 'higher' || earFeedback.type === 'lower'
+                  ? 'bg-amber-950/90 border-amber-400/60 text-amber-300'
+                  : 'bg-slate-900/90 border-slate-700 text-slate-200'
+              }`}
+            >
+              {earFeedback.text}
+              {earHintShown && earTargetNotes[earMatchedIdx] && (
+                <span className="ml-1.5 text-fuchsia-300 font-black">
+                  (Indizio: {earTargetNotes[earMatchedIdx].slice(0, -1)} • ottava {earTargetNotes[earMatchedIdx].slice(-1)})
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Single-Row Ear Training Controls Only */}
+          <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
+            <button
+              onClick={() => playEarMysterySequence(earTargetNotes)}
+              className="px-2.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-md text-[10px] sm:text-xs flex items-center gap-1 shadow cursor-pointer whitespace-nowrap shrink-0"
+              title="Ascolta la nota o sequenza misteriosa"
+            >
+              <Volume2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Ascolta</span>
+            </button>
+
+            <button
+              onClick={() => setEarHintShown(true)}
+              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-fuchsia-300 border border-fuchsia-500/40 rounded-md text-[10px] font-bold cursor-pointer whitespace-nowrap shrink-0"
+              title="Mostra un piccolo indizio sulla nota misteriosa"
+            >
+              💡 Indizio
+            </button>
+
+            <button
+              onClick={() => startNewEarRound()}
+              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-[10px] font-bold cursor-pointer whitespace-nowrap shrink-0"
+              title="Cambia nota misteriosa"
+            >
+              Salta
+            </button>
+
+            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-mono whitespace-nowrap shrink-0">
+              <span className="text-amber-400 font-black">⭐ {earScore}</span>
+              <span className="text-emerald-400 font-bold">🔥 {earStreak}</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -3063,92 +3938,96 @@ export const PianoView: React.FC<PianoViewProps> = ({
         );
       })()}
 
-      {/* SYNTHESIA FALLING NOTES WATERFALL */}
-      {showWaterfall && activeSong ? (
-        <div className={`w-full flex flex-col transition-all duration-300 ${masterclassViewMode === 'sheet' ? 'shrink-0 bg-white' : 'flex-1 min-h-0 bg-slate-950'} overflow-hidden`}>
-          <FallingNotesWaterfall
-            song={activeSong}
-            keys={GAMEPLAY_KEYS}
-            getTransposedNote={getTransposedNote}
-            initialPlayMode={masterclassPlayMode}
-            initialViewMode={masterclassViewMode}
-            onViewModeChange={setMasterclassViewMode}
-            sheetScrollMode={sheetScrollMode}
-            isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
-            onActiveGuidanceChange={setSongGuidance}
-            onMasterclassFinished={() => {
-              showToast('🎉 Phrase completed! Turn goes back to Teacher 👑');
-              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(
-                  JSON.stringify({
-                    type: 'piano:phrase_progress',
-                    roomId: socialSession?.roomId,
-                    currentIndex: activeSong.notes.length,
-                    totalNotes: activeSong.notes.length,
-                    completed: true,
-                  })
-                );
-              }
-            }}
-            onClose={() => {
-              setShowWaterfall(false);
-              setSongGuidance(null);
-            }}
-          />
-        </div>
-      ) : (
-        /* When waterfall is hidden, slim quick chords strip above keys */
-        <div className="shrink-0 w-full h-7 sm:h-8 flex items-center justify-center bg-slate-950/80 border-b border-slate-900/80 px-2 overflow-x-auto scrollbar-none gap-1.5 z-10">
-          <span className="text-[9px] text-slate-500 uppercase font-bold shrink-0">Accordi:</span>
-          <div className="flex items-center gap-1 flex-nowrap">
-            {CHORD_PRESETS.map((chord) => (
-              <button
-                key={chord.name}
-                onClick={() => audioEngine.playChord(chord.notes.map((n) => getTransposedNote(n)), '2n', instrument)}
-                className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 border border-slate-800/80 rounded text-slate-300 hover:text-amber-400 text-[10px] font-semibold shrink-0 cursor-pointer transition-colors"
-              >
-                {chord.name}
-              </button>
-            ))}
+      {/* SYNTHESIA FALLING NOTES WATERFALL (Hidden in dedicated Ear Training mode) */}
+      {!earTrainingStandalone && (
+        <>
+          {showWaterfall && activeSong ? (
+            <div className={`w-full flex flex-col shrink-0 transition-colors duration-300 ${masterclassViewMode === 'sheet' ? 'bg-white' : 'bg-slate-950'} overflow-hidden`}>
+              <FallingNotesWaterfall
+                song={activeSong}
+                keys={GAMEPLAY_KEYS}
+                getTransposedNote={getTransposedNote}
+                initialPlayMode={masterclassPlayMode}
+                initialViewMode={masterclassViewMode}
+                onViewModeChange={setMasterclassViewMode}
+                sheetScrollMode={sheetScrollMode}
+                isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
+                onActiveGuidanceChange={setSongGuidance}
+                onMasterclassFinished={() => {
+                  showToast('🎉 Phrase completed! Turn goes back to Teacher 👑');
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(
+                      JSON.stringify({
+                        type: 'piano:phrase_progress',
+                        roomId: socialSession?.roomId,
+                        currentIndex: activeSong.notes.length,
+                        totalNotes: activeSong.notes.length,
+                        completed: true,
+                      })
+                    );
+                  }
+                }}
+                onClose={() => {
+                  setShowWaterfall(false);
+                  setSongGuidance(null);
+                }}
+              />
+            </div>
+          ) : (
+            /* When waterfall is hidden, slim quick chords strip above keys */
+            <div className="shrink-0 w-full h-7 sm:h-8 flex items-center justify-center bg-slate-950/80 border-b border-slate-900/80 px-2 overflow-x-auto scrollbar-none gap-1.5 z-10">
+              <span className="text-[9px] text-slate-500 uppercase font-bold shrink-0">Accordi:</span>
+              <div className="flex items-center gap-1 flex-nowrap">
+                {CHORD_PRESETS.map((chord) => (
+                  <button
+                    key={chord.name}
+                    onClick={() => audioEngine.playChord(chord.notes.map((n) => getTransposedNote(n)), '2n', instrument)}
+                    className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 border border-slate-800/80 rounded text-slate-300 hover:text-amber-400 text-[10px] font-semibold shrink-0 cursor-pointer transition-colors"
+                  >
+                    {chord.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* FIXED 88-KEY MINI-MAP KEYBOARD (Mostra sempre la posizione su tutti gli 88 tasti) */}
+          <div className="w-full bg-slate-900/95 border-t border-b border-slate-800/80 px-1 sm:px-2 py-0.5 flex items-center justify-between gap-1 sm:gap-2 shrink-0 z-20">
+            {/* Quick Shift -1 Octave */}
+            <button
+              onClick={() => setStartWhiteKeyIdx((prev) => Math.max(0, prev - 7))}
+              disabled={clampedStartWhiteIdx === 0}
+              className="p-0.5 h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors cursor-pointer"
+              title="Sposta indietro di 1 Ottava"
+            >
+              <ChevronLeft className="w-3.5 h-3.5 text-amber-400" />
+            </button>
+
+            {/* Interactive 88-Key Mini Piano with Falling Notes Waterfall */}
+            <MiniMapKeyboard
+              allWhiteKeys={ALL_WHITE_KEYS}
+              allPianoKeys={ALL_PIANO_KEYS}
+              startWhiteKeyIdx={clampedStartWhiteIdx}
+              windowSize={windowSize}
+              maxStartWhiteIdx={maxStartWhiteIdx}
+              onSelectStartWhiteIdx={setStartWhiteKeyIdx}
+              currentlyPressedNotesRef={currentlyPressedNotesRef}
+              showWaterfall={Boolean(showWaterfall && activeSong)}
+              studentPressedNotesRef={studentPressedNotesRef}
+            />
+
+            {/* Quick Shift +1 Octave */}
+            <button
+              onClick={() => setStartWhiteKeyIdx((prev) => Math.min(maxStartWhiteIdx, prev + 7))}
+              disabled={clampedStartWhiteIdx >= maxStartWhiteIdx}
+              className="p-0.5 h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors cursor-pointer"
+              title="Sposta avanti di 1 Ottava"
+            >
+              <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
+            </button>
           </div>
-        </div>
+        </>
       )}
-
-      {/* FIXED 88-KEY MINI-MAP KEYBOARD (Mostra sempre la posizione su tutti gli 88 tasti) */}
-      <div className="w-full bg-slate-900/95 border-t border-b border-slate-800/80 px-1 sm:px-2 py-0.5 flex items-center justify-between gap-1 sm:gap-2 shrink-0 z-20">
-        {/* Quick Shift -1 Octave */}
-        <button
-          onClick={() => setStartWhiteKeyIdx((prev) => Math.max(0, prev - 7))}
-          disabled={clampedStartWhiteIdx === 0}
-          className="p-0.5 h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors cursor-pointer"
-          title="Sposta indietro di 1 Ottava"
-        >
-          <ChevronLeft className="w-3.5 h-3.5 text-amber-400" />
-        </button>
-
-        {/* Interactive 88-Key Mini Piano with Falling Notes Waterfall */}
-        <MiniMapKeyboard
-          allWhiteKeys={ALL_WHITE_KEYS}
-          allPianoKeys={ALL_PIANO_KEYS}
-          startWhiteKeyIdx={clampedStartWhiteIdx}
-          windowSize={windowSize}
-          maxStartWhiteIdx={maxStartWhiteIdx}
-          onSelectStartWhiteIdx={setStartWhiteKeyIdx}
-          currentlyPressedNotesRef={currentlyPressedNotesRef}
-          showWaterfall={Boolean(showWaterfall && activeSong)}
-          studentPressedNotesRef={studentPressedNotesRef}
-        />
-
-        {/* Quick Shift +1 Octave */}
-        <button
-          onClick={() => setStartWhiteKeyIdx((prev) => Math.min(maxStartWhiteIdx, prev + 7))}
-          disabled={clampedStartWhiteIdx >= maxStartWhiteIdx}
-          className="p-0.5 h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors cursor-pointer"
-          title="Sposta avanti di 1 Ottava"
-        >
-          <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
-        </button>
-      </div>
 
       {/* Gold Divider Line */}
       <div className="w-full h-1 bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.95)] z-10 shrink-0" />
@@ -3169,13 +4048,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         activeGuidanceTip={activeScaleExercise?.tips ? activeScaleExercise.tips[scaleActiveIdx % activeScaleExercise.tips.length] : (songGuidance?.tip || null)}
         guidanceHand={activeScaleExercise?.hand || songGuidance?.hand || 'right'}
         studentPressedNotesRef={studentPressedNotesRef}
-        className={
-          showWaterfall && activeSong
-            ? masterclassViewMode === 'sheet'
-              ? 'w-full flex-1 min-h-[160px] select-none touch-none relative'
-              : 'w-full h-[180px] sm:h-[220px] md:h-[260px] shrink-0 select-none touch-none relative'
-            : 'w-full flex-1 min-h-0 select-none touch-none relative'
-        }
+        className="w-full flex-1 min-h-0 select-none touch-none relative"
       />
 
       {/* OPTIONS MODAL */}
@@ -3201,13 +4074,16 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <div>
                   <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2 flex items-center gap-1.5">
                     <Palette className="w-3.5 h-3.5 text-amber-400" />
-                    Visual Theme (Keys & Studio)
+                    Materiale Tastiera 3D (Zero Latency)
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
-                      { id: 'midnight', name: '🌙 Midnight Slate', desc: 'Dark & Gold' },
-                      { id: 'mahogany', name: '🪵 Classic Wood', desc: 'Vintage Mahogany' },
-                      { id: 'neon', name: '⚡ Cyber Neon', desc: 'Neon Arcade' },
+                      { id: 'midnight', name: '🎹 Concert Ivory', desc: 'Avorio & Ebano Steinway' },
+                      { id: 'mahogany', name: '🪵 Vintage Wood', desc: 'Acero & Palissandro 3D' },
+                      { id: 'marble', name: '🏛️ Carrara Marble', desc: 'Marmo Bianco & Portoro' },
+                      { id: 'gold', name: '👑 Royal Gold & Pearl', desc: 'Madreperla & Oro 24k' },
+                      { id: 'carbon', name: '🏎️ Titanium & Carbon', desc: 'Titanio & Fibra Carbonio' },
+                      { id: 'neon', name: '⚡ Cyber Synth', desc: 'Vetro Fumé & Laser' },
                     ].map((th) => (
                       <button
                         key={th.id}
@@ -3797,6 +4673,27 @@ export const PianoView: React.FC<PianoViewProps> = ({
         </div>
       )}
 
+      {/* FLOATING RECORDING BAR (Facile da terminare) */}
+      {isRecording && (
+        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-50 w-auto max-w-md px-3 animate-pulse">
+          <div className="bg-red-600 text-white rounded-2xl p-2.5 sm:p-3 shadow-2xl flex items-center justify-between gap-3 sm:gap-4 border-2 border-white/40">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-white animate-ping shrink-0" />
+              <div className="text-xs font-black uppercase tracking-wider">
+                Registrazione al Pianoforte ({recordedNotesRef.current.length} note)
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={toggleRecording}
+              className="px-3 py-1.5 bg-white hover:bg-slate-100 text-red-600 font-black text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 shrink-0"
+            >
+              ⏹️ Termina e Salva
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* CHALLENGE INVITATION BANNER (Arrivo da link sfide) */}
       {challengeInvitation && (
         <div className="fixed top-12 left-1/2 -translate-x-1/2 z-50 w-auto max-w-sm px-3 animate-in fade-in slide-in-from-top-4 duration-300">
@@ -3848,6 +4745,13 @@ export const PianoView: React.FC<PianoViewProps> = ({
         onUsernameChange={setUsername}
         newRecordedSongData={newRecordedSongData}
         onClearRecordedData={() => setNewRecordedSongData(null)}
+        onOpenComposer={() => {
+          setIsLibraryOpen(false);
+          if (onNavigateToView) {
+            onNavigateToView('sheet');
+          }
+        }}
+        onStartRecord={handleStartPianoRecording}
       />
 
       {/* REMOTE VOICE WEBRTC AUDIO ELEMENT */}
@@ -3901,6 +4805,106 @@ export const PianoView: React.FC<PianoViewProps> = ({
               >
                 Attendi
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIRAL 9:16 VIDEO PREVIEW, DOWNLOAD & SHARE MODAL */}
+      {recordedVideoUrl && (
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl max-w-lg w-full p-4 sm:p-5 shadow-2xl flex flex-col items-center gap-3 max-h-[94vh] overflow-y-auto">
+            <div className="w-full flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🎬</span>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wide">
+                    Video VirtuKeys Pronto!
+                  </h3>
+                  <p className="text-[11px] text-amber-300 font-semibold">
+                    {activeVideoMode === 'vertical_reel'
+                      ? 'Formato Verticale 9:16 HD • Zoom Note Centrali'
+                      : 'Formato Orizzontale 16:9 • Con Intro "Rotate Phone"'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  URL.revokeObjectURL(recordedVideoUrl);
+                  setRecordedVideoUrl(null);
+                  setRecordedVideoBlob(null);
+                }}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold flex items-center justify-center cursor-pointer"
+                title="Chiudi"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="w-full flex justify-center bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-inner">
+              <video
+                src={recordedVideoUrl}
+                controls
+                playsInline
+                autoPlay
+                loop
+                className="max-h-[52vh] w-auto max-w-full object-contain"
+              />
+            </div>
+
+            <div className="w-full flex flex-col sm:flex-row gap-2 pt-1">
+              <button
+                onClick={() => {
+                  if (!recordedVideoUrl || !recordedVideoBlob) return;
+                  const finalExt = recordedVideoExt === 'mp4' ? 'mp4' : 'webm';
+                  const filename = recordedVideoFilename.endsWith(`.${finalExt}`)
+                    ? recordedVideoFilename
+                    : `VirtuKeys-${activeVideoMode === 'vertical_reel' ? 'Reel' : 'Full'}-${Date.now()}.${finalExt}`;
+
+                  const link = document.createElement('a');
+                  link.href = recordedVideoUrl;
+                  link.download = filename;
+                  link.setAttribute('download', filename);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  showToast(`⬇️ Download avviato: ${filename}`);
+                }}
+                className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg text-center flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>⬇️</span>
+                <span>Scarica Video (.{recordedVideoExt.toUpperCase()})</span>
+              </button>
+
+              {typeof navigator !== 'undefined' && 'share' in navigator && recordedVideoBlob && (
+                <button
+                  onClick={async () => {
+                    try {
+                      const finalExt = recordedVideoExt === 'mp4' ? 'mp4' : 'webm';
+                      const filename = recordedVideoFilename.endsWith(`.${finalExt}`)
+                        ? recordedVideoFilename
+                        : `VirtuKeys-${activeVideoMode === 'vertical_reel' ? 'Reel' : 'Full'}.${finalExt}`;
+
+                      const mimeType = recordedVideoBlob.type || (finalExt === 'mp4' ? 'video/mp4' : 'video/webm');
+                      const file = new File([recordedVideoBlob], filename, { type: mimeType });
+
+                      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                          title: '🎹 VirtuKeys Piano',
+                          text: 'Guarda questa performance su VirtuKeys! 🎹🔥',
+                          files: [file],
+                        });
+                      } else {
+                        showToast('Usa il tasto Scarica Video per salvarlo sul dispositivo.');
+                      }
+                    } catch (e) {}
+                  }}
+                  className="flex-1 py-2.5 px-4 bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:from-fuchsia-500 hover:to-rose-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>📲</span>
+                  <span>Condividi (TikTok / Reels)</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
