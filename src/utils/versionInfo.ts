@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.225';
-export const APP_BUILD_DATE = '12 Nov 2026 - 19:10';
-export const APP_COMMIT = 'a9c4e25';
+export const APP_VERSION = '1.0.226';
+export const APP_BUILD_DATE = '12 Nov 2026 - 19:25';
+export const APP_COMMIT = 'b8d5f12';
 export const APP_CHANGELOG = [
   'Interactive Onboarding Walkthrough & Progress Checklist with automatic step return pill',
   'In-App Rate VirtuKeys on Google Play & Share App with customizable message',
   '13 selectable Falling Notes visual FX + 10 luxury 3D key materials (Emerald, Ruby, Sapphire, Amethyst)',
-  'Production signed AAB & APK build v1.0.225 (versionCode 10225) for Google Play Console',
+  'Production signed AAB & APK build v1.0.226 (versionCode 10226) for Google Play Console',
 ];
 
 export interface ServerVersionInfo {

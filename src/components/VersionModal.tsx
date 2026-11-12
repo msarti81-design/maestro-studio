@@ -182,18 +182,8 @@ export const VersionModal: React.FC<VersionModalProps> = ({ isOpen, onClose, onO
           </div>
         </div>
 
-        {/* Usage Statistics & Privacy Links */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button
-            onClick={() => {
-              onClose();
-              window.location.hash = 'stats';
-            }}
-            className="w-full py-2 px-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
-          >
-            <span>📊 Statistiche Utilizzo</span>
-          </button>
-
+        {/* Privacy Link */}
+        <div>
           <a
             href={typeof window !== 'undefined' && window.location.pathname.toLowerCase().startsWith('/song') ? '/Song/privacy.html' : '/privacy.html'}
             target="_blank"
