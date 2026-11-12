@@ -750,7 +750,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       ctx.fillStyle = '#94a3b8';
       ctx.font = isVertical ? '700 18px Inter, system-ui, sans-serif' : '700 13px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('virtukeys.app • Suona gratis dal browser 🎹', W / 2, pianoBottomY + footerH / 2 + 1);
+      ctx.fillText('freeserv.it/Song • Play piano online 🎹', W / 2, pianoBottomY + footerH / 2 + 1);
 
       // --- ULTRA-PRO CLEAN FLASHING "ROTATE YOUR PHONE" (SENZA SFONDO / NESSUN BOX) ---
       // Scritta a tutto schermo, grandissima, luminosa al neon che lampeggia/pulsa direttamente sul video!

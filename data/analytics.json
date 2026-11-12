@@ -31,12 +31,12 @@
       "username": "Pianista_957",
       "platform": "Browser Mobile",
       "firstSeen": "2026-11-11T05:48:17.662Z",
-      "lastSeen": "2026-11-11T19:58:48.684Z",
-      "lastView": "piano",
-      "totalPings": 53,
-      "totalSessions": 35,
+      "lastSeen": "2026-11-11T22:15:20.944Z",
+      "lastView": "home",
+      "totalPings": 81,
+      "totalSessions": 58,
       "screen": "444x985",
-      "theme": "ruby",
+      "theme": "midnight",
       "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
     },
     "dev_1794390163971_0oovbag": {
@@ -44,13 +44,246 @@
       "username": "Pianista_787",
       "platform": "Android App (APK)",
       "firstSeen": "2026-11-11T09:42:47.047Z",
-      "lastSeen": "2026-11-11T12:25:18.210Z",
-      "lastView": "piano",
-      "totalPings": 8,
-      "totalSessions": 4,
+      "lastSeen": "2026-11-11T21:46:53.103Z",
+      "lastView": "home",
+      "totalPings": 9,
+      "totalSessions": 5,
       "screen": "985x444",
       "theme": "mahogany",
       "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+    },
+    "dev_1794433797008_9e0zykm": {
+      "deviceId": "dev_1794433797008_9e0zykm",
+      "username": "Pianista_766",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-11T21:50:00.420Z",
+      "lastSeen": "2026-11-12T17:30:26.933Z",
+      "lastView": "piano",
+      "totalPings": 36,
+      "totalSessions": 25,
+      "screen": "985x444",
+      "theme": "mahogany",
+      "lastSong": "La Primavera (Le Quattro Stagioni)"
+    },
+    "dev_1793976591855_p7c27wr": {
+      "deviceId": "dev_1793976591855_p7c27wr",
+      "username": "Pianista_954",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-10T23:54:12.435Z",
+      "lastSeen": "2026-11-10T23:54:12.435Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793974484258_mw4fk0v": {
+      "deviceId": "dev_1793974484258_mw4fk0v",
+      "username": "Pianista_555",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T00:04:57.391Z",
+      "lastSeen": "2026-11-11T00:04:57.391Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793946988162_1kiybrg": {
+      "deviceId": "dev_1793946988162_1kiybrg",
+      "username": "Pianista_253",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T01:13:10.757Z",
+      "lastSeen": "2026-11-11T01:13:10.757Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793964179912_83axyjh": {
+      "deviceId": "dev_1793964179912_83axyjh",
+      "username": "Pianista_920",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T02:29:57.359Z",
+      "lastSeen": "2026-11-11T02:29:57.359Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1794011182055_2hy063y": {
+      "deviceId": "dev_1794011182055_2hy063y",
+      "username": "Pianista_889",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T02:30:19.204Z",
+      "lastSeen": "2026-11-11T02:30:19.204Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793982136361_kh1d74u": {
+      "deviceId": "dev_1793982136361_kh1d74u",
+      "username": "Pianista_604",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T02:38:14.592Z",
+      "lastSeen": "2026-11-11T02:38:14.592Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793965531070_iztejjg": {
+      "deviceId": "dev_1793965531070_iztejjg",
+      "username": "Pianista_101",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T03:59:06.298Z",
+      "lastSeen": "2026-11-11T03:59:06.298Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793980027260_seipytd": {
+      "deviceId": "dev_1793980027260_seipytd",
+      "username": "Pianista_214",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T04:28:20.501Z",
+      "lastSeen": "2026-11-11T04:28:20.501Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793964385099_r1yysz4": {
+      "deviceId": "dev_1793964385099_r1yysz4",
+      "username": "Pianista_958",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T05:08:40.408Z",
+      "lastSeen": "2026-11-11T05:08:40.408Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793963523992_luag3pb": {
+      "deviceId": "dev_1793963523992_luag3pb",
+      "username": "Pianista_851",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T05:39:57.796Z",
+      "lastSeen": "2026-11-11T05:39:57.796Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1794067053963_acg613s": {
+      "deviceId": "dev_1794067053963_acg613s",
+      "username": "Pianista_578",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T06:02:19.718Z",
+      "lastSeen": "2026-11-11T06:02:19.718Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793964112612_x3lmo8w": {
+      "deviceId": "dev_1793964112612_x3lmo8w",
+      "username": "Pianista_324",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T06:03:56.324Z",
+      "lastSeen": "2026-11-11T06:03:56.324Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793967848099_rfh8nys": {
+      "deviceId": "dev_1793967848099_rfh8nys",
+      "username": "Pianista_885",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T08:22:16.080Z",
+      "lastSeen": "2026-11-11T08:22:16.080Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793965900255_atdcki8": {
+      "deviceId": "dev_1793965900255_atdcki8",
+      "username": "Pianista_542",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T08:22:58.406Z",
+      "lastSeen": "2026-11-11T08:22:58.406Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793971643393_qcuxu4f": {
+      "deviceId": "dev_1793971643393_qcuxu4f",
+      "username": "Pianista_433",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T08:52:48.888Z",
+      "lastSeen": "2026-11-11T08:52:48.888Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1794389537168_f3u8saz": {
+      "deviceId": "dev_1794389537168_f3u8saz",
+      "username": "Pianista_184",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T09:32:20.065Z",
+      "lastSeen": "2026-11-11T09:32:20.065Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793987424701_lci80wl": {
+      "deviceId": "dev_1793987424701_lci80wl",
+      "username": "Pianista_232",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T10:27:36.112Z",
+      "lastSeen": "2026-11-11T10:27:36.112Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1794051102194_sxb4598": {
+      "deviceId": "dev_1794051102194_sxb4598",
+      "username": "Pianista_263",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T15:51:54.345Z",
+      "lastSeen": "2026-11-11T15:51:54.345Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793964247050_wju88d5": {
+      "deviceId": "dev_1793964247050_wju88d5",
+      "username": "Pianista_733",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T19:40:38.978Z",
+      "lastSeen": "2026-11-11T19:40:38.978Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1794066890263_xzg9e9e": {
+      "deviceId": "dev_1794066890263_xzg9e9e",
+      "username": "Pianista_144",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-11T20:27:49.873Z",
+      "lastSeen": "2026-11-11T20:27:49.873Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
     }
   },
   "daily": {
@@ -65,13 +298,21 @@
       "devices": [
         "dev_1794347587251_n4lyepp",
         "dev_1792226201606_1h3tezw",
-        "dev_1794390163971_0oovbag"
+        "dev_1794390163971_0oovbag",
+        "dev_1794433797008_9e0zykm"
       ],
-      "pings": 90
+      "pings": 123
+    },
+    "2026-11-12": {
+      "devices": [
+        "dev_1794433797008_9e0zykm"
+      ],
+      "pings": 32
     }
   },
   "songs": {
-    "Inno alla Gioia (Ode to Joy - Completo)": 20,
-    "Per Elisa (Für Elise - Completo)": 2
+    "Inno alla Gioia (Ode to Joy - Completo)": 23,
+    "Per Elisa (Für Elise - Completo)": 2,
+    "La Primavera (Le Quattro Stagioni)": 4
   }
 }
