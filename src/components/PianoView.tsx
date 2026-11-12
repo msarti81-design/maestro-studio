@@ -282,6 +282,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   const [octaveShift, setOctaveShift] = useState<number>(0);
   const [username, setUsername] = useState<string>(() => getUsername());
+  const [isAppShareCopied, setIsAppShareCopied] = useState<boolean>(false);
 
   // Sequential Glissando Audio Test
   const [isTestingGlissando, setIsTestingGlissando] = useState<boolean>(false);
@@ -4615,6 +4616,100 @@ export const PianoView: React.FC<PianoViewProps> = ({
                       <span>Flip 180°</span>
                     </button>
                   )}
+                </div>
+              </div>
+
+              {/* 9. Rate Your App & Share VirtuKeys */}
+              <div className="pt-3 border-t border-slate-800 space-y-2.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 block">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>9. Rate Your App & Share VirtuKeys</span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Rate App Card */}
+                  <a
+                    href="https://play.google.com/store/apps/details?id=it.freeserv.virtukeys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3 rounded-xl bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-slate-900 border border-amber-500/40 hover:border-amber-400 transition-all flex flex-col justify-between group"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-amber-300 group-hover:text-amber-200">
+                          ⭐ Rate Your App
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          Google Play
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-300 mt-1 leading-relaxed">
+                        Enjoying VirtuKeys? Leave a 5-star review on the Google Play Store to support new features!
+                      </p>
+                    </div>
+                    <div className="mt-2 pt-1.5 border-t border-amber-500/20 text-[10px] font-bold text-amber-400 flex items-center justify-between">
+                      <span>Rate on Play Store</span>
+                      <span>★★★★★</span>
+                    </div>
+                  </a>
+
+                  {/* Share App Card */}
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500/15 via-slate-900 to-slate-900 border border-cyan-500/35 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-cyan-300 flex items-center gap-1">
+                          <Share2 className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Share App</span>
+                        </span>
+                        <span className="text-[9px] font-mono text-cyan-300/80">freeserv.it/Song</span>
+                      </div>
+                      <p className="text-[10px] text-slate-300 mt-1 leading-relaxed">
+                        Invite friends & fellow musicians to play together on VirtuKeys Studio:
+                      </p>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <button
+                        onClick={async () => {
+                          const shareMsg =
+                            '🎹 Play piano with me on VirtuKeys Studio! 88-key grand piano, falling notes with 13 visual FX, live jam band & multiplayer masterclass: https://freeserv.it/Song — App: https://play.google.com/store/apps/details?id=it.freeserv.virtukeys';
+                          if (navigator.share) {
+                            try {
+                              await navigator.share({
+                                title: 'VirtuKeys Studio',
+                                text: shareMsg,
+                                url: 'https://freeserv.it/Song',
+                              });
+                              return;
+                            } catch {
+                              // fallback
+                            }
+                          }
+                          try {
+                            await navigator.clipboard.writeText(shareMsg);
+                            setIsAppShareCopied(true);
+                            setTimeout(() => setIsAppShareCopied(false), 2500);
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                        className="flex-1 py-1.5 px-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                      >
+                        {isAppShareCopied ? <Check className="w-3 h-3" /> : <Share2 className="w-3 h-3" />}
+                        <span>{isAppShareCopied ? 'Copied!' : 'Share Now'}</span>
+                      </button>
+                      <a
+                        href={`https://wa.me/?text=${encodeURIComponent(
+                          '🎹 Play piano with me on VirtuKeys Studio! https://freeserv.it/Song — Google Play: https://play.google.com/store/apps/details?id=it.freeserv.virtukeys'
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all"
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                        <span>WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

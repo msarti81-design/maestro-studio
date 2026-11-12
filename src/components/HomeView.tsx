@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ViewMode } from '../types';
 import {
   Piano,
@@ -14,6 +14,9 @@ import {
   Users,
   Layers,
   ShieldCheck,
+  Star,
+  Share2,
+  Check,
 } from 'lucide-react';
 import { audioEngine } from '../utils/audioEngine';
 import { loadGamificationState } from '../utils/gamification';
@@ -38,8 +41,45 @@ export const HomeView: React.FC<HomeViewProps> = ({
 }) => {
   const [isPlayingWelcome, setIsPlayingWelcome] = useState<boolean>(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(false);
+  const [isShareCopied, setIsShareCopied] = useState<boolean>(false);
   const [gamification] = useState(() => loadGamificationState());
   const [, setActiveTabPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem('virtukeys_onboarding_seen_v1');
+      if (!seen) {
+        setIsTutorialOpen(true);
+        localStorage.setItem('virtukeys_onboarding_seen_v1', 'true');
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const handleQuickShareApp = async () => {
+    const shareText =
+      '🎹 Try VirtuKeys Studio! Play an 88-key concert grand piano, learn songs with 13 visual FX, jam with a live band & compose sheet music: https://freeserv.it/Song — Google Play: https://play.google.com/store/apps/details?id=it.freeserv.virtukeys';
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'VirtuKeys Studio - 88-Key Piano & Jam Band',
+          text: shareText,
+          url: 'https://freeserv.it/Song',
+        });
+        return;
+      } catch {
+        // fallback to clipboard
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setIsShareCopied(true);
+      setTimeout(() => setIsShareCopied(false), 2500);
+    } catch {
+      // ignore
+    }
+  };
 
   // Play a lush, inspiring acoustic grand piano arpeggio on title tap
   const playWelcomeChord = async () => {
@@ -428,12 +468,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <h3 className="text-sm sm:text-base font-black text-white group-hover:text-yellow-300 transition-colors leading-tight truncate">
                   Tutorial
                 </h3>
-                <span className="text-[10px] text-yellow-300 font-bold truncate block">All Options</span>
+                <span className="text-[10px] text-yellow-300 font-bold truncate block">Walkthrough & FAQ</span>
               </div>
             </div>
 
             <p className="text-slate-300 text-[11px] leading-snug line-clamp-2 h-[2.5rem]">
-              Detailed guide to Masterclass, MIDI setup, sheet music, and options.
+              Interactive walkthrough, onboarding checklist, voice guide, FAQ & feedback.
             </p>
           </div>
 
@@ -444,7 +484,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </div>
 
-      {/* FOOTER SOUNDBOARD BAR: Low profile stats and version trigger */}
+      {/* FOOTER SOUNDBOARD BAR: Low profile stats, Rate/Share, and version trigger */}
       <div className="bg-slate-900/80 border border-slate-800/80 rounded-xl px-3 py-1.5 sm:py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400 shadow-md backdrop-blur-md shrink-0 mt-2">
         <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-1.5 text-amber-400 font-bold">
@@ -458,7 +498,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {gamification.currentStreak > 0 && (
             <div className="flex items-center gap-1 text-orange-400 font-black bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-lg text-[10px]">
               <Flame className="w-3 h-3 fill-orange-400" />
@@ -469,6 +509,26 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <Award className="w-3 h-3" />
             <span>Lv.{gamification.level}</span>
           </div>
+
+          <a
+            href="https://play.google.com/store/apps/details?id=it.freeserv.virtukeys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-[10px] font-bold text-amber-300 hover:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 px-2 py-0.5 rounded-lg transition-all cursor-pointer shadow-sm"
+            title="Rate VirtuKeys on Google Play Store"
+          >
+            <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+            <span>Rate App</span>
+          </a>
+
+          <button
+            onClick={handleQuickShareApp}
+            className="flex items-center gap-1 text-[10px] font-bold text-cyan-300 hover:text-cyan-200 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/35 px-2 py-0.5 rounded-lg transition-all cursor-pointer shadow-sm"
+            title="Share VirtuKeys Studio with friends"
+          >
+            {isShareCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Share2 className="w-3 h-3 text-cyan-400" />}
+            <span>{isShareCopied ? 'Copied!' : 'Share App'}</span>
+          </button>
 
           {onOpenVersionModal && (
             <button
@@ -485,7 +545,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             href={typeof window !== 'undefined' && window.location.pathname.toLowerCase().startsWith('/song') ? '/Song/privacy.html' : '/privacy.html'}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-lg transition-all cursor-pointer shadow-sm ml-1"
+            className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-lg transition-all cursor-pointer shadow-sm"
             title="Norme sulla Privacy (Privacy Policy)"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />

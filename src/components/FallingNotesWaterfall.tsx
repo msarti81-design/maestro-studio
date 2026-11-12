@@ -2265,6 +2265,17 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 <span>Close</span>
               </button>
             </div>
+
+            {/* Post-Song In-App Rating Prompt (User-Friendly Timing) */}
+            <a
+              href="https://play.google.com/store/apps/details?id=it.freeserv.virtukeys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full mt-1 py-1 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all"
+            >
+              <span>⭐⭐⭐⭐⭐</span>
+              <span>Enjoyed playing? Rate VirtuKeys on Google Play!</span>
+            </a>
           </div>
         </div>
       )}
