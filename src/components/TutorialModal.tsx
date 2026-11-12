@@ -46,14 +46,22 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
   initialTab = 'onboarding',
 }) => {
   const [activeTab, setActiveTab] = useState<'onboarding' | 'midi' | 'masterclass' | 'modes' | 'options' | 'faq'>(initialTab);
-  const [walkthroughStep, setWalkthroughStep] = useState<number>(0);
+  const [walkthroughStep, setWalkthroughStep] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0;
+    try {
+      const savedStep = sessionStorage.getItem('virtukeys_walkthrough_step');
+      return savedStep ? Math.min(3, Math.max(0, parseInt(savedStep, 10) || 0)) : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [completedTasks, setCompletedTasks] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return ['play_piano'];
+    if (typeof window === 'undefined') return [];
     try {
       const saved = localStorage.getItem('virtukeys_onboarding_checklist_v1');
-      return saved ? JSON.parse(saved) : ['play_piano'];
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return ['play_piano'];
+      return [];
     }
   });
 
@@ -71,9 +79,35 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
     if (isOpen && initialTab) {
       setActiveTab(initialTab);
     }
+    if (isOpen && typeof window !== 'undefined') {
+      try {
+        const savedStep = sessionStorage.getItem('virtukeys_walkthrough_step');
+        if (savedStep !== null) {
+          setWalkthroughStep(Math.min(3, Math.max(0, parseInt(savedStep, 10) || 0)));
+        }
+      } catch {}
+    }
   }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
+
+  const updateWalkthroughStep = (nextStep: number) => {
+    setWalkthroughStep(nextStep);
+    try {
+      sessionStorage.setItem('virtukeys_walkthrough_step', String(nextStep));
+    } catch {}
+  };
+
+  const markChecklistTaskDone = (id: string) => {
+    setCompletedTasks((prev) => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      try {
+        localStorage.setItem('virtukeys_onboarding_checklist_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const toggleChecklistTask = (id: string) => {
     setCompletedTasks((prev) => {
@@ -188,7 +222,12 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
               <span className="hidden sm:inline">{isSpeaking ? 'Stop Audio' : 'Read Aloud'}</span>
             </button>
             <button
-              onClick={onClose}
+              onClick={() => {
+                try {
+                  sessionStorage.removeItem('virtukeys_tour_in_progress');
+                } catch {}
+                onClose();
+              }}
               className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
@@ -240,7 +279,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
                     {walkthroughSteps.map((_, idx) => (
                       <button
                         key={idx}
-                        onClick={() => setWalkthroughStep(idx)}
+                        onClick={() => updateWalkthroughStep(idx)}
                         className={`h-2 rounded-full transition-all cursor-pointer ${
                           walkthroughStep === idx ? 'w-6 bg-amber-400' : 'w-2 bg-slate-700 hover:bg-slate-500'
                         }`}
@@ -262,13 +301,13 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setWalkthroughStep((s) => (s > 0 ? s - 1 : walkthroughSteps.length - 1))}
+                      onClick={() => updateWalkthroughStep(walkthroughStep > 0 ? walkthroughStep - 1 : walkthroughSteps.length - 1)}
                       className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg text-[11px] cursor-pointer"
                     >
                       ← Prev
                     </button>
                     <button
-                      onClick={() => setWalkthroughStep((s) => (s + 1) % walkthroughSteps.length)}
+                      onClick={() => updateWalkthroughStep((walkthroughStep + 1) % walkthroughSteps.length)}
                       className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-lg text-[11px] cursor-pointer"
                     >
                       Next Step →
@@ -278,6 +317,15 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
                   {onOpenMode && (
                     <button
                       onClick={() => {
+                        const stepTaskMap = ['play_piano', 'waterfall_fx', 'jam_band', 'social_masterclass'];
+                        if (stepTaskMap[walkthroughStep]) {
+                          markChecklistTaskDone(stepTaskMap[walkthroughStep]);
+                        }
+                        const nextStep = (walkthroughStep + 1) % walkthroughSteps.length;
+                        updateWalkthroughStep(nextStep);
+                        try {
+                          sessionStorage.setItem('virtukeys_tour_in_progress', 'true');
+                        } catch {}
                         onClose();
                         onOpenMode(walkthroughSteps[walkthroughStep].mode);
                       }}
@@ -343,7 +391,10 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (!isDone) toggleChecklistTask(item.id);
+                              markChecklistTaskDone(item.id);
+                              try {
+                                sessionStorage.setItem('virtukeys_tour_in_progress', 'true');
+                              } catch {}
                               onClose();
                               onOpenMode(item.mode);
                             }}
@@ -707,7 +758,12 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
             )}
 
             <button
-              onClick={onClose}
+              onClick={() => {
+                try {
+                  sessionStorage.removeItem('virtukeys_tour_in_progress');
+                } catch {}
+                onClose();
+              }}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
             >
               Close

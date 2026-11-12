@@ -379,6 +379,33 @@ export default function App() {
         isOpen={isPlayAssetsModalOpen}
         onClose={() => setIsPlayAssetsModalOpen(false)}
       />
+
+      {/* FLOATING GUIDED TOUR RETURN PILL WHEN TESTING A MODE FROM ONBOARDING */}
+      {currentView !== 'home' &&
+        typeof window !== 'undefined' &&
+        sessionStorage.getItem('virtukeys_tour_in_progress') === 'true' && (
+          <div className="fixed bottom-3 right-3 z-50 flex items-center gap-1.5 bg-slate-900/95 border border-amber-500/60 shadow-2xl shadow-amber-500/20 rounded-full px-3 py-1.5 backdrop-blur-md">
+            <button
+              onClick={() => handleSelectView('home')}
+              className="flex items-center gap-1.5 text-[11px] font-black text-amber-300 hover:text-amber-200 cursor-pointer"
+              title="Torna alla Guida Interattiva al passo successivo"
+            >
+              <span>🚀 Torna al Tour (Scelta successiva)</span>
+            </button>
+            <button
+              onClick={() => {
+                try {
+                  sessionStorage.removeItem('virtukeys_tour_in_progress');
+                } catch {}
+                handleSelectView(currentView);
+              }}
+              className="ml-1 pl-1.5 border-l border-slate-700 text-slate-400 hover:text-white text-xs font-bold cursor-pointer"
+              title="Chiudi avviso Tour"
+            >
+              ✕
+            </button>
+          </div>
+        )}
     </div>
   );
 }

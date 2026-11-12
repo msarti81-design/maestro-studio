@@ -3041,11 +3041,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
             ) : (
               <button
                 onClick={onBackToHome}
-                className="px-1.5 py-0.5 text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-750 rounded-md flex items-center gap-1 transition-colors cursor-pointer"
-                title="Torna al Menu Principale"
+                className="px-2 py-0.5 text-slate-200 hover:text-white bg-slate-800/90 hover:bg-slate-700 border border-amber-500/30 rounded-md flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                title="Torna al Menu Principale / Guida"
               >
-                <Home className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline font-bold">Menu</span>
+                <Home className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="font-bold">Menu</span>
               </button>
             )}
 

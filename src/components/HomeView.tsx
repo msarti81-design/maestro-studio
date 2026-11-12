@@ -48,7 +48,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   useEffect(() => {
     try {
       const seen = localStorage.getItem('virtukeys_onboarding_seen_v1');
-      if (!seen) {
+      const tourInProgress = sessionStorage.getItem('virtukeys_tour_in_progress') === 'true';
+      if (!seen || tourInProgress) {
         setIsTutorialOpen(true);
         localStorage.setItem('virtukeys_onboarding_seen_v1', 'true');
       }
