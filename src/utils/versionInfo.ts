@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.220';
-export const APP_BUILD_DATE = '07 Nov 2026 - 12:40';
-export const APP_COMMIT = 'f1a2b3c';
+export const APP_VERSION = '1.0.225';
+export const APP_BUILD_DATE = '12 Nov 2026 - 19:10';
+export const APP_COMMIT = 'a9c4e25';
 export const APP_CHANGELOG = [
-  'Enhanced waterfall falling notes with Hand (Right vs Left) and Finger (1-5) color modes',
-  'Real-time piano keyboard demo key highlight synchronization',
-  'Advanced multi-track MIDI inspection and instrument selection with audio preview',
-  'Production AAB build prepared for Google Play Console submission v1.0.220',
+  'Interactive Onboarding Walkthrough & Progress Checklist with automatic step return pill',
+  'In-App Rate VirtuKeys on Google Play & Share App with customizable message',
+  '13 selectable Falling Notes visual FX + 10 luxury 3D key materials (Emerald, Ruby, Sapphire, Amethyst)',
+  'Production signed AAB & APK build v1.0.225 (versionCode 10225) for Google Play Console',
 ];
 
 export interface ServerVersionInfo {
