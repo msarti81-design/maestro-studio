@@ -102,7 +102,7 @@ async function startServer() {
     return res.status(404).send("print('v220.py not found')");
   });
 
-  // Short-lived in-memory buffer store + persistent disk archive (last 8 videos) for guaranteed video downloads & recovery
+  // Short-lived in-memory buffer store + persistent disk archive (last 10 videos) for guaranteed video downloads & recovery
   const tempVideoDownloads = new Map<string, { buffer: Buffer; mime: string; filename: string; expiresAt: number }>();
   const videosDir = path.join(__dirname, "data", "videos");
   if (!fs.existsSync(videosDir)) {
@@ -110,6 +110,63 @@ async function startServer() {
       fs.mkdirSync(videosDir, { recursive: true });
     } catch {}
   }
+
+  const cleanupOldVideosOnDisk = () => {
+    try {
+      const existing = fs
+        .readdirSync(videosDir)
+        .filter((f) => f.endsWith(".mp4") || f.endsWith(".webm"))
+        .map((f) => ({ name: f, mtime: fs.statSync(path.join(videosDir, f)).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime);
+      for (const old of existing.slice(10)) {
+        try {
+          fs.unlinkSync(path.join(videosDir, old.name));
+        } catch {}
+      }
+    } catch {}
+  };
+
+  // Chunked video upload (< 512KB per chunk) so Nginx default 1MB client_max_body_size NEVER blocks large 16:9 or 9:16 videos
+  app.post(
+    ["/api/video-upload-chunk/:filename", "/Song/api/video-upload-chunk/:filename", "/song/api/video-upload-chunk/:filename"],
+    express.raw({ type: "*/*", limit: "25mb" }),
+    (req, res) => {
+      try {
+        const rawFilename = String(req.params.filename || `VirtuKeys_Video_${Date.now()}.mp4`);
+        const safeFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const index = parseInt(String(req.query.index || "0"), 10) || 0;
+        const total = parseInt(String(req.query.total || "1"), 10) || 1;
+        const chunkBuf = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || "");
+
+        const diskPath = path.join(videosDir, safeFilename);
+        if (index === 0) {
+          fs.writeFileSync(diskPath, chunkBuf);
+        } else {
+          fs.appendFileSync(diskPath, chunkBuf);
+        }
+
+        const isLast = index >= total - 1;
+        if (isLast) {
+          cleanupOldVideosOnDisk();
+        }
+
+        const streamPath = `/api/videos/file/${encodeURIComponent(safeFilename)}`;
+        const dlPath = `${streamPath}?dl=1`;
+        return res.json({
+          ok: true,
+          index,
+          total,
+          done: isLast,
+          filename: safeFilename,
+          streamUrl: streamPath,
+          downloadUrl: dlPath,
+          diskDownloadUrl: streamPath,
+        });
+      } catch (err: any) {
+        return res.status(500).json({ error: err?.message || "Chunk upload failed" });
+      }
+    }
+  );
 
   app.post(
     ["/api/video-download-prepare/:filename", "/Song/api/video-download-prepare/:filename", "/song/api/video-download-prepare/:filename"],
@@ -135,29 +192,21 @@ async function startServer() {
           expiresAt: now + 30 * 60 * 1000,
         });
 
-        // Also save to data/videos/ on disk (keep latest 8 videos so the user can always recover them)
         if (bodyBuf.length > 1000) {
           try {
             const diskPath = path.join(videosDir, safeFilename);
             fs.writeFileSync(diskPath, bodyBuf);
-            const existing = fs
-              .readdirSync(videosDir)
-              .map((f) => ({ name: f, mtime: fs.statSync(path.join(videosDir, f)).mtimeMs }))
-              .sort((a, b) => b.mtime - a.mtime);
-            for (const old of existing.slice(8)) {
-              try {
-                fs.unlinkSync(path.join(videosDir, old.name));
-              } catch {}
-            }
+            cleanupOldVideosOnDisk();
           } catch {}
         }
 
-        const dlPath = `/api/video-download-file/${id}/${encodeURIComponent(safeFilename)}`;
+        const streamPath = `/api/videos/file/${encodeURIComponent(safeFilename)}`;
         return res.json({
           ok: true,
-          downloadPath: dlPath,
-          downloadUrl: dlPath,
-          diskDownloadUrl: `/api/videos/file/${encodeURIComponent(safeFilename)}`,
+          streamUrl: streamPath,
+          downloadPath: `${streamPath}?dl=1`,
+          downloadUrl: `${streamPath}?dl=1`,
+          diskDownloadUrl: streamPath,
           filename: safeFilename,
         });
       } catch (err: any) {
@@ -198,6 +247,7 @@ async function startServer() {
             sizeBytes: st.size,
             createdAt: st.mtimeMs,
             url: `/api/videos/file/${encodeURIComponent(f)}`,
+            downloadUrl: `/api/videos/file/${encodeURIComponent(f)}?dl=1`,
           };
         })
         .sort((a, b) => b.createdAt - a.createdAt);
@@ -207,15 +257,20 @@ async function startServer() {
     }
   });
 
-  app.get(["/api/videos/file/:filename", "/Song/api/videos/file/:filename"], (req, res) => {
+  app.get(["/api/videos/file/:filename", "/Song/api/videos/file/:filename", "/song/api/videos/file/:filename"], (req, res) => {
     const safeName = String(req.params.filename || "").replace(/[^a-zA-Z0-9._-]/g, "_");
     const target = path.join(videosDir, safeName);
     if (!fs.existsSync(target)) {
       return res.status(404).send("Video not found");
     }
     const isMp4 = safeName.toLowerCase().endsWith(".mp4");
+    const forceAttachment = req.query.dl === "1" || req.query.download === "1";
     res.setHeader("Content-Type", isMp4 ? "video/mp4" : "video/webm");
-    res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader(
+      "Content-Disposition",
+      `${forceAttachment ? "attachment" : "inline"}; filename="${safeName}"`
+    );
     return res.sendFile(target);
   });
 
@@ -319,16 +374,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.230",
-      buildDate: "2026-11-13 21:05",
-      commit: "b8d4e19",
+      version: "1.0.231",
+      buildDate: "2026-11-13 22:35",
+      commit: "c9e7f31",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "Fixed Video Download via both Scarica Video button AND native 3-dots menu (⋮ -> Scarica) using 512KB chunked server upload + HTTPS stream/attachment URLs",
         "Added 3 Cartoon Kids Keyboard styles (Rainbow, Animals, Candy) + 1-tap Kids switcher",
-        "Fixed Horizontal 16:9 & Vertical 9:16 Video Download button + automatic local & server video archive",
         "Fixed multi-track & Karaoke MIDI import (Baby Shark & complex MIDIs): full Running Status preservation & polyphonic melody + chord playback",
-        "Signed release AAB generation for Google Play Console v1.0.230 (versionCode 10230)",
+        "Signed release AAB & APK generation for Google Play Console v1.0.231 (versionCode 10231)",
       ],
     });
   });

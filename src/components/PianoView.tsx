@@ -518,9 +518,70 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const [recordedVideoBlob, setRecordedVideoBlob] = useState<Blob | null>(null);
   const [recordedVideoExt, setRecordedVideoExt] = useState<string>('mp4');
   const [recordedVideoFilename, setRecordedVideoFilename] = useState<string>('VirtuKeys-Video.mp4');
+  const [recordedServerStreamUrl, setRecordedServerStreamUrl] = useState<string | null>(null);
   const [recordedServerDownloadUrl, setRecordedServerDownloadUrl] = useState<string | null>(null);
+  const [isUploadingVideoChunks, setIsUploadingVideoChunks] = useState<boolean>(false);
+  const [videoUploadPercent, setVideoUploadPercent] = useState<number>(0);
   const [savedVideosArchive, setSavedVideosArchive] = useState<SavedVideoEntry[]>([]);
   const reelRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoUploadPromiseRef = useRef<Promise<{ streamUrl: string; downloadUrl: string } | null> | null>(null);
+
+  const resolveAbsoluteAppUrl = useCallback((apiPath: string): string => {
+    const resolved = getAppApiUrl(apiPath);
+    if (resolved.startsWith('http://') || resolved.startsWith('https://')) {
+      return resolved;
+    }
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return `${window.location.origin}${resolved.startsWith('/') ? '' : '/'}${resolved}`;
+    }
+    return resolved;
+  }, []);
+
+  const uploadVideoInChunks = useCallback(
+    async (blob: Blob, filename: string): Promise<{ streamUrl: string; downloadUrl: string } | null> => {
+      try {
+        setIsUploadingVideoChunks(true);
+        setVideoUploadPercent(5);
+        // 384 KB chunks so every POST request is well below Nginx's 1MB default client_max_body_size
+        const CHUNK_SIZE = 384 * 1024;
+        const totalChunks = Math.max(1, Math.ceil(blob.size / CHUNK_SIZE));
+        let lastData: any = null;
+
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(blob.size, start + CHUNK_SIZE);
+          const chunk = blob.slice(start, end);
+          const chunkEndpoint = `/api/video-upload-chunk/${encodeURIComponent(filename)}?index=${i}&total=${totalChunks}`;
+          const resp = await fetch(getAppApiUrl(chunkEndpoint), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: chunk,
+          });
+          if (!resp.ok) {
+            throw new Error(`Chunk ${i} HTTP ${resp.status}`);
+          }
+          lastData = await resp.json();
+          setVideoUploadPercent(Math.min(100, Math.round(((i + 1) / totalChunks) * 100)));
+        }
+
+        const rawStream = lastData?.streamUrl || `/api/videos/file/${encodeURIComponent(filename)}`;
+        const rawDl = lastData?.downloadUrl || `${rawStream}?dl=1`;
+        const fullStreamUrl = resolveAbsoluteAppUrl(rawStream);
+        const fullDownloadUrl = resolveAbsoluteAppUrl(rawDl);
+
+        setRecordedServerStreamUrl(fullStreamUrl);
+        setRecordedServerDownloadUrl(fullDownloadUrl);
+        setIsUploadingVideoChunks(false);
+        setVideoUploadPercent(100);
+        return { streamUrl: fullStreamUrl, downloadUrl: fullDownloadUrl };
+      } catch (err) {
+        console.warn('Chunked video upload failed:', err);
+        setIsUploadingVideoChunks(false);
+        return null;
+      }
+    },
+    [resolveAbsoluteAppUrl]
+  );
 
   const openVideoArchiveDB = useCallback((): Promise<IDBDatabase> => {
     return new Promise((resolve, reject) => {
@@ -563,7 +624,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         if (data && Array.isArray(data.videos)) {
           for (const sv of data.videos) {
             const existing = merged.get(sv.filename);
-            const serverFullUrl = getAppApiUrl(sv.url || `/api/videos/file/${encodeURIComponent(sv.filename)}`);
+            const serverFullUrl = resolveAbsoluteAppUrl(sv.url || `/api/videos/file/${encodeURIComponent(sv.filename)}`);
             if (existing) {
               existing.serverUrl = serverFullUrl;
             } else {
@@ -584,7 +645,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
     const sorted = Array.from(merged.values()).sort((a, b) => b.createdAt - a.createdAt).slice(0, 8);
     setSavedVideosArchive(sorted);
-  }, [openVideoArchiveDB]);
+  }, [openVideoArchiveDB, resolveAbsoluteAppUrl]);
 
   const saveVideoToLocalArchive = useCallback(
     async (entry: SavedVideoEntry) => {
@@ -980,6 +1041,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         setRecordedVideoUrl(url);
         setRecordedVideoExt(finalExt);
         setRecordedVideoFilename(filename);
+        setRecordedServerStreamUrl(null);
         setRecordedServerDownloadUrl(null);
 
         // Automatically persist video in local IndexedDB archive so it is NEVER lost if modal closes or download fails
@@ -994,18 +1056,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
         };
         saveVideoToLocalArchive(archiveEntry);
 
-        // Pre-upload to server in background immediately so the HTTP attachment link is ready BEFORE user clicks Download
-        fetch(getAppApiUrl(`/api/video-download-prepare/${encodeURIComponent(filename)}`), {
-          method: 'POST',
-          headers: { 'Content-Type': cleanMime },
-          body: finalBlob,
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((data) => {
-            const rawPath = data?.downloadUrl || data?.downloadPath || data?.diskDownloadUrl;
-            if (rawPath) {
-              const fullDlUrl = getAppApiUrl(rawPath);
-              setRecordedServerDownloadUrl(fullDlUrl);
+        // Upload in 384KB chunks immediately so Nginx never rejects with 413 and both "Scarica Video" & "⋮ -> Scarica" use a real HTTPS URL
+        const upPromise = uploadVideoInChunks(finalBlob, filename);
+        videoUploadPromiseRef.current = upPromise;
+        upPromise
+          .then((res) => {
+            if (res) {
               refreshSavedVideosArchive();
             }
           })
@@ -3385,14 +3441,25 @@ export const PianoView: React.FC<PianoViewProps> = ({
                                 setActiveVideoMode(item.mode);
                                 setRecordedVideoExt(item.ext);
                                 setRecordedVideoFilename(item.filename);
-                                setRecordedServerDownloadUrl(item.serverUrl || null);
+                                if (item.serverUrl) {
+                                  const cleanStream = item.serverUrl.split('?')[0];
+                                  setRecordedServerStreamUrl(cleanStream);
+                                  setRecordedServerDownloadUrl(`${cleanStream}?dl=1`);
+                                } else {
+                                  setRecordedServerStreamUrl(null);
+                                  setRecordedServerDownloadUrl(null);
+                                }
                                 if (item.blob) {
                                   const objUrl = URL.createObjectURL(item.blob);
                                   setRecordedVideoBlob(item.blob);
                                   setRecordedVideoUrl(objUrl);
+                                  if (!item.serverUrl) {
+                                    const upPromise = uploadVideoInChunks(item.blob, item.filename);
+                                    videoUploadPromiseRef.current = upPromise;
+                                  }
                                 } else if (item.serverUrl) {
                                   setRecordedVideoBlob(null);
-                                  setRecordedVideoUrl(item.serverUrl);
+                                  setRecordedVideoUrl(item.serverUrl.split('?')[0]);
                                 }
                               }}
                               className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-black shrink-0 cursor-pointer"
@@ -5210,7 +5277,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
             <div className="w-full flex justify-center bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-inner">
               <video
-                src={recordedVideoUrl}
+                key={recordedServerStreamUrl || recordedVideoUrl || 'preview'}
+                src={recordedServerStreamUrl || recordedVideoUrl}
                 controls
                 playsInline
                 autoPlay
@@ -5219,80 +5287,74 @@ export const PianoView: React.FC<PianoViewProps> = ({
               />
             </div>
 
+            {isUploadingVideoChunks && (
+              <div className="w-full text-center text-[11px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl py-1 px-3">
+                ⏳ Ottimizzazione link download diretto per Android ({videoUploadPercent}%)...
+              </div>
+            )}
+
             <div className="w-full flex flex-col sm:flex-row gap-2 pt-1">
-              <button
-                onClick={() => {
-                  if (!recordedVideoUrl && !recordedServerDownloadUrl && !recordedVideoBlob) return;
+              <a
+                href={recordedServerDownloadUrl || recordedVideoUrl || '#'}
+                download={recordedVideoFilename}
+                onClick={async (e) => {
                   const finalExt = recordedVideoExt === 'mp4' ? 'mp4' : 'webm';
-                  const cleanMime = finalExt === 'mp4' ? 'video/mp4' : 'video/webm';
                   const filename =
                     recordedVideoFilename && recordedVideoFilename.endsWith(`.${finalExt}`)
                       ? recordedVideoFilename
                       : `VirtuKeys_${activeVideoMode === 'vertical_reel' ? 'Reel' : 'Video'}_${Date.now()}.${finalExt}`;
 
-                  // 1. NATIVE ANDROID APK BRIDGE (window.AndroidFileSaver):
-                  // Saves directly to Android Downloads folder with the exact .mp4/.webm filename & shows native Android Toast!
-                  const androidSaver = typeof window !== 'undefined' ? (window as any).AndroidFileSaver : null;
-                  if (androidSaver && typeof androidSaver.saveFileToDownloads === 'function' && recordedVideoBlob) {
-                    showToast(`⬇️ Salvataggio in Download: ${filename}...`);
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      try {
-                        const resultStr = String(reader.result || '');
-                        const commaIdx = resultStr.indexOf(',');
-                        const b64 = commaIdx !== -1 ? resultStr.substring(commaIdx + 1) : resultStr;
-                        androidSaver.saveFileToDownloads(filename, b64, cleanMime);
-                        showToast(`✅ Salvato in Download: ${filename}`);
-                      } catch (err) {
-                        console.error('AndroidFileSaver error:', err);
-                        showToast('Usa Condividi -> Salva Video per salvarlo in Galleria.');
-                      }
-                    };
-                    reader.readAsDataURL(recordedVideoBlob);
+                  // If the real HTTPS attachment URL (?dl=1) is already ready, force direct navigation to the attachment URL
+                  // (Content-Disposition: attachment keeps the current page open and triggers Android DownloadManager / Browser downloader!)
+                  if (recordedServerDownloadUrl) {
+                    e.preventDefault();
+                    showToast(`⬇️ Download avviato in Download: ${filename}`);
+                    window.location.assign(recordedServerDownloadUrl);
                     return;
                   }
 
-                  // 2. WEB / DESKTOP / MOBILE BROWSER: Trigger download SYNCHRONOUSLY inside click gesture
-                  if (recordedServerDownloadUrl) {
+                  // If chunked upload is still finishing, wait for it (< 0.5s) and then trigger direct HTTPS attachment download
+                  e.preventDefault();
+                  if (videoUploadPromiseRef.current) {
+                    showToast(`⏳ Preparazione file ${filename}...`);
+                    const uploaded = await videoUploadPromiseRef.current;
+                    if (uploaded?.downloadUrl) {
+                      showToast(`⬇️ Download avviato in Download: ${filename}`);
+                      window.location.assign(uploaded.downloadUrl);
+                      return;
+                    }
+                  }
+
+                  if (recordedVideoBlob) {
+                    showToast(`⏳ Preparazione file ${filename}...`);
+                    const uploaded = await uploadVideoInChunks(recordedVideoBlob, filename);
+                    if (uploaded?.downloadUrl) {
+                      showToast(`⬇️ Download avviato in Download: ${filename}`);
+                      window.location.assign(uploaded.downloadUrl);
+                      return;
+                    }
+                  }
+
+                  // Final offline fallback if server is unreachable
+                  if (recordedVideoUrl) {
                     const link = document.createElement('a');
-                    link.href = recordedServerDownloadUrl;
+                    link.href = recordedVideoUrl;
                     link.download = filename;
-                    link.setAttribute('download', filename);
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                    showToast(`✅ Download avviato: ${filename}`);
-                    return;
+                    showToast(`✅ Scaricato: ${filename}`);
                   }
-
-                  let cleanUrl = recordedVideoUrl || '';
-                  if (recordedVideoBlob) {
-                    try {
-                      const namedFile = new File([recordedVideoBlob], filename, {
-                        type: cleanMime,
-                        lastModified: Date.now(),
-                      });
-                      cleanUrl = URL.createObjectURL(namedFile);
-                    } catch {}
-                  }
-
-                  const link = document.createElement('a');
-                  link.href = cleanUrl;
-                  link.download = filename;
-                  link.setAttribute('download', filename);
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  if (recordedVideoBlob && cleanUrl !== recordedVideoUrl) {
-                    setTimeout(() => URL.revokeObjectURL(cleanUrl), 20000);
-                  }
-                  showToast(`✅ Scaricato: ${filename}`);
                 }}
-                className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg text-center flex items-center justify-center gap-1.5 cursor-pointer"
+                className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg text-center flex items-center justify-center gap-1.5 cursor-pointer no-underline"
               >
                 <span>⬇️</span>
-                <span>Scarica Video (.{recordedVideoExt.toUpperCase()})</span>
-              </button>
+                <span>
+                  {isUploadingVideoChunks
+                    ? `Preparazione (${videoUploadPercent}%)...`
+                    : `Scarica Video (.${recordedVideoExt.toUpperCase()})`}
+                </span>
+              </a>
 
               {typeof navigator !== 'undefined' && 'share' in navigator && recordedVideoBlob && (
                 <button

@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.230';
-export const APP_BUILD_DATE = '13 Nov 2026 - 21:05';
-export const APP_COMMIT = 'b8d4e19';
+export const APP_VERSION = '1.0.231';
+export const APP_BUILD_DATE = '13 Nov 2026 - 22:35';
+export const APP_COMMIT = 'c9e7f31';
 export const APP_CHANGELOG = [
+  'Fixed Video Download in App & Browser via both "⬇️ Scarica Video" button AND native 3-dots menu ("⋮ -> Scarica") with 512KB chunked server upload',
   'Added 3 Cartoon Kids Keyboard styles: 🌈 Cartoon Rainbow (with kawaii faces), 🐶 Cuccioli Cartoon (animals & paw prints), and 🍭 Candy & Dolci (ice cream & sprinkles) + 1-tap Kids button',
-  'Fixed Horizontal 16:9 & Vertical 9:16 Video Download button (native Android APK Download folder bridge + automatic video archive in Video menu)',
   'Fixed multi-track & Karaoke MIDI import (Baby Shark & complex MIDIs): full Running Status preservation & polyphonic melody + chord playback',
-  'Production signed AAB & APK build v1.0.230 (versionCode 10230) for Google Play Console',
+  'Production signed AAB & APK build v1.0.231 (versionCode 10231) for Google Play Console',
 ];
 
 export interface ServerVersionInfo {

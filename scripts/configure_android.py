@@ -335,6 +335,30 @@ public class MainActivity extends BridgeActivity {
                             return;
                         }
 
+                        if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
+                            try {
+                                android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(url));
+                                if (mimetype != null && !mimetype.isEmpty()) {
+                                    request.setMimeType(mimetype);
+                                }
+                                if (userAgent != null) {
+                                    request.addRequestHeader("User-Agent", userAgent);
+                                }
+                                request.setDescription("Download VirtuKeys Studio");
+                                request.setTitle(fileName);
+                                request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                                request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName);
+                                android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                                if (dm != null) {
+                                    dm.enqueue(request);
+                                    Toast.makeText(getApplicationContext(), "⬇️ Download in corso in Download: " + fileName, Toast.LENGTH_LONG).show();
+                                    return;
+                                }
+                            } catch (Exception dmErr) {
+                                dmErr.printStackTrace();
+                            }
+                        }
+
                         // Fallback for http/https standard links
                         Intent intent = new Intent(Intent.ACTION_VIEW);
                         intent.setData(Uri.parse(url));
