@@ -102,12 +102,18 @@ async function startServer() {
     return res.status(404).send("print('v220.py not found')");
   });
 
-  // Short-lived in-memory buffer store for guaranteed native mobile/desktop video downloads with proper filename & extension
+  // Short-lived in-memory buffer store + persistent disk archive (last 8 videos) for guaranteed video downloads & recovery
   const tempVideoDownloads = new Map<string, { buffer: Buffer; mime: string; filename: string; expiresAt: number }>();
+  const videosDir = path.join(__dirname, "data", "videos");
+  if (!fs.existsSync(videosDir)) {
+    try {
+      fs.mkdirSync(videosDir, { recursive: true });
+    } catch {}
+  }
 
   app.post(
-    "/api/video-download-prepare/:filename",
-    express.raw({ type: "*/*", limit: "100mb" }),
+    ["/api/video-download-prepare/:filename", "/Song/api/video-download-prepare/:filename", "/song/api/video-download-prepare/:filename"],
+    express.raw({ type: "*/*", limit: "150mb" }),
     (req, res) => {
       try {
         const rawFilename = String(req.params.filename || `VirtuKeys_Video_${Date.now()}.mp4`);
@@ -126,12 +132,32 @@ async function startServer() {
           buffer: bodyBuf,
           mime: cleanMime,
           filename: safeFilename,
-          expiresAt: now + 5 * 60 * 1000,
+          expiresAt: now + 30 * 60 * 1000,
         });
 
+        // Also save to data/videos/ on disk (keep latest 8 videos so the user can always recover them)
+        if (bodyBuf.length > 1000) {
+          try {
+            const diskPath = path.join(videosDir, safeFilename);
+            fs.writeFileSync(diskPath, bodyBuf);
+            const existing = fs
+              .readdirSync(videosDir)
+              .map((f) => ({ name: f, mtime: fs.statSync(path.join(videosDir, f)).mtimeMs }))
+              .sort((a, b) => b.mtime - a.mtime);
+            for (const old of existing.slice(8)) {
+              try {
+                fs.unlinkSync(path.join(videosDir, old.name));
+              } catch {}
+            }
+          } catch {}
+        }
+
+        const dlPath = `/api/video-download-file/${id}/${encodeURIComponent(safeFilename)}`;
         return res.json({
           ok: true,
-          downloadPath: `/api/video-download-file/${id}/${encodeURIComponent(safeFilename)}`,
+          downloadPath: dlPath,
+          downloadUrl: dlPath,
+          diskDownloadUrl: `/api/videos/file/${encodeURIComponent(safeFilename)}`,
           filename: safeFilename,
         });
       } catch (err: any) {
@@ -140,9 +166,16 @@ async function startServer() {
     }
   );
 
-  app.get("/api/video-download-file/:id/:filename", (req, res) => {
+  app.get(["/api/video-download-file/:id/:filename", "/Song/api/video-download-file/:id/:filename"], (req, res) => {
     const item = tempVideoDownloads.get(req.params.id);
     if (!item) {
+      const diskFallback = path.join(videosDir, String(req.params.filename || "").replace(/[^a-zA-Z0-9._-]/g, "_"));
+      if (fs.existsSync(diskFallback)) {
+        const isMp4 = diskFallback.toLowerCase().endsWith(".mp4");
+        res.setHeader("Content-Type", isMp4 ? "video/mp4" : "video/webm");
+        res.setHeader("Content-Disposition", `attachment; filename="${path.basename(diskFallback)}"`);
+        return res.sendFile(diskFallback);
+      }
       return res.status(404).send("Video download link expired or not found.");
     }
     res.setHeader("Content-Type", item.mime);
@@ -150,6 +183,40 @@ async function startServer() {
     res.setHeader("Content-Disposition", `attachment; filename="${item.filename}"`);
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).send(item.buffer);
+  });
+
+  app.get(["/api/videos", "/Song/api/videos"], (_req, res) => {
+    try {
+      if (!fs.existsSync(videosDir)) return res.json({ videos: [] });
+      const list = fs
+        .readdirSync(videosDir)
+        .filter((f) => f.endsWith(".mp4") || f.endsWith(".webm"))
+        .map((f) => {
+          const st = fs.statSync(path.join(videosDir, f));
+          return {
+            filename: f,
+            sizeBytes: st.size,
+            createdAt: st.mtimeMs,
+            url: `/api/videos/file/${encodeURIComponent(f)}`,
+          };
+        })
+        .sort((a, b) => b.createdAt - a.createdAt);
+      return res.json({ videos: list });
+    } catch {
+      return res.json({ videos: [] });
+    }
+  });
+
+  app.get(["/api/videos/file/:filename", "/Song/api/videos/file/:filename"], (req, res) => {
+    const safeName = String(req.params.filename || "").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const target = path.join(videosDir, safeName);
+    if (!fs.existsSync(target)) {
+      return res.status(404).send("Video not found");
+    }
+    const isMp4 = safeName.toLowerCase().endsWith(".mp4");
+    res.setHeader("Content-Type", isMp4 ? "video/mp4" : "video/webm");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+    return res.sendFile(target);
   });
 
   const httpServer = http.createServer(app);
@@ -252,16 +319,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.228",
-      buildDate: "2026-11-13 16:30",
-      commit: "f4b8d19",
+      version: "1.0.229",
+      buildDate: "2026-11-13 19:55",
+      commit: "a9e3c42",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "Fixed Horizontal 16:9 & Vertical 9:16 Video Download button + automatic local & server video archive",
         "Fixed multi-track & Karaoke MIDI import (Baby Shark & complex MIDIs): full Running Status preservation & polyphonic melody + chord playback",
         "New Bouncing Rhythm Balls FX mode: colorful 3D spheres bounce across piano keys in rhythm",
-        "Interactive Onboarding Walkthrough & Progress Checklist with automatic step return pill",
-        "Signed release AAB generation for Google Play Console v1.0.228 (versionCode 10228)",
+        "Signed release AAB generation for Google Play Console v1.0.229 (versionCode 10229)",
       ],
     });
   });

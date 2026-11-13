@@ -500,6 +500,16 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   // --- VIDEO RECORDING (VERTICAL 9:16 REEL & HORIZONTAL 16:9 WITH ROTATE BANNER) ---
   type VideoRecordMode = 'vertical_reel' | 'horizontal_full';
+  interface SavedVideoEntry {
+    id: string;
+    filename: string;
+    mode: VideoRecordMode;
+    ext: string;
+    createdAt: number;
+    sizeBytes: number;
+    blob?: Blob;
+    serverUrl?: string;
+  }
   const [isVideoMenuOpen, setIsVideoMenuOpen] = useState<boolean>(false);
   const [activeVideoMode, setActiveVideoMode] = useState<VideoRecordMode>('vertical_reel');
   const [isReelRecording, setIsReelRecording] = useState<boolean>(false);
@@ -508,7 +518,101 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const [recordedVideoBlob, setRecordedVideoBlob] = useState<Blob | null>(null);
   const [recordedVideoExt, setRecordedVideoExt] = useState<string>('mp4');
   const [recordedVideoFilename, setRecordedVideoFilename] = useState<string>('VirtuKeys-Video.mp4');
+  const [recordedServerDownloadUrl, setRecordedServerDownloadUrl] = useState<string | null>(null);
+  const [savedVideosArchive, setSavedVideosArchive] = useState<SavedVideoEntry[]>([]);
   const reelRecorderRef = useRef<MediaRecorder | null>(null);
+
+  const openVideoArchiveDB = useCallback((): Promise<IDBDatabase> => {
+    return new Promise((resolve, reject) => {
+      if (typeof indexedDB === 'undefined') {
+        reject(new Error('IndexedDB unavailable'));
+        return;
+      }
+      const req = indexedDB.open('virtukeys_video_archive_db', 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('videos')) {
+          db.createObjectStore('videos', { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }, []);
+
+  const refreshSavedVideosArchive = useCallback(async () => {
+    const merged = new Map<string, SavedVideoEntry>();
+    try {
+      const db = await openVideoArchiveDB();
+      const localItems: SavedVideoEntry[] = await new Promise((resolve) => {
+        const tx = db.transaction('videos', 'readonly');
+        const store = tx.objectStore('videos');
+        const getAllReq = store.getAll();
+        getAllReq.onsuccess = () => resolve((getAllReq.result as SavedVideoEntry[]) || []);
+        getAllReq.onerror = () => resolve([]);
+      });
+      for (const item of localItems) {
+        merged.set(item.filename, item);
+      }
+    } catch {}
+
+    try {
+      const resp = await fetch(getAppApiUrl('/api/videos'));
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && Array.isArray(data.videos)) {
+          for (const sv of data.videos) {
+            const existing = merged.get(sv.filename);
+            const serverFullUrl = getAppApiUrl(sv.url || `/api/videos/file/${encodeURIComponent(sv.filename)}`);
+            if (existing) {
+              existing.serverUrl = serverFullUrl;
+            } else {
+              merged.set(sv.filename, {
+                id: sv.filename,
+                filename: sv.filename,
+                mode: sv.filename.includes('Reel') ? 'vertical_reel' : 'horizontal_full',
+                ext: sv.filename.endsWith('.mp4') ? 'mp4' : 'webm',
+                createdAt: sv.createdAt || Date.now(),
+                sizeBytes: sv.sizeBytes || 0,
+                serverUrl: serverFullUrl,
+              });
+            }
+          }
+        }
+      }
+    } catch {}
+
+    const sorted = Array.from(merged.values()).sort((a, b) => b.createdAt - a.createdAt).slice(0, 8);
+    setSavedVideosArchive(sorted);
+  }, [openVideoArchiveDB]);
+
+  const saveVideoToLocalArchive = useCallback(
+    async (entry: SavedVideoEntry) => {
+      try {
+        const db = await openVideoArchiveDB();
+        await new Promise<void>((resolve) => {
+          const tx = db.transaction('videos', 'readwrite');
+          const store = tx.objectStore('videos');
+          store.put(entry);
+          const getAllReq = store.getAll();
+          getAllReq.onsuccess = () => {
+            const all = ((getAllReq.result as SavedVideoEntry[]) || []).sort((a, b) => b.createdAt - a.createdAt);
+            for (const old of all.slice(5)) {
+              store.delete(old.id);
+            }
+          };
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        });
+      } catch {}
+      refreshSavedVideosArchive();
+    },
+    [openVideoArchiveDB, refreshSavedVideosArchive]
+  );
+
+  useEffect(() => {
+    refreshSavedVideosArchive();
+  }, [refreshSavedVideosArchive]);
   const reelAnimFrameRef = useRef<number | null>(null);
   const reelTimerRef = useRef<number | null>(null);
   const reelStartTimeRef = useRef<number>(0);
@@ -873,6 +977,36 @@ export const PianoView: React.FC<PianoViewProps> = ({
         setRecordedVideoUrl(url);
         setRecordedVideoExt(finalExt);
         setRecordedVideoFilename(filename);
+        setRecordedServerDownloadUrl(null);
+
+        // Automatically persist video in local IndexedDB archive so it is NEVER lost if modal closes or download fails
+        const archiveEntry: SavedVideoEntry = {
+          id: filename,
+          filename,
+          mode,
+          ext: finalExt,
+          createdAt: Date.now(),
+          sizeBytes: finalBlob.size,
+          blob: finalBlob,
+        };
+        saveVideoToLocalArchive(archiveEntry);
+
+        // Pre-upload to server in background immediately so the HTTP attachment link is ready BEFORE user clicks Download
+        fetch(getAppApiUrl(`/api/video-download-prepare/${encodeURIComponent(filename)}`), {
+          method: 'POST',
+          headers: { 'Content-Type': cleanMime },
+          body: finalBlob,
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            const rawPath = data?.downloadUrl || data?.downloadPath || data?.diskDownloadUrl;
+            if (rawPath) {
+              const fullDlUrl = getAppApiUrl(rawPath);
+              setRecordedServerDownloadUrl(fullDlUrl);
+              refreshSavedVideosArchive();
+            }
+          })
+          .catch(() => {});
       };
 
       reelRecorderRef.current = recorder;
@@ -3218,6 +3352,55 @@ export const PianoView: React.FC<PianoViewProps> = ({
                       </p>
                     </div>
                   </button>
+
+                  {/* Saved / Recent Videos Recovery Section */}
+                  {savedVideosArchive.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center justify-between">
+                        <span>📂 Ultimi Video Registrati ({savedVideosArchive.length})</span>
+                        <span className="text-[9px] text-slate-400 font-normal">Salvataggio auto</span>
+                      </div>
+                      <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5">
+                        {savedVideosArchive.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between gap-1.5 p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/70 text-[10px]"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold text-white truncate" title={item.filename}>
+                                {item.mode === 'vertical_reel' ? '📱 ' : '🖥️ '}
+                                {item.filename}
+                              </div>
+                              <div className="text-[9px] text-slate-400">
+                                {item.sizeBytes > 0 ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB • ` : ''}
+                                {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setIsVideoMenuOpen(false);
+                                setActiveVideoMode(item.mode);
+                                setRecordedVideoExt(item.ext);
+                                setRecordedVideoFilename(item.filename);
+                                setRecordedServerDownloadUrl(item.serverUrl || null);
+                                if (item.blob) {
+                                  const objUrl = URL.createObjectURL(item.blob);
+                                  setRecordedVideoBlob(item.blob);
+                                  setRecordedVideoUrl(objUrl);
+                                } else if (item.serverUrl) {
+                                  setRecordedVideoBlob(null);
+                                  setRecordedVideoUrl(item.serverUrl);
+                                }
+                              }}
+                              className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-black shrink-0 cursor-pointer"
+                            >
+                              Apri / Scarica
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -4996,53 +5179,38 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
             <div className="w-full flex flex-col sm:flex-row gap-2 pt-1">
               <button
-                onClick={async () => {
-                  if (!recordedVideoUrl || !recordedVideoBlob) return;
+                onClick={() => {
+                  if (!recordedVideoUrl && !recordedServerDownloadUrl) return;
                   const finalExt = recordedVideoExt === 'mp4' ? 'mp4' : 'webm';
                   const cleanMime = finalExt === 'mp4' ? 'video/mp4' : 'video/webm';
-                  const now = new Date();
-                  const pad = (n: number) => String(n).padStart(2, '0');
-                  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}_${ String(now.getMilliseconds()).padStart(3, '0') }`;
-                  const filename = `VirtuKeys_${activeVideoMode === 'vertical_reel' ? 'Reel' : 'Video'}_${stamp}.${finalExt}`;
-                  setRecordedVideoFilename(filename);
+                  const filename =
+                    recordedVideoFilename && recordedVideoFilename.endsWith(`.${finalExt}`)
+                      ? recordedVideoFilename
+                      : `VirtuKeys_${activeVideoMode === 'vertical_reel' ? 'Reel' : 'Video'}_${Date.now()}.${finalExt}`;
 
-                  showToast(`⬇️ Preparazione download: ${filename}...`);
-
-                  // 1. Primary path: Server-side Content-Disposition attachment endpoint (100% guaranteed filename & extension on Android/iOS/Chrome)
-                  try {
-                    const resp = await fetch(`/api/video-download-prepare/${encodeURIComponent(filename)}`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': cleanMime },
-                      body: recordedVideoBlob,
-                    });
-                    if (resp.ok) {
-                      const data = await resp.json();
-                      if (data && data.downloadUrl) {
-                        const link = document.createElement('a');
-                        link.href = data.downloadUrl;
-                        link.download = filename;
-                        link.setAttribute('download', filename);
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        showToast(`✅ Scaricato: ${filename}`);
-                        return;
-                      }
-                    }
-                  } catch {
-                    // Fallback to local clean File object URL if offline
+                  // CRITICAL: Trigger download SYNCHRONOUSLY inside the click gesture (NO await before link.click()!)
+                  // Otherwise mobile browsers / Chrome / Safari revoke user-gesture activation while waiting for network upload!
+                  if (recordedServerDownloadUrl) {
+                    const link = document.createElement('a');
+                    link.href = recordedServerDownloadUrl;
+                    link.download = filename;
+                    link.setAttribute('download', filename);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    showToast(`✅ Download avviato: ${filename}`);
+                    return;
                   }
 
-                  // 2. Fallback path: Clean File instance with pure MIME type (no ;codecs=...)
-                  let cleanUrl = recordedVideoUrl;
-                  try {
-                    const namedFile = new File([recordedVideoBlob], filename, {
-                      type: cleanMime,
-                      lastModified: Date.now(),
-                    });
-                    cleanUrl = URL.createObjectURL(namedFile);
-                  } catch {
-                    // ignore
+                  let cleanUrl = recordedVideoUrl || '';
+                  if (recordedVideoBlob) {
+                    try {
+                      const namedFile = new File([recordedVideoBlob], filename, {
+                        type: cleanMime,
+                        lastModified: Date.now(),
+                      });
+                      cleanUrl = URL.createObjectURL(namedFile);
+                    } catch {}
                   }
 
                   const link = document.createElement('a');
@@ -5052,8 +5220,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
-                  if (cleanUrl !== recordedVideoUrl) {
-                    setTimeout(() => URL.revokeObjectURL(cleanUrl), 15000);
+                  if (recordedVideoBlob && cleanUrl !== recordedVideoUrl) {
+                    setTimeout(() => URL.revokeObjectURL(cleanUrl), 20000);
                   }
                   showToast(`✅ Scaricato: ${filename}`);
                 }}

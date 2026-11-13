@@ -31,13 +31,13 @@
       "username": "Pianista_957",
       "platform": "Browser Mobile",
       "firstSeen": "2026-11-11T05:48:17.662Z",
-      "lastSeen": "2026-11-13T17:53:13.744Z",
+      "lastSeen": "2026-11-13T19:31:25.731Z",
       "lastView": "piano",
-      "totalPings": 116,
-      "totalSessions": 78,
+      "totalPings": 123,
+      "totalSessions": 80,
       "screen": "444x985",
       "theme": "marble",
-      "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+      "lastSong": "Baby Shark"
     },
     "dev_1794390163971_0oovbag": {
       "deviceId": "dev_1794390163971_0oovbag",
@@ -506,6 +506,19 @@
       "screen": "985x444",
       "theme": "midnight",
       "lastSong": "Electric Piano"
+    },
+    "dev_1794599019465_vnwpgp0": {
+      "deviceId": "dev_1794599019465_vnwpgp0",
+      "username": "Pianista_803",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-13T19:43:42.713Z",
+      "lastSeen": "2026-11-13T19:49:36.172Z",
+      "lastView": "piano",
+      "totalPings": 12,
+      "totalSessions": 4,
+      "screen": "985x444",
+      "theme": "midnight",
+      "lastSong": "Baby Shark Dance #babyshark MIDI DB Free MIDI FILES.midi files Made By @PinkFong.midi files"
     }
   },
   "daily": {
@@ -547,13 +560,14 @@
         "dev_1794549695865_1q3xxla",
         "dev_1794550469476_tk208rf",
         "dev_1794592519794_zdq5pd9",
-        "dev_1794592712980_afuq83d"
+        "dev_1794592712980_afuq83d",
+        "dev_1794599019465_vnwpgp0"
       ],
-      "pings": 143
+      "pings": 162
     }
   },
   "songs": {
-    "Inno alla Gioia (Ode to Joy - Completo)": 37,
+    "Inno alla Gioia (Ode to Joy - Completo)": 38,
     "Per Elisa (Für Elise - Completo)": 35,
     "La Primavera (Le Quattro Stagioni)": 4,
     "La Donna è Mobile (Rigoletto)": 1,
@@ -564,6 +578,8 @@
     "Va, Pensiero (Nabucco)": 1,
     "Funiculì Funiculà": 1,
     "Il Mattino (Morning Mood - Peer Gynt)": 1,
-    "Electric Piano": 2
+    "Electric Piano": 2,
+    "Baby Shark": 1,
+    "Baby Shark Dance #babyshark MIDI DB Free MIDI FILES.midi files Made By @PinkFong.midi files": 2
   }
 }
