@@ -245,16 +245,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.229",
-      buildDate: "2026-11-13 19:55",
-      commit: "a9e3c42",
+      version: "1.0.230",
+      buildDate: "2026-11-13 21:05",
+      commit: "b8d4e19",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "Added 3 Cartoon Kids Keyboard styles (Rainbow, Animals, Candy) + 1-tap Kids switcher",
         "Fixed Horizontal 16:9 & Vertical 9:16 Video Download button + automatic local & server video archive",
         "Fixed multi-track & Karaoke MIDI import (Baby Shark & complex MIDIs): full Running Status preservation & polyphonic melody + chord playback",
-        "New Bouncing Rhythm Balls FX mode: colorful 3D spheres bounce across piano keys in rhythm",
-        "Signed release AAB generation for Google Play Console v1.0.229 (versionCode 10229)"
+        "Signed release AAB generation for Google Play Console v1.0.230 (versionCode 10230)"
       ]
     });
   });

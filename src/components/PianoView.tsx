@@ -734,6 +734,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
       amethyst: '🔮 Cosmic Amethyst',
       carbon: '🏎️ Titanium Carbon',
       neon: '⚡ Cyber Neon',
+      rainbow: '🌈 Cartoon Rainbow',
+      animals: '🐶 Cuccioli Cartoon',
+      candy: '🍭 Candy & Dolci',
     };
 
     reelStartTimeRef.current = performance.now();
@@ -3422,71 +3425,107 @@ export const PianoView: React.FC<PianoViewProps> = ({
               Sustain
             </button>
 
-            {/* Quick 1-Tap Material Switcher Button */}
+            {/* Quick 1-Tap Material & Cartoon Switcher Buttons */}
             {onThemeChange && (
-              <button
-                onClick={() => {
-                  const order: StudioTheme[] = [
-                    'midnight',
-                    'mahogany',
-                    'marble',
-                    'gold',
-                    'emerald',
-                    'ruby',
-                    'sapphire',
-                    'amethyst',
-                    'carbon',
-                    'neon',
-                  ];
-                  const nextIdx = (order.indexOf(studioTheme) + 1) % order.length;
-                  onThemeChange(order[nextIdx]);
-                }}
-                className="px-1.5 sm:px-2 py-0.5 font-bold rounded-md border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                title="Cambia materiale 3D della tastiera (10 materiali di lusso)"
-              >
-                <span>
-                  {studioTheme === 'mahogany'
-                    ? '🪵'
-                    : studioTheme === 'marble'
-                    ? '🏛️'
-                    : studioTheme === 'gold'
-                    ? '👑'
-                    : studioTheme === 'emerald'
-                    ? '💎'
-                    : studioTheme === 'ruby'
-                    ? '🔥'
-                    : studioTheme === 'sapphire'
-                    ? '❄️'
-                    : studioTheme === 'amethyst'
-                    ? '🔮'
-                    : studioTheme === 'carbon'
-                    ? '🏎️'
-                    : studioTheme === 'neon'
-                    ? '⚡'
-                    : '🎹'}
-                </span>
-                <span className="hidden md:inline text-[10px]">
-                  {studioTheme === 'mahogany'
-                    ? 'Wood'
-                    : studioTheme === 'marble'
-                    ? 'Marble'
-                    : studioTheme === 'gold'
-                    ? 'Gold'
-                    : studioTheme === 'emerald'
-                    ? 'Jade'
-                    : studioTheme === 'ruby'
-                    ? 'Ruby'
-                    : studioTheme === 'sapphire'
-                    ? 'Sapphire'
-                    : studioTheme === 'amethyst'
-                    ? 'Amethyst'
-                    : studioTheme === 'carbon'
-                    ? 'Carbon'
-                    : studioTheme === 'neon'
-                    ? 'Neon'
-                    : 'Ivory'}
-                </span>
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    const order: StudioTheme[] = [
+                      'midnight',
+                      'mahogany',
+                      'marble',
+                      'gold',
+                      'emerald',
+                      'ruby',
+                      'sapphire',
+                      'amethyst',
+                      'carbon',
+                      'neon',
+                      'rainbow',
+                      'animals',
+                      'candy',
+                    ];
+                    const nextIdx = (order.indexOf(studioTheme) + 1) % order.length;
+                    onThemeChange(order[nextIdx]);
+                  }}
+                  className="px-1.5 sm:px-2 py-0.5 font-bold rounded-md border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                  title="Cambia materiale 3D o stile Cartoon della tastiera"
+                >
+                  <span>
+                    {studioTheme === 'mahogany'
+                      ? '🪵'
+                      : studioTheme === 'marble'
+                      ? '🏛️'
+                      : studioTheme === 'gold'
+                      ? '👑'
+                      : studioTheme === 'emerald'
+                      ? '💎'
+                      : studioTheme === 'ruby'
+                      ? '🔥'
+                      : studioTheme === 'sapphire'
+                      ? '❄️'
+                      : studioTheme === 'amethyst'
+                      ? '🔮'
+                      : studioTheme === 'carbon'
+                      ? '🏎️'
+                      : studioTheme === 'neon'
+                      ? '⚡'
+                      : studioTheme === 'rainbow'
+                      ? '🌈'
+                      : studioTheme === 'animals'
+                      ? '🐶'
+                      : studioTheme === 'candy'
+                      ? '🍭'
+                      : '🎹'}
+                  </span>
+                  <span className="hidden md:inline text-[10px]">
+                    {studioTheme === 'mahogany'
+                      ? 'Wood'
+                      : studioTheme === 'marble'
+                      ? 'Marble'
+                      : studioTheme === 'gold'
+                      ? 'Gold'
+                      : studioTheme === 'emerald'
+                      ? 'Jade'
+                      : studioTheme === 'ruby'
+                      ? 'Ruby'
+                      : studioTheme === 'sapphire'
+                      ? 'Sapphire'
+                      : studioTheme === 'amethyst'
+                      ? 'Amethyst'
+                      : studioTheme === 'carbon'
+                      ? 'Carbon'
+                      : studioTheme === 'neon'
+                      ? 'Neon'
+                      : studioTheme === 'rainbow'
+                      ? 'Rainbow'
+                      : studioTheme === 'animals'
+                      ? 'Cuccioli'
+                      : studioTheme === 'candy'
+                      ? 'Candy'
+                      : 'Ivory'}
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    const kidsThemes: StudioTheme[] = ['rainbow', 'animals', 'candy'];
+                    const curIdx = kidsThemes.indexOf(studioTheme);
+                    const nextTheme = curIdx === -1 ? 'rainbow' : kidsThemes[(curIdx + 1) % kidsThemes.length];
+                    onThemeChange(nextTheme);
+                  }}
+                  className={`px-1.5 sm:px-2 py-0.5 font-black rounded-md border transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                    studioTheme === 'rainbow' || studioTheme === 'animals' || studioTheme === 'candy'
+                      ? 'bg-gradient-to-r from-pink-500 via-amber-400 to-cyan-400 text-slate-950 border-yellow-300 shadow-sm'
+                      : 'bg-pink-500/15 hover:bg-pink-500/25 border-pink-400/40 text-pink-300'
+                  }`}
+                  title="Tastiere Cartoon per Bambini (Arcobaleno 🌈, Cuccioli 🐶, Caramelle 🍭)"
+                >
+                  <span>
+                    {studioTheme === 'animals' ? '🐶' : studioTheme === 'candy' ? '🍭' : '🌈'}
+                  </span>
+                  <span className="text-[10px]">Kids</span>
+                </button>
+              </>
             )}
 
             {/* 3-DOTS OPTIONS MODAL BUTTON (Metronome, Volume, Keys, etc.) */}
@@ -4301,10 +4340,13 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <div>
                   <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2 flex items-center gap-1.5">
                     <Palette className="w-3.5 h-3.5 text-amber-400" />
-                    Materiale Tastiera 3D (10 Finiture di Lusso • Zero Latency)
+                    Stile Tastiera 3D & Tastiere Cartoon per Bambini (Zero Latency)
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
+                      { id: 'rainbow', name: '🌈 Cartoon Rainbow', desc: 'Arcobaleno & Faccine Buffe (Kids)' },
+                      { id: 'animals', name: '🐶 Cuccioli Cartoon', desc: 'Animaletti & Zampette (Kids)' },
+                      { id: 'candy', name: '🍭 Candy & Dolci', desc: 'Gelato, Cioccolato & Codette (Kids)' },
                       { id: 'midnight', name: '🎹 Concert Ivory', desc: 'Avorio & Ebano Steinway' },
                       { id: 'mahogany', name: '🪵 Vintage Wood', desc: 'Acero & Palissandro 3D' },
                       { id: 'marble', name: '🏛️ Carrara Marble', desc: 'Marmo Bianco & Portoro' },
@@ -5180,7 +5222,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             <div className="w-full flex flex-col sm:flex-row gap-2 pt-1">
               <button
                 onClick={() => {
-                  if (!recordedVideoUrl && !recordedServerDownloadUrl) return;
+                  if (!recordedVideoUrl && !recordedServerDownloadUrl && !recordedVideoBlob) return;
                   const finalExt = recordedVideoExt === 'mp4' ? 'mp4' : 'webm';
                   const cleanMime = finalExt === 'mp4' ? 'video/mp4' : 'video/webm';
                   const filename =
@@ -5188,8 +5230,29 @@ export const PianoView: React.FC<PianoViewProps> = ({
                       ? recordedVideoFilename
                       : `VirtuKeys_${activeVideoMode === 'vertical_reel' ? 'Reel' : 'Video'}_${Date.now()}.${finalExt}`;
 
-                  // CRITICAL: Trigger download SYNCHRONOUSLY inside the click gesture (NO await before link.click()!)
-                  // Otherwise mobile browsers / Chrome / Safari revoke user-gesture activation while waiting for network upload!
+                  // 1. NATIVE ANDROID APK BRIDGE (window.AndroidFileSaver):
+                  // Saves directly to Android Downloads folder with the exact .mp4/.webm filename & shows native Android Toast!
+                  const androidSaver = typeof window !== 'undefined' ? (window as any).AndroidFileSaver : null;
+                  if (androidSaver && typeof androidSaver.saveFileToDownloads === 'function' && recordedVideoBlob) {
+                    showToast(`⬇️ Salvataggio in Download: ${filename}...`);
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      try {
+                        const resultStr = String(reader.result || '');
+                        const commaIdx = resultStr.indexOf(',');
+                        const b64 = commaIdx !== -1 ? resultStr.substring(commaIdx + 1) : resultStr;
+                        androidSaver.saveFileToDownloads(filename, b64, cleanMime);
+                        showToast(`✅ Salvato in Download: ${filename}`);
+                      } catch (err) {
+                        console.error('AndroidFileSaver error:', err);
+                        showToast('Usa Condividi -> Salva Video per salvarlo in Galleria.');
+                      }
+                    };
+                    reader.readAsDataURL(recordedVideoBlob);
+                    return;
+                  }
+
+                  // 2. WEB / DESKTOP / MOBILE BROWSER: Trigger download SYNCHRONOUSLY inside click gesture
                   if (recordedServerDownloadUrl) {
                     const link = document.createElement('a');
                     link.href = recordedServerDownloadUrl;

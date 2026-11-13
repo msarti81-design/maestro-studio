@@ -11,7 +11,10 @@ export type StudioTheme =
   | 'emerald'
   | 'ruby'
   | 'sapphire'
-  | 'amethyst';
+  | 'amethyst'
+  | 'rainbow'
+  | 'animals'
+  | 'candy';
 
 export interface NoteEvent {
   note: string; // e.g. "C4"

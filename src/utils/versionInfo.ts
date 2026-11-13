@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.229';
-export const APP_BUILD_DATE = '13 Nov 2026 - 19:55';
-export const APP_COMMIT = 'a9e3c42';
+export const APP_VERSION = '1.0.230';
+export const APP_BUILD_DATE = '13 Nov 2026 - 21:05';
+export const APP_COMMIT = 'b8d4e19';
 export const APP_CHANGELOG = [
-  'Fixed Horizontal 16:9 & Vertical 9:16 Video Download button (synchronous instant download + automatic video archive in Video menu & server data/videos)',
+  'Added 3 Cartoon Kids Keyboard styles: 🌈 Cartoon Rainbow (with kawaii faces), 🐶 Cuccioli Cartoon (animals & paw prints), and 🍭 Candy & Dolci (ice cream & sprinkles) + 1-tap Kids button',
+  'Fixed Horizontal 16:9 & Vertical 9:16 Video Download button (native Android APK Download folder bridge + automatic video archive in Video menu)',
   'Fixed multi-track & Karaoke MIDI import (Baby Shark & complex MIDIs): full Running Status preservation & polyphonic melody + chord playback',
-  'New "Rimbalzi" (Bouncing Rhythm Balls) FX mode: colorful 3D glowing spheres bounce on keys in musical rhythm',
-  'Production signed AAB & APK build v1.0.229 (versionCode 10229) for Google Play Console',
+  'Production signed AAB & APK build v1.0.230 (versionCode 10230) for Google Play Console',
 ];
 
 export interface ServerVersionInfo {

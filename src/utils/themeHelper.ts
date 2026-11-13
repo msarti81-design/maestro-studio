@@ -79,6 +79,27 @@ export const STUDIO_THEMES: StudioThemeOption[] = [
     name: '🔮 Cosmic Amethyst',
     desc: 'Opale Aurora & Ametista',
   },
+  {
+    id: 'rainbow',
+    icon: '🌈',
+    shortName: 'Rainbow',
+    name: '🌈 Cartoon Rainbow (Kids)',
+    desc: 'Arcobaleno & Faccine Buffe',
+  },
+  {
+    id: 'animals',
+    icon: '🐶',
+    shortName: 'Cuccioli',
+    name: '🐶 Cuccioli Cartoon (Kids)',
+    desc: 'Animaletti Simpatici & Zampette',
+  },
+  {
+    id: 'candy',
+    icon: '🍭',
+    shortName: 'Candy',
+    name: '🍭 Candy & Dolci (Kids)',
+    desc: 'Gelato, Cioccolato & Codette',
+  },
 ];
 
 export function isValidStudioTheme(val: unknown): val is StudioTheme {
@@ -92,7 +113,10 @@ export function isValidStudioTheme(val: unknown): val is StudioTheme {
     val === 'emerald' ||
     val === 'ruby' ||
     val === 'sapphire' ||
-    val === 'amethyst'
+    val === 'amethyst' ||
+    val === 'rainbow' ||
+    val === 'animals' ||
+    val === 'candy'
   );
 }
 
@@ -196,6 +220,39 @@ export function getThemeClasses(theme: StudioTheme) {
         accentText: 'text-purple-400',
         border: 'border-purple-700/40',
         badge: 'bg-purple-500/20 text-purple-300 border border-purple-500/40',
+      };
+    case 'rainbow':
+      return {
+        appBg: 'bg-[#0f172a] text-yellow-50',
+        navBg: 'bg-[#1e1b4b]/95 border-yellow-400/50 text-yellow-50',
+        cardBg: 'bg-[#1e293b] border-pink-400/40 hover:border-yellow-400 text-yellow-50',
+        modalBg: 'bg-[#1e1b4b] border-yellow-400/60 text-yellow-50',
+        accentBtn: 'bg-gradient-to-r from-pink-500 via-amber-400 to-cyan-400 hover:opacity-95 text-slate-950 font-black',
+        accentText: 'text-yellow-300',
+        border: 'border-pink-500/40',
+        badge: 'bg-yellow-400/20 text-yellow-200 border border-yellow-400/50',
+      };
+    case 'animals':
+      return {
+        appBg: 'bg-[#0c1f17] text-emerald-50',
+        navBg: 'bg-[#132e22]/95 border-amber-400/50 text-emerald-50',
+        cardBg: 'bg-[#163829] border-emerald-400/40 hover:border-amber-400 text-emerald-50',
+        modalBg: 'bg-[#132e22] border-amber-400/60 text-emerald-50',
+        accentBtn: 'bg-gradient-to-r from-amber-400 to-emerald-400 hover:from-amber-300 hover:to-emerald-300 text-slate-950 font-black',
+        accentText: 'text-amber-300',
+        border: 'border-emerald-500/40',
+        badge: 'bg-amber-400/20 text-amber-200 border border-amber-400/50',
+      };
+    case 'candy':
+      return {
+        appBg: 'bg-[#240a1d] text-pink-50',
+        navBg: 'bg-[#360f2c]/95 border-pink-400/50 text-pink-50',
+        cardBg: 'bg-[#421336] border-pink-400/40 hover:border-cyan-300 text-pink-50',
+        modalBg: 'bg-[#360f2c] border-pink-400/60 text-pink-50',
+        accentBtn: 'bg-gradient-to-r from-pink-400 to-cyan-300 hover:from-pink-300 hover:to-cyan-200 text-slate-950 font-black',
+        accentText: 'text-pink-300',
+        border: 'border-pink-400/40',
+        badge: 'bg-pink-400/20 text-pink-200 border border-pink-400/50',
       };
     case 'midnight':
     default:

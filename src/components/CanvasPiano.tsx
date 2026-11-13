@@ -1119,6 +1119,10 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       const isRuby = theme === 'ruby';
       const isSapphire = theme === 'sapphire';
       const isAmethyst = theme === 'amethyst';
+      const isRainbow = theme === 'rainbow';
+      const isAnimals = theme === 'animals';
+      const isCandy = theme === 'candy';
+      const isCartoon = isRainbow || isAnimals || isCandy;
 
       const {
         lightWoodPattern,
@@ -1138,11 +1142,41 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       const bottomRecess = 4;
       const pressSink = isPressed ? 2.2 : 0;
       const keyH = wk.height - bottomRecess + pressSink;
-      const radius = Math.min(6.5, keyW * 0.18);
+      const radius = isCartoon ? Math.min(10, keyW * 0.26) : Math.min(6.5, keyW * 0.18);
 
       const frontLipH = isPressed
         ? Math.max(5, keyH * 0.036)
         : Math.max(9, keyH * 0.062);
+
+      const noteLetter = wk.note.charAt(0).toUpperCase();
+      const rainbowColors: Record<string, { top: string; mid: string; bot: string; lipTop: string; lipBot: string }> = {
+        C: { top: '#ff758f', mid: '#ff4d6d', bot: '#e11d48', lipTop: '#be123c', lipBot: '#881337' },
+        D: { top: '#ffb703', mid: '#fb8500', bot: '#ea580c', lipTop: '#c2410c', lipBot: '#7c2d12' },
+        E: { top: '#fef08a', mid: '#facc15', bot: '#eab308', lipTop: '#ca8a04', lipBot: '#713f12' },
+        F: { top: '#86efac', mid: '#4ade80', bot: '#16a34a', lipTop: '#15803d', lipBot: '#14532d' },
+        G: { top: '#7dd3fc', mid: '#38bdf8', bot: '#0284c7', lipTop: '#0369a1', lipBot: '#0c4a6e' },
+        A: { top: '#a5b4fc', mid: '#818cf8', bot: '#4f46e5', lipTop: '#3730a3', lipBot: '#1e1b4b' },
+        B: { top: '#f9a8d4', mid: '#f472b6', bot: '#db2777', lipTop: '#9d174d', lipBot: '#500724' },
+      };
+      const animalInfo: Record<string, { top: string; bot: string; lip: string; emoji: string; earColor: string; noseColor: string }> = {
+        C: { top: '#dcfce7', bot: '#86efac', lip: '#16a34a', emoji: '🐸', earColor: '#22c55e', noseColor: '#15803d' },
+        D: { top: '#fef9c3', bot: '#fde047', lip: '#ca8a04', emoji: '🐥', earColor: '#facc15', noseColor: '#f97316' },
+        E: { top: '#ffedd5', bot: '#fdba74', lip: '#ea580c', emoji: '🦊', earColor: '#f97316', noseColor: '#1e293b' },
+        F: { top: '#fce7f3', bot: '#f9a8d4', lip: '#db2777', emoji: '🐷', earColor: '#f472b6', noseColor: '#ec4899' },
+        G: { top: '#e0f2fe', bot: '#7dd3fc', lip: '#0284c7', emoji: '🐨', earColor: '#64748b', noseColor: '#334155' },
+        A: { top: '#f8fafc', bot: '#e2e8f0', lip: '#475569', emoji: '🐼', earColor: '#0f172a', noseColor: '#0f172a' },
+        B: { top: '#fef3c7', bot: '#fcd34d', lip: '#d97706', emoji: '🐯', earColor: '#f59e0b', noseColor: '#78350f' },
+      };
+      const candyPalettes = [
+        { top: '#fdf2f8', mid: '#fbcfe8', bot: '#f472b6', lipTop: '#db2777', lipBot: '#831843', icing: '#ec4899' },
+        { top: '#ecfdf5', mid: '#a7f3d0', bot: '#34d399', lipTop: '#059669', lipBot: '#064e3b', icing: '#10b981' },
+        { top: '#fefce8', mid: '#fef08a', bot: '#facc15', lipTop: '#ca8a04', lipBot: '#713f12', icing: '#f59e0b' },
+        { top: '#f0f9ff', mid: '#bae6fd', bot: '#38bdf8', lipTop: '#0284c7', lipBot: '#0c4a6e', icing: '#06b6d4' },
+        { top: '#faf5ff', mid: '#e9d5ff', bot: '#c084fc', lipTop: '#9333ea', lipBot: '#4c1d95', icing: '#a855f7' },
+      ];
+      const rc = rainbowColors[noteLetter] || rainbowColors.C;
+      const an = animalInfo[noteLetter] || animalInfo.C;
+      const cd = candyPalettes[wk.idx % candyPalettes.length];
 
       // Clear key slot in case we are overdrawing a single pressed key on top of the static buffer
       if (isPressed) {
@@ -1158,7 +1192,30 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       }
 
       // 1B. Base Surface Material & Physically-Based Vertical Studio Lighting (using fast path fill, NO clip!)
-      if (isMahogany) {
+      if (isRainbow) {
+        traceRoundBottomRect(ctx, keyX, wk.y, keyW, keyH, radius);
+        const rGrad = ctx.createLinearGradient(keyX, wk.y, keyX, keyH);
+        rGrad.addColorStop(0, rc.top);
+        rGrad.addColorStop(0.55, rc.mid);
+        rGrad.addColorStop(1, rc.bot);
+        ctx.fillStyle = rGrad;
+        ctx.fill();
+      } else if (isAnimals) {
+        traceRoundBottomRect(ctx, keyX, wk.y, keyW, keyH, radius);
+        const aGrad = ctx.createLinearGradient(keyX, wk.y, keyX, keyH);
+        aGrad.addColorStop(0, an.top);
+        aGrad.addColorStop(1, an.bot);
+        ctx.fillStyle = aGrad;
+        ctx.fill();
+      } else if (isCandy) {
+        traceRoundBottomRect(ctx, keyX, wk.y, keyW, keyH, radius);
+        const cGrad = ctx.createLinearGradient(keyX, wk.y, keyX, keyH);
+        cGrad.addColorStop(0, cd.top);
+        cGrad.addColorStop(0.65, cd.mid);
+        cGrad.addColorStop(1, cd.bot);
+        ctx.fillStyle = cGrad;
+        ctx.fill();
+      } else if (isMahogany) {
         applyPatternOffset(lightWoodPattern, wk.idx);
         traceRoundBottomRect(ctx, keyX, wk.y, keyW, keyH, radius);
         ctx.fillStyle = lightWoodPattern || '#f3dfb9';
@@ -1318,6 +1375,10 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           pressGrad.addColorStop(0, 'rgba(2, 132, 199, 0.62)');
           pressGrad.addColorStop(0.5, 'rgba(56, 189, 248, 0.52)');
           pressGrad.addColorStop(1, 'rgba(14, 165, 233, 0.76)');
+        } else if (isCartoon) {
+          pressGrad.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+          pressGrad.addColorStop(0.5, 'rgba(254, 240, 138, 0.45)');
+          pressGrad.addColorStop(1, 'rgba(250, 204, 21, 0.68)');
         } else if (isNeon || isCarbon || isSapphire) {
           pressGrad.addColorStop(0, 'rgba(6, 182, 212, 0.45)');
           pressGrad.addColorStop(0.5, 'rgba(34, 211, 238, 0.62)');
@@ -1358,7 +1419,16 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         ctx.fillRect(keyX + keyW - 3, wk.y, 3, keyH - frontLipH);
       }
 
-      // 1E. 3D Lateral Bevel Rim
+      // 1E. 3D Lateral Bevel Rim + Cartoon Glossy Bubble Highlight
+      if (isCartoon && keyW > 14) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.58)';
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(keyX + 3, wk.y + keyH * 0.54, Math.max(2.5, keyW * 0.14), keyH * 0.24, 4);
+          ctx.fill();
+        }
+      }
+
       ctx.fillStyle = isMahogany
         ? 'rgba(255, 248, 225, 0.62)'
         : isGold
@@ -1387,7 +1457,16 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       ctx.fillRect(keyX, lipTopY - rollOffH, keyW, rollOffH);
 
       const lipGrad = ctx.createLinearGradient(keyX, lipTopY, keyX, keyH);
-      if (isMahogany) {
+      if (isRainbow) {
+        lipGrad.addColorStop(0, rc.lipTop);
+        lipGrad.addColorStop(1, rc.lipBot);
+      } else if (isAnimals) {
+        lipGrad.addColorStop(0, an.lip);
+        lipGrad.addColorStop(1, '#1e293b');
+      } else if (isCandy) {
+        lipGrad.addColorStop(0, cd.lipTop);
+        lipGrad.addColorStop(1, cd.lipBot);
+      } else if (isMahogany) {
         lipGrad.addColorStop(0, '#c27d38');
         lipGrad.addColorStop(0.2, '#9c5a25');
         lipGrad.addColorStop(0.65, '#6e3a12');
@@ -1452,9 +1531,13 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       ctx.strokeStyle = isPressed
         ? isStudent
           ? '#38bdf8'
+          : isCartoon
+          ? '#ffffff'
           : isNeon || isCarbon || isSapphire
           ? '#22d3ee'
           : '#fde047'
+        : isCartoon
+        ? '#1e1b4b'
         : isMahogany
         ? 'rgba(78, 38, 12, 0.6)'
         : isGold
@@ -1472,44 +1555,136 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         : isNeon
         ? '#312e81'
         : 'rgba(120, 113, 108, 0.55)';
-      ctx.lineWidth = isPressed ? 2 : 0.9;
+      ctx.lineWidth = isCartoon ? (isPressed ? 2.6 : 1.9) : isPressed ? 2 : 0.9;
       ctx.stroke();
+
+      // --- Cartoon Character / Candy Decorations on White Keys ---
+      const cx = keyX + keyW / 2;
+      const fontSize = Math.max(10, Math.min(14.5, keyW * 0.36));
+      const labelY = keyH - frontLipH - Math.max(12, keyH * 0.082);
+
+      if (isRainbow && keyW >= 18) {
+        // Cute Kawaii Cartoon Face above the note label
+        const faceY = labelY - fontSize - Math.max(12, keyW * 0.36);
+        const eyeDist = Math.max(4, Math.min(8, keyW * 0.21));
+        const eyeR = Math.max(1.8, Math.min(3.3, keyW * 0.085));
+
+        // Rosy cheeks
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.beginPath();
+        ctx.arc(cx - eyeDist * 1.28, faceY + eyeR * 1.2, eyeR * 1.05, 0, Math.PI * 2);
+        ctx.arc(cx + eyeDist * 1.28, faceY + eyeR * 1.2, eyeR * 1.05, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eyes
+        ctx.fillStyle = '#1e1b4b';
+        ctx.beginPath();
+        ctx.arc(cx - eyeDist, faceY, eyeR, 0, Math.PI * 2);
+        ctx.arc(cx + eyeDist, faceY, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // White eye sparkles
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(cx - eyeDist - eyeR * 0.28, faceY - eyeR * 0.28, eyeR * 0.42, 0, Math.PI * 2);
+        ctx.arc(cx + eyeDist - eyeR * 0.28, faceY - eyeR * 0.28, eyeR * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mouth (open cheering mouth when pressed, cute smile when idle)
+        ctx.strokeStyle = '#1e1b4b';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        if (isPressed) {
+          ctx.fillStyle = '#be123c';
+          ctx.arc(cx, faceY + eyeR * 1.4, eyeR * 1.15, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          ctx.arc(cx, faceY + eyeR * 0.65, eyeR * 1.25, 0.15 * Math.PI, 0.85 * Math.PI);
+          ctx.stroke();
+        }
+      } else if (isAnimals && keyW >= 18) {
+        // Cute Cartoon Animal Badge & Snout above the note label
+        const badgeY = labelY - fontSize - Math.max(12, keyW * 0.38);
+        const badgeR = Math.max(7, Math.min(13, keyW * 0.34));
+
+        // Animal head circle
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = an.earColor;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(cx, badgeY, badgeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Animal emoji inside the cartoon medallion
+        const emojiSize = Math.max(10, Math.min(18, keyW * 0.46));
+        ctx.font = `${emojiSize}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(an.emoji, cx, badgeY + 1);
+      } else if (isCandy && keyW >= 16) {
+        // Colorful Candy Sprinkles (Codette) & Sweet Swirl
+        const sprinkleColors = ['#ec4899', '#3b82f6', '#eab308', '#10b981', '#a855f7', '#ef4444'];
+        const startY = Math.max(wk.y + keyH * 0.56, labelY - fontSize - 34);
+        for (let s = 0; s < 5; s++) {
+          const sx = keyX + 5 + ((wk.idx * 7 + s * 11) % Math.max(6, Math.floor(keyW - 10)));
+          const sy = startY + s * 5.2;
+          if (sy < labelY - fontSize - 6) {
+            ctx.strokeStyle = sprinkleColors[(wk.idx + s) % sprinkleColors.length];
+            ctx.lineWidth = 2.6;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(sx - 2.5, sy - 1.2);
+            ctx.lineTo(sx + 2.5, sy + 1.2);
+            ctx.stroke();
+          }
+        }
+      }
 
       // --- White Key Labels ---
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const fontSize = Math.max(10, Math.min(14.5, keyW * 0.36));
-      ctx.font = `800 ${fontSize}px system-ui, -apple-system, sans-serif`;
-      const labelY = keyH - frontLipH - Math.max(12, keyH * 0.082);
+      ctx.font = `900 ${fontSize}px system-ui, -apple-system, sans-serif`;
 
-      if (!isPressed && !isNeon) {
+      if (!isPressed && !isNeon && !isRainbow) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
-        ctx.fillText(wk.label, keyX + keyW / 2, labelY + 1);
+        ctx.fillText(wk.label, cx, labelY + 1);
       }
 
-      ctx.fillStyle = isPressed
-        ? '#0f172a'
-        : isNeon
-        ? '#38bdf8'
-        : isMahogany
-        ? '#4a2309'
-        : isGold
-        ? '#713f12'
-        : isEmerald
-        ? '#064e3b'
-        : isRuby
-        ? '#881337'
-        : isSapphire
-        ? '#0c4a6e'
-        : isAmethyst
-        ? '#4c1d95'
-        : isCarbon
-        ? '#0f172a'
-        : '#44403c';
-      ctx.fillText(wk.label, keyX + keyW / 2, labelY);
+      if (isRainbow) {
+        ctx.strokeStyle = '#1e1b4b';
+        ctx.lineWidth = 2.8;
+        ctx.strokeText(wk.label, cx, labelY);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(wk.label, cx, labelY);
+      } else {
+        ctx.fillStyle = isPressed
+          ? '#0f172a'
+          : isAnimals || isCandy
+          ? '#1e1b4b'
+          : isNeon
+          ? '#38bdf8'
+          : isMahogany
+          ? '#4a2309'
+          : isGold
+          ? '#713f12'
+          : isEmerald
+          ? '#064e3b'
+          : isRuby
+          ? '#881337'
+          : isSapphire
+          ? '#0c4a6e'
+          : isAmethyst
+          ? '#4c1d95'
+          : isCarbon
+          ? '#0f172a'
+          : '#44403c';
+        ctx.fillText(wk.label, cx, labelY);
+      }
 
-      if (wk.computerKey && keyW > 22) {
+      if (wk.computerKey && keyW > 22 && !isCartoon) {
         const badgeY = labelY - fontSize - 6;
         const badgeW = Math.min(keyW * 0.6, 18);
         const badgeH = 13;
@@ -1561,6 +1736,10 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       const isRuby = theme === 'ruby';
       const isSapphire = theme === 'sapphire';
       const isAmethyst = theme === 'amethyst';
+      const isRainbow = theme === 'rainbow';
+      const isAnimals = theme === 'animals';
+      const isCandy = theme === 'candy';
+      const isCartoon = isRainbow || isAnimals || isCandy;
 
       const {
         darkWoodPattern,
@@ -1577,7 +1756,7 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       const keyX = bk.x;
       const keyW = bk.width;
       const keyH = bk.height + (isPressed ? 1.5 : 0);
-      const radius = Math.min(5.5, keyW * 0.24);
+      const radius = isCartoon ? Math.min(8, keyW * 0.32) : Math.min(5.5, keyW * 0.24);
 
       // 2A. 3-Layer Soft Penumbra Cast Shadow onto Adjacent White Keys
       if (drawShadows) {
@@ -1637,6 +1816,18 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           sideGrad.addColorStop(0.5, '#d97706');
           sideGrad.addColorStop(1, '#78350f');
         }
+      } else if (isRainbow) {
+        sideGrad.addColorStop(0, '#7c3aed');
+        sideGrad.addColorStop(0.5, '#4c1d95');
+        sideGrad.addColorStop(1, '#2e1065');
+      } else if (isAnimals) {
+        sideGrad.addColorStop(0, '#78350f');
+        sideGrad.addColorStop(0.5, '#451a03');
+        sideGrad.addColorStop(1, '#270e02');
+      } else if (isCandy) {
+        sideGrad.addColorStop(0, '#9d174d');
+        sideGrad.addColorStop(0.5, '#500724');
+        sideGrad.addColorStop(1, '#3b0764');
       } else if (isMahogany) {
         sideGrad.addColorStop(0, '#783c1a');
         sideGrad.addColorStop(0.18, '#4a220d');
@@ -1708,6 +1899,15 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       if (isPressed) {
         slopeGrad.addColorStop(0, isStudent ? '#7dd3fc' : isNeon || isCarbon ? '#a5f3fc' : '#fef08a');
         slopeGrad.addColorStop(1, isStudent ? '#0369a1' : isNeon || isCarbon ? '#155e75' : '#92400e');
+      } else if (isRainbow) {
+        slopeGrad.addColorStop(0, '#c084fc');
+        slopeGrad.addColorStop(1, '#4c1d95');
+      } else if (isAnimals) {
+        slopeGrad.addColorStop(0, '#b45309');
+        slopeGrad.addColorStop(1, '#451a03');
+      } else if (isCandy) {
+        slopeGrad.addColorStop(0, '#f472b6');
+        slopeGrad.addColorStop(1, '#831843');
       } else if (isMahogany) {
         slopeGrad.addColorStop(0, '#9a5226');
         slopeGrad.addColorStop(0.25, '#5c2d14');
@@ -1765,7 +1965,28 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       const deckRadius = Math.max(2, radius - 1.5);
       traceRoundBottomRect(ctx, deckX, deckY, deckW, deckH, deckRadius);
 
-      if (isMahogany) {
+      if (isRainbow) {
+        const rbDeck = ctx.createLinearGradient(deckX, deckY, deckX, deckY + deckH);
+        rbDeck.addColorStop(0, '#312e81');
+        rbDeck.addColorStop(0.6, '#6d28d9');
+        rbDeck.addColorStop(1, '#9333ea');
+        ctx.fillStyle = rbDeck;
+        ctx.fill();
+      } else if (isAnimals) {
+        const anDeck = ctx.createLinearGradient(deckX, deckY, deckX, deckY + deckH);
+        anDeck.addColorStop(0, '#451a03');
+        anDeck.addColorStop(0.7, '#78350f');
+        anDeck.addColorStop(1, '#92400e');
+        ctx.fillStyle = anDeck;
+        ctx.fill();
+      } else if (isCandy) {
+        const cdDeck = ctx.createLinearGradient(deckX, deckY, deckX, deckY + deckH);
+        cdDeck.addColorStop(0, '#3b1808');
+        cdDeck.addColorStop(0.7, '#5c2d16');
+        cdDeck.addColorStop(1, '#be185d');
+        ctx.fillStyle = cdDeck;
+        ctx.fill();
+      } else if (isMahogany) {
         ctx.fillStyle = darkWoodPattern || '#2b1408';
         ctx.fill();
 
@@ -1906,6 +2127,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       // 2E. Crisp 3D Bevel Specular Rim around Top Deck
       ctx.strokeStyle = isPressed
         ? '#fef08a'
+        : isCartoon
+        ? 'rgba(255, 255, 255, 0.65)'
         : isGold
         ? 'rgba(254, 249, 195, 0.9)'
         : isMahogany
@@ -1923,6 +2146,37 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         : 'rgba(203, 213, 225, 0.52)';
       ctx.lineWidth = 1.15;
       ctx.stroke();
+
+      // Cute Cartoon Details on Black Keys (Paw Print / Star / Candy Heart)
+      if (isCartoon && keyW > 14) {
+        const bCx = keyX + keyW / 2;
+        const decoY = deckY + deckH * 0.58;
+        if (isAnimals) {
+          // Cute Pink Paw Print (1 pad + 3 toe beans)
+          const pR = Math.max(2.2, Math.min(4.2, deckW * 0.22));
+          ctx.fillStyle = '#f9a8d4';
+          ctx.beginPath();
+          ctx.arc(bCx, decoY + pR * 0.5, pR, 0, Math.PI * 2);
+          ctx.arc(bCx - pR * 0.95, decoY - pR * 0.65, pR * 0.48, 0, Math.PI * 2);
+          ctx.arc(bCx, decoY - pR * 0.95, pR * 0.48, 0, Math.PI * 2);
+          ctx.arc(bCx + pR * 0.95, decoY - pR * 0.65, pR * 0.48, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (isRainbow) {
+          // Cute sleepy/blinking cartoon eyes on purple black keys
+          const eDist = Math.max(2.2, Math.min(4, deckW * 0.22));
+          ctx.fillStyle = '#fef08a';
+          ctx.beginPath();
+          ctx.arc(bCx - eDist, decoY, 1.8, 0, Math.PI * 2);
+          ctx.arc(bCx + eDist, decoY, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (isCandy) {
+          // Pink frosting dot & mint dot
+          ctx.fillStyle = '#f472b6';
+          ctx.beginPath();
+          ctx.arc(bCx, decoY, Math.max(2.5, Math.min(4, deckW * 0.22)), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
 
       // Bright front knuckle catchlight
       ctx.fillStyle = isGold
@@ -1942,8 +2196,10 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           : isNeon || isCarbon || isSapphire
           ? '#67e8f9'
           : '#fde047'
+        : isCartoon
+        ? '#1e1b4b'
         : '#040302';
-      ctx.lineWidth = isPressed ? 1.8 : 1;
+      ctx.lineWidth = isCartoon ? 1.8 : isPressed ? 1.8 : 1;
       ctx.stroke();
 
       // --- Black Key Note Label ---
@@ -1955,6 +2211,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = isPressed
           ? '#0f172a'
+          : isCartoon
+          ? '#fef9c3'
           : isGold
           ? '#422006'
           : isNeon || isAmethyst
@@ -1993,6 +2251,9 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       const isRuby = theme === 'ruby';
       const isSapphire = theme === 'sapphire';
       const isAmethyst = theme === 'amethyst';
+      const isRainbow = theme === 'rainbow';
+      const isAnimals = theme === 'animals';
+      const isCandy = theme === 'candy';
 
       const {
         darkWoodPattern,
@@ -2014,7 +2275,23 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       ctx.fillRect(sliceX, feltHeight, sliceW, 16);
 
       const woodRailH = Math.max(3.5, feltHeight * 0.48);
-      if (isMahogany && darkWoodPattern) {
+      if (isRainbow) {
+        const rbRail = ctx.createLinearGradient(sliceX, 0, sliceX + sliceW, 0);
+        rbRail.addColorStop(0, '#ef4444');
+        rbRail.addColorStop(0.2, '#f59e0b');
+        rbRail.addColorStop(0.4, '#eab308');
+        rbRail.addColorStop(0.6, '#22c55e');
+        rbRail.addColorStop(0.8, '#3b82f6');
+        rbRail.addColorStop(1, '#ec4899');
+        ctx.fillStyle = rbRail;
+        ctx.fillRect(sliceX, 0, sliceW, woodRailH);
+      } else if (isAnimals) {
+        ctx.fillStyle = '#15803d';
+        ctx.fillRect(sliceX, 0, sliceW, woodRailH);
+      } else if (isCandy) {
+        ctx.fillStyle = '#db2777';
+        ctx.fillRect(sliceX, 0, sliceW, woodRailH);
+      } else if (isMahogany && darkWoodPattern) {
         ctx.fillStyle = darkWoodPattern;
         ctx.fillRect(sliceX, 0, sliceW, woodRailH);
       } else if (isMarble && neroMarquinaPattern) {
@@ -2045,7 +2322,16 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       }
 
       const feltGrad = ctx.createLinearGradient(0, woodRailH, 0, feltHeight);
-      if (isCarbon || isSapphire) {
+      if (isRainbow) {
+        feltGrad.addColorStop(0, '#fde047');
+        feltGrad.addColorStop(1, '#eab308');
+      } else if (isAnimals) {
+        feltGrad.addColorStop(0, '#4ade80');
+        feltGrad.addColorStop(1, '#16a34a');
+      } else if (isCandy) {
+        feltGrad.addColorStop(0, '#f9a8d4');
+        feltGrad.addColorStop(1, '#ec4899');
+      } else if (isCarbon || isSapphire) {
         feltGrad.addColorStop(0, '#082f49');
         feltGrad.addColorStop(0.5, '#0284c7');
         feltGrad.addColorStop(1, '#0c4a6e');

@@ -295,10 +295,14 @@ public class MainActivity extends BridgeActivity {
                             return;
                         }
 
-                        String fileName = "spartito_export";
+                        String fileName = "VirtuKeys_" + System.currentTimeMillis() + ".mp4";
                         if (contentDisposition != null && contentDisposition.contains("filename=")) {
                             fileName = contentDisposition.substring(contentDisposition.indexOf("filename=") + 9)
                                 .replace(String.valueOf((char)34), "").replace(";", "").trim();
+                        } else if (url.contains(".mp4") || (mimetype != null && mimetype.contains("mp4"))) {
+                            fileName = "VirtuKeys_Video_" + System.currentTimeMillis() + ".mp4";
+                        } else if (url.contains(".webm") || (mimetype != null && mimetype.contains("webm"))) {
+                            fileName = "VirtuKeys_Video_" + System.currentTimeMillis() + ".webm";
                         } else if (url.contains(".mid") || (mimetype != null && mimetype.contains("midi"))) {
                             fileName = "spartito_maestro.mid";
                         } else if (url.contains(".json") || (mimetype != null && mimetype.contains("json"))) {
