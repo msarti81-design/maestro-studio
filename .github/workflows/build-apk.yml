@@ -120,12 +120,12 @@ jobs:
       - name: Create GitHub Release (100% Private & Unlimited Storage - 0MB Actions Quota)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v1.0.226-b${{ github.run_number }}"
-          name: "VirtuKeys v1.0.226 (Build #${{ github.run_number }})"
+          tag_name: "v1.0.227-b${{ github.run_number }}"
+          name: "VirtuKeys v1.0.227 (Build #${{ github.run_number }})"
           body: |
-            ### 🎹 VirtuKeys - Pacchetto Android Privato v1.0.226 (`versionCode: 10226`)
+            ### 🎹 VirtuKeys - Pacchetto Android Privato v1.0.227 (`versionCode: 10227`)
             - **VirtuKeys.apk**: Pronto da installare direttamente sul telefono.
-            - **VirtuKeys.aab**: **App Bundle firmato (`versionCode 10226`, `versionName "1.0.226"`)** pronto per Google Play Console.
+            - **VirtuKeys.aab**: **App Bundle firmato (`versionCode 10227`, `versionName "1.0.227"`)** pronto per Google Play Console.
           files: |
             release-output/VirtuKeys.apk
             release-output/VirtuKeys.aab

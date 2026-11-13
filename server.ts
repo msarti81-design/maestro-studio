@@ -252,16 +252,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.226",
-      buildDate: "2026-11-12 19:25",
-      commit: "b8d5f12",
+      version: "1.0.227",
+      buildDate: "2026-11-13 15:45",
+      commit: "c7e9a21",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "New Bouncing Rhythm Balls FX mode: colorful 3D spheres bounce across piano keys in rhythm",
         "Interactive Onboarding Walkthrough & Progress Checklist with automatic step return pill",
         "In-App Rate VirtuKeys on Google Play & Share App with customizable message",
-        "13 selectable Falling Notes visual FX + 10 luxury 3D key materials",
-        "Signed release AAB generation for Google Play Console v1.0.226 (versionCode 10226)",
+        "Signed release AAB generation for Google Play Console v1.0.227 (versionCode 10227)",
       ],
     });
   });

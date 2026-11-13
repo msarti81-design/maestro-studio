@@ -100,6 +100,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const [isMelodyOnly, setIsMelodyOnly] = useState<boolean>(false);
   type WaterfallFxMode =
     | 'all'
+    | 'bounce_balls'
     | 'fireworks'
     | 'aurora'
     | 'lightning'
@@ -440,7 +441,9 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
     energyLevelRef.current = Math.min(1.0, energyLevelRef.current + 0.42);
 
     const palette =
-      mode === 'fire' || mode === 'meteor'
+      mode === 'bounce_balls'
+        ? ['#22d3ee', '#f472b6', '#fde047', '#34d399', '#fb923c', '#a855f7', '#ffffff']
+        : mode === 'fire' || mode === 'meteor'
         ? ['#fde047', '#fb923c', '#f97316', '#ef4444', '#ffffff']
         : mode === 'matrix'
         ? ['#4ade80', '#22c55e', '#38bdf8', '#a7f3d0', '#ffffff']
@@ -752,6 +755,56 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
   const sortedNotesRef = useRef(sortedNotes);
   sortedNotesRef.current = sortedNotes;
+
+  // Bouncing Rhythm Balls track assignments (groups simultaneous chords cleanly into rhythmic bouncing ball paths)
+  const ballTracks = useMemo(() => {
+    interface BallTrackNote {
+      time: number;
+      note: string;
+      duration: number;
+      origIdx: number;
+      midi: number;
+    }
+    const tracks: BallTrackNote[][] = [[], []]; // Track 0: Lead/Right, Track 1: Bass/Left
+    const hasHighNotes = sortedNotes.some((n) => noteNameToMidiNumber(n.note) >= 58);
+
+    let i = 0;
+    while (i < sortedNotes.length) {
+      const t0 = sortedNotes[i].time;
+      const cluster: BallTrackNote[] = [];
+      while (i < sortedNotes.length && sortedNotes[i].time - t0 <= 0.038) {
+        const sn = sortedNotes[i];
+        cluster.push({
+          time: sn.time,
+          note: sn.note,
+          duration: sn.duration,
+          origIdx: sn.originalIndex,
+          midi: noteNameToMidiNumber(sn.note),
+        });
+        i++;
+      }
+      cluster.sort((a, b) => a.midi - b.midi);
+
+      if (cluster.length === 1) {
+        const single = cluster[0];
+        const useTrack1 = hasHighNotes && single.midi < 58;
+        tracks[useTrack1 ? 1 : 0].push(single);
+      } else {
+        // Chord: highest note -> Track 0, lowest note -> Track 1, remaining -> chord harmony tracks
+        tracks[0].push(cluster[cluster.length - 1]);
+        tracks[1].push(cluster[0]);
+        for (let c = 1; c < cluster.length - 1; c++) {
+          const extraIdx = c + 1;
+          while (tracks.length <= extraIdx) tracks.push([]);
+          tracks[extraIdx].push(cluster[c]);
+        }
+      }
+    }
+    return tracks.filter((tr) => tr.length > 0);
+  }, [sortedNotes]);
+
+  const ballTracksRef = useRef(ballTracks);
+  ballTracksRef.current = ballTracks;
 
   const lastFrameTimeRef = useRef<number | null>(null);
 
@@ -1154,7 +1207,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         ctx.fill();
 
         // --- BACKGROUND FX 1: REACTIVE STARFIELD, MATRIX DIGITAL RAIN OR GOLDEN BOKEH ---
-        if (curFx === 'stars' || curFx === 'matrix' || curFx === 'gold_rain' || curFx === 'all') {
+        if (curFx === 'stars' || curFx === 'matrix' || curFx === 'gold_rain' || curFx === 'bounce_balls' || curFx === 'all') {
           ctx.save();
           const stars = bgStarsRef.current;
           const speedBoost = 1 + energy * 3.5;
@@ -1505,19 +1558,350 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           }
         };
 
-        // Pass 1: Render White Key Notes
-        for (let i = 0; i < len; i++) {
-          const keyPos = keyPosMap.get(notes[i].note);
-          if (keyPos && keyPos.type === 'white') {
-            renderNoteBar(i);
-          }
-        }
+        if (curFx === 'bounce_balls') {
+          // --- SPECTACULAR BOUNCING RHYTHM BALLS MODE (NO FALLING BARS) ---
+          const BALL_COLORS = [
+            { light: '#a5f3fc', mid: '#06b6d4', dark: '#0e7490', glow: '#22d3ee' }, // C
+            { light: '#bfdbfe', mid: '#3b82f6', dark: '#1e3a8a', glow: '#60a5fa' }, // C#
+            { light: '#a7f3d0', mid: '#10b981', dark: '#065f46', glow: '#34d399' }, // D
+            { light: '#d9f99d', mid: '#84cc16', dark: '#3f6212', glow: '#a3e635' }, // D#
+            { light: '#fef08a', mid: '#f59e0b', dark: '#92400e', glow: '#fbbf24' }, // E
+            { light: '#fed7aa', mid: '#f97316', dark: '#9a3412', glow: '#fb923c' }, // F
+            { light: '#fecdd3', mid: '#e11d48', dark: '#881337', glow: '#fb7185' }, // F#
+            { light: '#fbcfe8', mid: '#ec4899', dark: '#831843', glow: '#f472b6' }, // G
+            { light: '#f5d0fe', mid: '#d946ef', dark: '#701a75', glow: '#e879f9' }, // G#
+            { light: '#e9d5ff', mid: '#9333ea', dark: '#4c1d95', glow: '#c084fc' }, // A
+            { light: '#c7d2fe', mid: '#6366f1', dark: '#312e81', glow: '#818cf8' }, // A#
+            { light: '#99f6e4', mid: '#14b8a6', dark: '#115e59', glow: '#2dd4bf' }, // B
+          ];
 
-        // Pass 2: Render Black Key Notes on top (clean layering, exactly like the physical piano)
-        for (let i = 0; i < len; i++) {
-          const keyPos = keyPosMap.get(notes[i].note);
-          if (keyPos && keyPos.type === 'black') {
-            renderNoteBar(i);
+          // 1. Draw upcoming key target landing reticles right on the hit line (next 1.0s)
+          for (let i = 0; i < len; i++) {
+            const n = notes[i];
+            const dt = n.time - visualTime;
+            const isWaiting = waitingNoteIndexRef.current === i;
+            if (!isWaiting && (dt < -0.05 || dt > 1.0)) continue;
+            const kp = keyPosMap.get(n.note);
+            if (!kp) continue;
+            const kx = kp.x + kp.width / 2;
+            const pitchClr = BALL_COLORS[noteNameToMidiNumber(n.note) % 12];
+            const progress = isWaiting ? 1 : Math.max(0, Math.min(1, 1 - dt / 1.0));
+
+            ctx.save();
+            // Subtle vertical column glow on upcoming target key
+            const colGrad = ctx.createLinearGradient(kx, hitLineY - 55, kx, hitLineY);
+            colGrad.addColorStop(0, 'rgba(0,0,0,0)');
+            colGrad.addColorStop(1, pitchClr.glow);
+            ctx.globalAlpha = isWaiting ? 0.52 : 0.14 + progress * 0.28;
+            ctx.fillStyle = colGrad;
+            ctx.fillRect(kp.x + 1, hitLineY - 55, Math.max(3, kp.width - 2), 55);
+
+            // Contracting rhythmic landing ring
+            const ringR = Math.max(4, (kp.width * 0.45) * (1.35 - progress * 0.65));
+            ctx.globalAlpha = isWaiting ? 1 : 0.35 + progress * 0.65;
+            ctx.strokeStyle = isWaiting ? '#ffffff' : pitchClr.glow;
+            ctx.lineWidth = isWaiting ? 2.5 : 1.8;
+            ctx.beginPath();
+            ctx.ellipse(kx, hitLineY - 3, ringR, Math.max(3, ringR * 0.45), 0, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Show note name / finger badge near key for learn/fingering clarity
+            if (isWaiting || dt <= 0.45) {
+              const label = playModeRef.current === 'fingering'
+                ? String(songFingeringRef.current[i] || 1)
+                : n.note;
+              ctx.globalAlpha = isWaiting ? 1 : 0.78;
+              ctx.fillStyle = isWaiting ? '#fde047' : '#ffffff';
+              ctx.font = `900 ${Math.max(8, Math.min(11, Math.round(kp.width * 0.5)))}px sans-serif`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(label, kx, hitLineY - 7);
+            }
+            ctx.restore();
+          }
+
+          // Helper to evaluate a ball's position on a parabolic trajectory at time t
+          const evalBallAt = (
+            trNotes: { time: number; note: string; duration: number; origIdx: number; midi: number }[],
+            t: number,
+            isPersistent: boolean
+          ) => {
+            if (!trNotes || trNotes.length === 0) return null;
+            // Binary search for last note <= t
+            let lo = 0;
+            let hi = trNotes.length - 1;
+            let idx = -1;
+            while (lo <= hi) {
+              const mid = (lo + hi) >> 1;
+              if (trNotes[mid].time <= t) {
+                idx = mid;
+                lo = mid + 1;
+              } else {
+                hi = mid - 1;
+              }
+            }
+
+            const getXAndR = (noteName: string) => {
+              const kp = keyPosMap.get(noteName);
+              if (!kp) return null;
+              const r = Math.max(7, Math.min(13.5, kp.width * 0.44));
+              return { x: kp.x + kp.width / 2, r, kp };
+            };
+
+            if (idx === -1) {
+              const n0 = trNotes[0];
+              const dt = n0.time - t;
+              const lead = isPersistent ? 1.8 : 0.72;
+              if (dt > lead || dt < 0) return null;
+              const xr = getXAndR(n0.note);
+              if (!xr) return null;
+              const u = 1 - dt / lead;
+              const x = xr.x - (1 - u) * 32;
+              const y = (hitLineY - xr.r) * (u * u);
+              return {
+                x,
+                y,
+                r: xr.r,
+                sx: u > 0.92 ? 1.24 : 0.94,
+                sy: u > 0.92 ? 0.78 : 1.08,
+                alpha: Math.min(1, u * 2.2),
+                noteObj: n0,
+                nextObj: n0,
+                u,
+              };
+            }
+
+            if (idx === trNotes.length - 1) {
+              const last = trNotes[idx];
+              const dt = t - last.time;
+              if (dt > 0.65) return null;
+              const xr = getXAndR(last.note);
+              if (!xr) return null;
+              const u = dt / 0.65;
+              const arcH = 38 * (1 - u);
+              const y = hitLineY - xr.r - 4 * arcH * u * (1 - u);
+              return {
+                x: xr.x,
+                y,
+                r: xr.r,
+                sx: u < 0.14 ? 1.22 : 1,
+                sy: u < 0.14 ? 0.8 : 1,
+                alpha: Math.max(0, 1 - u),
+                noteObj: last,
+                nextObj: null,
+                u,
+              };
+            }
+
+            const prev = trNotes[idx];
+            const next = trNotes[idx + 1];
+            const xr1 = getXAndR(prev.note);
+            const xr2 = getXAndR(next.note);
+            if (!xr1 && !xr2) return null;
+            const x1 = xr1 ? xr1.x : xr2!.x;
+            const x2 = xr2 ? xr2.x : x1;
+            const r = xr2 ? xr2.r : xr1!.r;
+            const gap = Math.max(0.025, next.time - prev.time);
+            const dt = t - prev.time;
+
+            if (!isPersistent) {
+              if (dt <= 0.25) {
+                const u = dt / 0.25;
+                return {
+                  x: x1,
+                  y: hitLineY - r - 24 * 4 * u * (1 - u),
+                  r,
+                  sx: u < 0.2 ? 1.22 : 1,
+                  sy: u < 0.2 ? 0.8 : 1,
+                  alpha: Math.max(0, 1 - u),
+                  noteObj: prev,
+                  nextObj: null,
+                  u,
+                };
+              } else if (next.time - t <= 0.62) {
+                const u = 1 - (next.time - t) / 0.62;
+                const arcH = Math.min(hitLineY * 0.72, 74);
+                return {
+                  x: x2 - (1 - u) * 24,
+                  y: hitLineY - r - 4 * arcH * u * (1 - u),
+                  r,
+                  sx: u > 0.9 ? 1.22 : 0.94,
+                  sy: u > 0.9 ? 0.8 : 1.07,
+                  alpha: Math.min(1, u * 2.4),
+                  noteObj: next,
+                  nextObj: next,
+                  u,
+                };
+              }
+              return null;
+            }
+
+            // Persistent hero ball trajectory
+            if (gap <= 1.35) {
+              const u = dt / gap;
+              const x = x1 + (x2 - x1) * u;
+              const arcH = Math.min(hitLineY * 0.84, Math.max(22, 18 + gap * 128));
+              const y = hitLineY - r - 4 * arcH * u * (1 - u);
+              const nearBounce = u < 0.09 || u > 0.91;
+              return {
+                x,
+                y,
+                r,
+                sx: nearBounce ? 1.24 : 0.93,
+                sy: nearBounce ? 0.78 : 1.09,
+                alpha: 1,
+                noteObj: u < 0.5 ? prev : next,
+                nextObj: next,
+                u,
+              };
+            } else {
+              if (dt <= 0.30) {
+                const u = dt / 0.30;
+                return {
+                  x: x1,
+                  y: hitLineY - r - 22 * 4 * u * (1 - u),
+                  r,
+                  sx: u < 0.16 ? 1.2 : 1,
+                  sy: u < 0.16 ? 0.82 : 1,
+                  alpha: 1,
+                  noteObj: prev,
+                  nextObj: null,
+                  u,
+                };
+              } else if (t < next.time - 1.05) {
+                const hover = Math.abs(Math.sin((dt - 0.30) * 4.2)) * 9;
+                return {
+                  x: x1,
+                  y: hitLineY - r - hover,
+                  r,
+                  sx: hover < 1.5 ? 1.16 : 1,
+                  sy: hover < 1.5 ? 0.86 : 1,
+                  alpha: 1,
+                  noteObj: prev,
+                  nextObj: next,
+                  u: 0,
+                };
+              } else {
+                const u = (t - (next.time - 1.05)) / 1.05;
+                const arcH = Math.min(hitLineY * 0.82, 125);
+                return {
+                  x: x1 + (x2 - x1) * u,
+                  y: hitLineY - r - 4 * arcH * u * (1 - u),
+                  r,
+                  sx: u > 0.92 ? 1.24 : 0.92,
+                  sy: u > 0.92 ? 0.78 : 1.1,
+                  alpha: 1,
+                  noteObj: next,
+                  nextObj: next,
+                  u,
+                };
+              }
+            }
+          };
+
+          // 2. Render each active Bouncing Ball Track with ribbon comet trail + dotted preview arc + 3D glossy orb
+          const curTracks = ballTracksRef.current;
+          for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
+            const trNotes = curTracks[trIdx];
+            const isPersistent = trIdx < 2;
+            const cur = evalBallAt(trNotes, visualTime, isPersistent);
+            if (!cur) continue;
+
+            const clr = BALL_COLORS[cur.noteObj.midi % 12];
+
+            // Dotted guide arc toward next key for persistent balls
+            if (isPersistent && cur.nextObj && cur.nextObj.time - visualTime <= 1.15) {
+              const targetKp = keyPosMap.get(cur.nextObj.note);
+              if (targetKp) {
+                ctx.save();
+                ctx.setLineDash([3, 5]);
+                ctx.strokeStyle = clr.glow;
+                ctx.globalAlpha = 0.22 * cur.alpha;
+                ctx.lineWidth = 1.4;
+                ctx.beginPath();
+                ctx.moveTo(cur.x, cur.y);
+                const nx = targetKp.x + targetKp.width / 2;
+                ctx.quadraticCurveTo((cur.x + nx) / 2, Math.max(8, cur.y - 24), nx, hitLineY - 3);
+                ctx.stroke();
+                ctx.restore();
+              }
+            }
+
+            // Smooth analytical glowing ribbon trail behind the ball (8 samples back in time)
+            ctx.save();
+            for (let k = 8; k >= 1; k--) {
+              const trailEval = evalBallAt(trNotes, visualTime - k * 0.022, isPersistent);
+              if (!trailEval) continue;
+              const tFrac = 1 - k / 9;
+              ctx.globalAlpha = cur.alpha * tFrac * 0.42;
+              ctx.fillStyle = clr.glow;
+              ctx.beginPath();
+              ctx.arc(trailEval.x, trailEval.y, Math.max(1.5, cur.r * tFrac * 0.82), 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.restore();
+
+            // Draw the 3D Glossy Neon Sphere with Squash & Stretch
+            ctx.save();
+            ctx.globalAlpha = cur.alpha;
+            ctx.translate(cur.x, cur.y);
+            ctx.scale(cur.sx, cur.sy);
+
+            // Outer ambient halo
+            const haloGrad = ctx.createRadialGradient(0, 0, cur.r * 0.3, 0, 0, cur.r * 2.1);
+            haloGrad.addColorStop(0, clr.glow);
+            haloGrad.addColorStop(0.45, clr.mid + '66');
+            haloGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = haloGrad;
+            ctx.beginPath();
+            ctx.arc(0, 0, cur.r * 2.1, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 3D sphere body gradient
+            const orbGrad = ctx.createRadialGradient(-cur.r * 0.32, -cur.r * 0.35, cur.r * 0.1, 0, 0, cur.r);
+            orbGrad.addColorStop(0, '#ffffff');
+            orbGrad.addColorStop(0.28, clr.light);
+            orbGrad.addColorStop(0.68, clr.mid);
+            orbGrad.addColorStop(1, clr.dark);
+            ctx.fillStyle = orbGrad;
+            ctx.beginPath();
+            ctx.arc(0, 0, cur.r, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Crisp bright rim outline
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.lineWidth = 1.25;
+            ctx.stroke();
+
+            // Note / Finger label inside main spheres if large enough
+            if (cur.r >= 8.5) {
+              ctx.fillStyle = '#0f172a';
+              ctx.font = `900 ${Math.max(7, Math.round(cur.r * 0.85))}px sans-serif`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              const txt = playModeRef.current === 'fingering'
+                ? String(songFingeringRef.current[cur.noteObj.origIdx] || 1)
+                : cur.noteObj.note.replace(/\d+$/, '');
+              ctx.fillText(txt, 0, 0.5);
+            }
+
+            ctx.restore();
+          }
+        } else {
+          // Pass 1: Render White Key Notes
+          for (let i = 0; i < len; i++) {
+            const keyPos = keyPosMap.get(notes[i].note);
+            if (keyPos && keyPos.type === 'white') {
+              renderNoteBar(i);
+            }
+          }
+
+          // Pass 2: Render Black Key Notes on top (clean layering, exactly like the physical piano)
+          for (let i = 0; i < len; i++) {
+            const keyPos = keyPosMap.get(notes[i].note);
+            if (keyPos && keyPos.type === 'black') {
+              renderNoteBar(i);
+            }
           }
         }
 
@@ -2002,6 +2386,8 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             <span>
               {fxMode === 'all'
                 ? '👑 Ultra Mix'
+                : fxMode === 'bounce_balls'
+                ? '🏀 Rimbalzi'
                 : fxMode === 'fireworks'
                 ? '🎆 Fuochi'
                 : fxMode === 'aurora'
@@ -2392,7 +2778,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         <div className="absolute top-8 left-2 right-2 z-40 bg-slate-950/95 border border-amber-500/50 rounded-xl p-2 shadow-2xl backdrop-blur-md animate-in fade-in">
           <div className="flex items-center justify-between mb-1.5 px-1">
             <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider">
-              ✨ Scegli Effetto Spettacolare per il Video (13 Modalità • 0ms Lag)
+              ✨ Scegli Effetto Spettacolare per il Video (14 Modalità • 0ms Lag)
             </span>
             <button
               onClick={() => setIsFxPickerOpen(false)}
@@ -2404,6 +2790,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-1">
             {([
               { id: 'all', label: '👑 Ultra Mix', desc: 'Tutti insieme!' },
+              { id: 'bounce_balls', label: '🏀 Rimbalzi', desc: 'Sfere a ritmo sui tasti' },
               { id: 'fireworks', label: '🎆 Fuochi', desc: 'Esplosioni 360°' },
               { id: 'aurora', label: '🌈 Laser Aurora', desc: 'Raggi verticali' },
               { id: 'lightning', label: '⚡ Fulmini Tesla', desc: 'Archi elettrici' },
