@@ -523,6 +523,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const [isUploadingVideoChunks, setIsUploadingVideoChunks] = useState<boolean>(false);
   const [videoUploadPercent, setVideoUploadPercent] = useState<number>(0);
   const [savedVideosArchive, setSavedVideosArchive] = useState<SavedVideoEntry[]>([]);
+  const [waterfallRestartTrigger, setWaterfallRestartTrigger] = useState<number>(0);
   const reelRecorderRef = useRef<MediaRecorder | null>(null);
   const videoUploadPromiseRef = useRef<Promise<{ streamUrl: string; downloadUrl: string } | null> | null>(null);
 
@@ -795,9 +796,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
       amethyst: '🔮 Cosmic Amethyst',
       carbon: '🏎️ Titanium Carbon',
       neon: '⚡ Cyber Neon',
-      rainbow: '🌈 Cartoon Rainbow',
-      animals: '🐶 Cuccioli Cartoon',
-      candy: '🍭 Candy & Dolci',
+      rainbow: '🌈 Pop Rainbow',
+      animals: '🐾 Pet & Paws',
+      candy: '🍭 Sweet Pastel',
     };
 
     reelStartTimeRef.current = performance.now();
@@ -1076,6 +1077,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
       recorder.start(100);
       reelStartTimeRef.current = performance.now();
       renderCompositeFrame();
+
+      // Automatically restart the song from the beginning (0:00) with all current user settings active
+      if (activeSong) {
+        setShowWaterfall(true);
+        setWaterfallRestartTrigger((prev) => prev + 1);
+      }
 
       setIsReelRecording(true);
       setReelRecordSeconds(0);
@@ -3353,128 +3360,6 @@ export const PianoView: React.FC<PianoViewProps> = ({
               )}
             </div>
 
-            {/* 2-Option Video Mode Modal (Fixed viewport positioning to avoid overflow clipping) */}
-            {isVideoMenuOpen && !isReelRecording && (
-              <div className="fixed inset-0 z-50 flex items-start justify-end p-2 sm:p-4 bg-slate-950/60 backdrop-blur-xs">
-                <div
-                  className="fixed inset-0"
-                  onClick={() => setIsVideoMenuOpen(false)}
-                />
-                <div className="relative mt-8 sm:mt-10 mr-1 sm:mr-2 w-72 sm:w-80 bg-slate-900 border-2 border-amber-500/70 rounded-2xl shadow-2xl p-3 z-10 animate-in fade-in zoom-in-95 duration-150 space-y-2 text-left">
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
-                    <div className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                      <span>🎬</span>
-                      <span>Scegli Formato Video</span>
-                    </div>
-                    <button
-                      onClick={() => setIsVideoMenuOpen(false)}
-                      className="w-6 h-6 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  {/* Option 1: Vertical 9:16 (Central Zoom) */}
-                  <button
-                    onClick={() => startVideoRecording('vertical_reel')}
-                    className="w-full p-2.5 rounded-xl bg-slate-800/90 hover:bg-gradient-to-r hover:from-fuchsia-900/70 hover:to-amber-900/70 border border-slate-700/80 hover:border-amber-400/80 transition-all text-left flex items-start gap-2.5 cursor-pointer group shadow-sm"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-fuchsia-600/25 border border-fuchsia-500/50 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
-                      📱
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-black text-white flex items-center justify-between">
-                        <span>Verticale 9:16</span>
-                        <span className="text-[9px] bg-fuchsia-500/25 text-fuchsia-300 px-1.5 py-0.2 rounded font-mono font-bold">TikTok / Reels</span>
-                      </div>
-                      <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
-                        Zoom automatico sulle note centrali per video verticali da smartphone.
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Option 2: Horizontal 16:9 (Full Piano + "Rotate Your Phone" Glowing Intro) */}
-                  <button
-                    onClick={() => startVideoRecording('horizontal_full')}
-                    className="w-full p-2.5 rounded-xl bg-slate-800/90 hover:bg-gradient-to-r hover:from-amber-900/70 hover:to-yellow-900/70 border border-slate-700/80 hover:border-yellow-400/80 transition-all text-left flex items-start gap-2.5 cursor-pointer group shadow-sm"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-amber-600/25 border border-amber-500/50 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
-                      🔄
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-black text-white flex items-center justify-between">
-                        <span>Orizzontale 16:9</span>
-                        <span className="text-[9px] bg-amber-500/25 text-amber-300 px-1.5 py-0.2 rounded font-mono font-bold">Full / YouTube</span>
-                      </div>
-                      <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
-                        Tastiera completa con effetto luminoso iniziale <strong className="text-amber-300">"ROTATE YOUR PHONE"</strong> in inglese.
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Saved / Recent Videos Recovery Section */}
-                  {savedVideosArchive.length > 0 && (
-                    <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center justify-between">
-                        <span>📂 Ultimi Video Registrati ({savedVideosArchive.length})</span>
-                        <span className="text-[9px] text-slate-400 font-normal">Salvataggio auto</span>
-                      </div>
-                      <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5">
-                        {savedVideosArchive.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex items-center justify-between gap-1.5 p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/70 text-[10px]"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="font-bold text-white truncate" title={item.filename}>
-                                {item.mode === 'vertical_reel' ? '📱 ' : '🖥️ '}
-                                {item.filename}
-                              </div>
-                              <div className="text-[9px] text-slate-400">
-                                {item.sizeBytes > 0 ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB • ` : ''}
-                                {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setIsVideoMenuOpen(false);
-                                setActiveVideoMode(item.mode);
-                                setRecordedVideoExt(item.ext);
-                                setRecordedVideoFilename(item.filename);
-                                if (item.serverUrl) {
-                                  const cleanStream = item.serverUrl.split('?')[0];
-                                  setRecordedServerStreamUrl(cleanStream);
-                                  setRecordedServerDownloadUrl(`${cleanStream}?dl=1`);
-                                } else {
-                                  setRecordedServerStreamUrl(null);
-                                  setRecordedServerDownloadUrl(null);
-                                }
-                                if (item.blob) {
-                                  const objUrl = URL.createObjectURL(item.blob);
-                                  setRecordedVideoBlob(item.blob);
-                                  setRecordedVideoUrl(objUrl);
-                                  if (!item.serverUrl) {
-                                    const upPromise = uploadVideoInChunks(item.blob, item.filename);
-                                    videoUploadPromiseRef.current = upPromise;
-                                  }
-                                } else if (item.serverUrl) {
-                                  setRecordedVideoBlob(null);
-                                  setRecordedVideoUrl(item.serverUrl.split('?')[0]);
-                                }
-                              }}
-                              className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-black shrink-0 cursor-pointer"
-                            >
-                              Apri / Scarica
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* Sustain pedal toggle */}
             <button
               onClick={() => {
@@ -3492,107 +3377,86 @@ export const PianoView: React.FC<PianoViewProps> = ({
               Sustain
             </button>
 
-            {/* Quick 1-Tap Material & Cartoon Switcher Buttons */}
+            {/* Quick 1-Tap Keyboard Style Switcher Button */}
             {onThemeChange && (
-              <>
-                <button
-                  onClick={() => {
-                    const order: StudioTheme[] = [
-                      'midnight',
-                      'mahogany',
-                      'marble',
-                      'gold',
-                      'emerald',
-                      'ruby',
-                      'sapphire',
-                      'amethyst',
-                      'carbon',
-                      'neon',
-                      'rainbow',
-                      'animals',
-                      'candy',
-                    ];
-                    const nextIdx = (order.indexOf(studioTheme) + 1) % order.length;
-                    onThemeChange(order[nextIdx]);
-                  }}
-                  className="px-1.5 sm:px-2 py-0.5 font-bold rounded-md border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                  title="Cambia materiale 3D o stile Cartoon della tastiera"
-                >
-                  <span>
-                    {studioTheme === 'mahogany'
-                      ? '🪵'
-                      : studioTheme === 'marble'
-                      ? '🏛️'
-                      : studioTheme === 'gold'
-                      ? '👑'
-                      : studioTheme === 'emerald'
-                      ? '💎'
-                      : studioTheme === 'ruby'
-                      ? '🔥'
-                      : studioTheme === 'sapphire'
-                      ? '❄️'
-                      : studioTheme === 'amethyst'
-                      ? '🔮'
-                      : studioTheme === 'carbon'
-                      ? '🏎️'
-                      : studioTheme === 'neon'
-                      ? '⚡'
-                      : studioTheme === 'rainbow'
-                      ? '🌈'
-                      : studioTheme === 'animals'
-                      ? '🐶'
-                      : studioTheme === 'candy'
-                      ? '🍭'
-                      : '🎹'}
-                  </span>
-                  <span className="hidden md:inline text-[10px]">
-                    {studioTheme === 'mahogany'
-                      ? 'Wood'
-                      : studioTheme === 'marble'
-                      ? 'Marble'
-                      : studioTheme === 'gold'
-                      ? 'Gold'
-                      : studioTheme === 'emerald'
-                      ? 'Jade'
-                      : studioTheme === 'ruby'
-                      ? 'Ruby'
-                      : studioTheme === 'sapphire'
-                      ? 'Sapphire'
-                      : studioTheme === 'amethyst'
-                      ? 'Amethyst'
-                      : studioTheme === 'carbon'
-                      ? 'Carbon'
-                      : studioTheme === 'neon'
-                      ? 'Neon'
-                      : studioTheme === 'rainbow'
-                      ? 'Rainbow'
-                      : studioTheme === 'animals'
-                      ? 'Cuccioli'
-                      : studioTheme === 'candy'
-                      ? 'Candy'
-                      : 'Ivory'}
-                  </span>
-                </button>
-                <button
-                  onClick={() => {
-                    const kidsThemes: StudioTheme[] = ['rainbow', 'animals', 'candy'];
-                    const curIdx = kidsThemes.indexOf(studioTheme);
-                    const nextTheme = curIdx === -1 ? 'rainbow' : kidsThemes[(curIdx + 1) % kidsThemes.length];
-                    onThemeChange(nextTheme);
-                  }}
-                  className={`px-1.5 sm:px-2 py-0.5 font-black rounded-md border transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                    studioTheme === 'rainbow' || studioTheme === 'animals' || studioTheme === 'candy'
-                      ? 'bg-gradient-to-r from-pink-500 via-amber-400 to-cyan-400 text-slate-950 border-yellow-300 shadow-sm'
-                      : 'bg-pink-500/15 hover:bg-pink-500/25 border-pink-400/40 text-pink-300'
-                  }`}
-                  title="Tastiere Cartoon per Bambini (Arcobaleno 🌈, Cuccioli 🐶, Caramelle 🍭)"
-                >
-                  <span>
-                    {studioTheme === 'animals' ? '🐶' : studioTheme === 'candy' ? '🍭' : '🌈'}
-                  </span>
-                  <span className="text-[10px]">Kids</span>
-                </button>
-              </>
+              <button
+                onClick={() => {
+                  const order: StudioTheme[] = [
+                    'midnight',
+                    'mahogany',
+                    'marble',
+                    'gold',
+                    'carbon',
+                    'neon',
+                    'rainbow',
+                    'animals',
+                    'candy',
+                    'emerald',
+                    'ruby',
+                    'sapphire',
+                    'amethyst',
+                  ];
+                  const nextIdx = (order.indexOf(studioTheme) + 1) % order.length;
+                  onThemeChange(order[nextIdx]);
+                }}
+                className="px-1.5 sm:px-2 py-0.5 font-bold rounded-md border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                title="Cambia stile e design della tastiera"
+              >
+                <span>
+                  {studioTheme === 'mahogany'
+                    ? '🪵'
+                    : studioTheme === 'marble'
+                    ? '🏛️'
+                    : studioTheme === 'gold'
+                    ? '👑'
+                    : studioTheme === 'emerald'
+                    ? '💎'
+                    : studioTheme === 'ruby'
+                    ? '🔥'
+                    : studioTheme === 'sapphire'
+                    ? '❄️'
+                    : studioTheme === 'amethyst'
+                    ? '🔮'
+                    : studioTheme === 'carbon'
+                    ? '🏎️'
+                    : studioTheme === 'neon'
+                    ? '⚡'
+                    : studioTheme === 'rainbow'
+                    ? '🌈'
+                    : studioTheme === 'animals'
+                    ? '🐾'
+                    : studioTheme === 'candy'
+                    ? '🍭'
+                    : '🎹'}
+                </span>
+                <span className="hidden md:inline text-[10px]">
+                  {studioTheme === 'mahogany'
+                    ? 'Wood'
+                    : studioTheme === 'marble'
+                    ? 'Marble'
+                    : studioTheme === 'gold'
+                    ? 'Gold'
+                    : studioTheme === 'emerald'
+                    ? 'Jade'
+                    : studioTheme === 'ruby'
+                    ? 'Ruby'
+                    : studioTheme === 'sapphire'
+                    ? 'Sapphire'
+                    : studioTheme === 'amethyst'
+                    ? 'Amethyst'
+                    : studioTheme === 'carbon'
+                    ? 'Carbon'
+                    : studioTheme === 'neon'
+                    ? 'Neon'
+                    : studioTheme === 'rainbow'
+                    ? 'Rainbow'
+                    : studioTheme === 'animals'
+                    ? 'Pet'
+                    : studioTheme === 'candy'
+                    ? 'Candy'
+                    : 'Ivory'}
+                </span>
+              </button>
             )}
 
             {/* 3-DOTS OPTIONS MODAL BUTTON (Metronome, Volume, Keys, etc.) */}
@@ -4284,6 +4148,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 initialViewMode={masterclassViewMode}
                 onViewModeChange={setMasterclassViewMode}
                 sheetScrollMode={sheetScrollMode}
+                restartTrigger={waterfallRestartTrigger}
                 isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
                 onActiveGuidanceChange={setSongGuidance}
                 onMasterclassFinished={() => {
@@ -4407,23 +4272,23 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <div>
                   <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2 flex items-center gap-1.5">
                     <Palette className="w-3.5 h-3.5 text-amber-400" />
-                    Stile Tastiera 3D & Tastiere Cartoon per Bambini (Zero Latency)
+                    1. Studio Keyboard Style &amp; Aesthetics (Zero Latency)
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
-                      { id: 'rainbow', name: '🌈 Cartoon Rainbow', desc: 'Arcobaleno & Faccine Buffe (Kids)' },
-                      { id: 'animals', name: '🐶 Cuccioli Cartoon', desc: 'Animaletti & Zampette (Kids)' },
-                      { id: 'candy', name: '🍭 Candy & Dolci', desc: 'Gelato, Cioccolato & Codette (Kids)' },
                       { id: 'midnight', name: '🎹 Concert Ivory', desc: 'Avorio & Ebano Steinway' },
                       { id: 'mahogany', name: '🪵 Vintage Wood', desc: 'Acero & Palissandro 3D' },
                       { id: 'marble', name: '🏛️ Carrara Marble', desc: 'Marmo Bianco & Portoro' },
                       { id: 'gold', name: '👑 Royal Gold & Pearl', desc: 'Madreperla & Oro 24k' },
+                      { id: 'carbon', name: '🏎️ Titanium & Carbon', desc: 'Titanio & Fibra Carbonio' },
+                      { id: 'neon', name: '⚡ Cyber Synth', desc: 'Vetro Fumé & Laser' },
+                      { id: 'rainbow', name: '🌈 Pop Rainbow', desc: 'Arcobaleno Pop & Smile' },
+                      { id: 'animals', name: '🐾 Pet & Paws', desc: 'Mascotte Cartoon & Impronte' },
+                      { id: 'candy', name: '🍭 Sweet Pastel', desc: 'Pastello & Codette Colorate' },
                       { id: 'emerald', name: '💎 Emerald Jade', desc: 'Giada Imperiale & Malachite' },
                       { id: 'ruby', name: '🔥 Magma Ruby', desc: 'Quarzo Rosa & Rubino Lavico' },
                       { id: 'sapphire', name: '❄️ Arctic Sapphire', desc: 'Cristallo Ghiaccio & Zaffiro' },
                       { id: 'amethyst', name: '🔮 Cosmic Amethyst', desc: 'Opale Aurora & Ametista' },
-                      { id: 'carbon', name: '🏎️ Titanium & Carbon', desc: 'Titanio & Fibra Carbonio' },
-                      { id: 'neon', name: '⚡ Cyber Synth', desc: 'Vetro Fumé & Laser' },
                     ].map((th) => (
                       <button
                         key={th.id}
@@ -5240,6 +5105,128 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 Attendi
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2-OPTION VIDEO FORMAT SELECTOR MODAL (Root-level z-[120] so it ALWAYS renders ABOVE the mini-keyboard & waterfall) */}
+      {isVideoMenuOpen && !isReelRecording && (
+        <div className="fixed inset-0 z-[120] flex items-start justify-end p-2 sm:p-4 bg-slate-950/65 backdrop-blur-xs">
+          <div
+            className="fixed inset-0"
+            onClick={() => setIsVideoMenuOpen(false)}
+          />
+          <div className="relative mt-8 sm:mt-10 mr-1 sm:mr-2 w-72 sm:w-80 bg-slate-900 border-2 border-amber-500/80 rounded-2xl shadow-2xl p-3 z-10 animate-in fade-in zoom-in-95 duration-150 space-y-2 text-left">
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+              <div className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <span>🎬</span>
+                <span>Scegli Formato Video</span>
+              </div>
+              <button
+                onClick={() => setIsVideoMenuOpen(false)}
+                className="w-6 h-6 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Option 1: Vertical 9:16 (Central Zoom) */}
+            <button
+              onClick={() => startVideoRecording('vertical_reel')}
+              className="w-full p-2.5 rounded-xl bg-slate-800/90 hover:bg-gradient-to-r hover:from-fuchsia-900/70 hover:to-amber-900/70 border border-slate-700/80 hover:border-amber-400/80 transition-all text-left flex items-start gap-2.5 cursor-pointer group shadow-sm"
+            >
+              <div className="w-9 h-9 rounded-xl bg-fuchsia-600/25 border border-fuchsia-500/50 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                📱
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-black text-white flex items-center justify-between">
+                  <span>Verticale 9:16</span>
+                  <span className="text-[9px] bg-fuchsia-500/25 text-fuchsia-300 px-1.5 py-0.2 rounded font-mono font-bold">TikTok / Reels</span>
+                </div>
+                <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
+                  Zoom automatico sulle note centrali. Il brano riparte dall&apos;inizio con i tuoi settaggi attuali.
+                </p>
+              </div>
+            </button>
+
+            {/* Option 2: Horizontal 16:9 (Full Piano + "Rotate Your Phone" Glowing Intro) */}
+            <button
+              onClick={() => startVideoRecording('horizontal_full')}
+              className="w-full p-2.5 rounded-xl bg-slate-800/90 hover:bg-gradient-to-r hover:from-amber-900/70 hover:to-yellow-900/70 border border-slate-700/80 hover:border-yellow-400/80 transition-all text-left flex items-start gap-2.5 cursor-pointer group shadow-sm"
+            >
+              <div className="w-9 h-9 rounded-xl bg-amber-600/25 border border-amber-500/50 flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                🔄
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-black text-white flex items-center justify-between">
+                  <span>Orizzontale 16:9</span>
+                  <span className="text-[9px] bg-amber-500/25 text-amber-300 px-1.5 py-0.2 rounded font-mono font-bold">Full / YouTube</span>
+                </div>
+                <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
+                  Tastiera completa con intro <strong className="text-amber-300">&quot;ROTATE YOUR PHONE&quot;</strong>. Il brano riparte dall&apos;inizio.
+                </p>
+              </div>
+            </button>
+
+            {/* Saved / Recent Videos Recovery Section */}
+            {savedVideosArchive.length > 0 && (
+              <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                <div className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center justify-between">
+                  <span>📂 Ultimi Video Registrati ({savedVideosArchive.length})</span>
+                  <span className="text-[9px] text-slate-400 font-normal">Salvataggio auto</span>
+                </div>
+                <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5">
+                  {savedVideosArchive.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-1.5 p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/70 text-[10px]"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-white truncate" title={item.filename}>
+                          {item.mode === 'vertical_reel' ? '📱 ' : '🖥️ '}
+                          {item.filename}
+                        </div>
+                        <div className="text-[9px] text-slate-400">
+                          {item.sizeBytes > 0 ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB • ` : ''}
+                          {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setIsVideoMenuOpen(false);
+                          setActiveVideoMode(item.mode);
+                          setRecordedVideoExt(item.ext);
+                          setRecordedVideoFilename(item.filename);
+                          if (item.serverUrl) {
+                            const cleanStream = item.serverUrl.split('?')[0];
+                            setRecordedServerStreamUrl(cleanStream);
+                            setRecordedServerDownloadUrl(`${cleanStream}?dl=1`);
+                          } else {
+                            setRecordedServerStreamUrl(null);
+                            setRecordedServerDownloadUrl(null);
+                          }
+                          if (item.blob) {
+                            const objUrl = URL.createObjectURL(item.blob);
+                            setRecordedVideoBlob(item.blob);
+                            setRecordedVideoUrl(objUrl);
+                            if (!item.serverUrl) {
+                              const upPromise = uploadVideoInChunks(item.blob, item.filename);
+                              videoUploadPromiseRef.current = upPromise;
+                            }
+                          } else if (item.serverUrl) {
+                            setRecordedVideoBlob(null);
+                            setRecordedVideoUrl(item.serverUrl.split('?')[0]);
+                          }
+                        }}
+                        className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-black shrink-0 cursor-pointer"
+                      >
+                        Apri / Scarica
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

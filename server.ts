@@ -374,16 +374,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.231",
-      buildDate: "2026-11-13 22:35",
-      commit: "c9e7f31",
+      version: "1.0.232",
+      buildDate: "2026-11-13 22:45",
+      commit: "d4a2b88",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Fixed Video Download via both Scarica Video button AND native 3-dots menu (⋮ -> Scarica) using 512KB chunked server upload + HTTPS stream/attachment URLs",
-        "Added 3 Cartoon Kids Keyboard styles (Rainbow, Animals, Candy) + 1-tap Kids switcher",
-        "Fixed multi-track & Karaoke MIDI import (Baby Shark & complex MIDIs): full Running Status preservation & polyphonic melody + chord playback",
-        "Signed release AAB & APK generation for Google Play Console v1.0.231 (versionCode 10231)",
+        "Integrated Pop Rainbow, Pet & Paws, and Sweet Pastel keyboards among Studio styles without Kids label",
+        "Elevated Video Format selector modal above mini-keyboard & auto-restarts song from 0:00 with current settings on video start",
+        "Fixed Video Download via both Scarica Video button AND native 3-dots menu (⋮ -> Scarica) using 384KB chunked server upload",
+        "Signed release AAB & APK generation for Google Play Console v1.0.232 (versionCode 10232)",
       ],
     });
   });

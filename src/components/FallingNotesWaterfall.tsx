@@ -37,6 +37,7 @@ interface FallingNotesWaterfallProps {
   onMasterclassFinished?: () => void;
   onActiveGuidanceChange?: (guidance: { note: string | null; finger: number | null; tip?: string | null; hand?: 'right' | 'left' } | null) => void;
   sheetScrollMode?: 'sweeping' | 'continuous';
+  restartTrigger?: number;
 }
 
 interface KeyPosition {
@@ -93,6 +94,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   onMasterclassFinished,
   onActiveGuidanceChange,
   sheetScrollMode = 'sweeping',
+  restartTrigger = 0,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -2235,8 +2237,17 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
     setScore(0);
     setCombo(0);
     setIsCompleted(false);
+    setIsCountIn(false);
+    setCountInText(null);
     setIsPlaying(true);
   };
+
+  useEffect(() => {
+    if (restartTrigger > 0) {
+      handleReset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restartTrigger]);
 
   const togglePlayPause = () => {
     if (!isPlaying) {

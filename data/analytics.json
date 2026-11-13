@@ -31,10 +31,10 @@
       "username": "Pianista_957",
       "platform": "Browser Mobile",
       "firstSeen": "2026-11-11T05:48:17.662Z",
-      "lastSeen": "2026-11-13T19:31:25.731Z",
+      "lastSeen": "2026-11-13T22:24:51.854Z",
       "lastView": "piano",
-      "totalPings": 123,
-      "totalSessions": 80,
+      "totalPings": 124,
+      "totalSessions": 81,
       "screen": "444x985",
       "theme": "marble",
       "lastSong": "Baby Shark"
@@ -545,6 +545,19 @@
       "screen": "985x444",
       "theme": "rainbow",
       "lastSong": "Baby Shark"
+    },
+    "dev_1794607902372_7owsa9n": {
+      "deviceId": "dev_1794607902372_7owsa9n",
+      "username": "Pianista_829",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-13T22:11:46.371Z",
+      "lastSeen": "2026-11-13T22:16:12.299Z",
+      "lastView": "piano",
+      "totalPings": 10,
+      "totalSessions": 3,
+      "screen": "985x444",
+      "theme": "rainbow",
+      "lastSong": "Baby Shark"
     }
   },
   "daily": {
@@ -589,13 +602,14 @@
         "dev_1794592712980_afuq83d",
         "dev_1794599019465_vnwpgp0",
         "dev_1794600163897_xj9c1s3",
-        "dev_1794605978501_1jmrnio"
+        "dev_1794605978501_1jmrnio",
+        "dev_1794607902372_7owsa9n"
       ],
-      "pings": 192
+      "pings": 203
     }
   },
   "songs": {
-    "Inno alla Gioia (Ode to Joy - Completo)": 40,
+    "Inno alla Gioia (Ode to Joy - Completo)": 41,
     "Per Elisa (Für Elise - Completo)": 35,
     "La Primavera (Le Quattro Stagioni)": 4,
     "La Donna è Mobile (Rigoletto)": 1,
@@ -607,7 +621,7 @@
     "Funiculì Funiculà": 1,
     "Il Mattino (Morning Mood - Peer Gynt)": 1,
     "Electric Piano": 2,
-    "Baby Shark": 9,
+    "Baby Shark": 11,
     "Baby Shark Dance #babyshark MIDI DB Free MIDI FILES.midi files Made By @PinkFong.midi files": 3
   }
 }

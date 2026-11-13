@@ -52,6 +52,27 @@ export const STUDIO_THEMES: StudioThemeOption[] = [
     desc: 'Vetro Fumé & Laser',
   },
   {
+    id: 'rainbow',
+    icon: '🌈',
+    shortName: 'Rainbow',
+    name: '🌈 Pop Rainbow',
+    desc: 'Arcobaleno Pop & Smile',
+  },
+  {
+    id: 'animals',
+    icon: '🐾',
+    shortName: 'Pet',
+    name: '🐾 Pet & Paws',
+    desc: 'Mascotte Cartoon & Impronte',
+  },
+  {
+    id: 'candy',
+    icon: '🍭',
+    shortName: 'Candy',
+    name: '🍭 Sweet Pastel',
+    desc: 'Pastello & Codette Colorate',
+  },
+  {
     id: 'emerald',
     icon: '💎',
     shortName: 'Emerald',
@@ -78,27 +99,6 @@ export const STUDIO_THEMES: StudioThemeOption[] = [
     shortName: 'Amethyst',
     name: '🔮 Cosmic Amethyst',
     desc: 'Opale Aurora & Ametista',
-  },
-  {
-    id: 'rainbow',
-    icon: '🌈',
-    shortName: 'Rainbow',
-    name: '🌈 Cartoon Rainbow (Kids)',
-    desc: 'Arcobaleno & Faccine Buffe',
-  },
-  {
-    id: 'animals',
-    icon: '🐶',
-    shortName: 'Cuccioli',
-    name: '🐶 Cuccioli Cartoon (Kids)',
-    desc: 'Animaletti Simpatici & Zampette',
-  },
-  {
-    id: 'candy',
-    icon: '🍭',
-    shortName: 'Candy',
-    name: '🍭 Candy & Dolci (Kids)',
-    desc: 'Gelato, Cioccolato & Codette',
   },
 ];
 
