@@ -79,8 +79,8 @@ class AudioEngine {
   private snareSynth: Tone.NoiseSynth | null = null;
 
   // Active voice tracker for strict polyphony & voice stealing (prevents audio freeze, crackling & overload during fast glissando)
-  // Max 4 simultaneous voices in flight prevents audio quantum starvation and scratchy summing distortion
-  private readonly MAX_VOICES = 5;
+  // Max 10 simultaneous voices allows full two-hand chords + melody in MIDI songs without dropping lead notes
+  private readonly MAX_VOICES = 10;
   private activeVoices: { note: string; time: number }[] = [];
   private autoReleasedNotes = new Map<string, number>();
   private noteLastTriggerTime = new Map<string, number>();
@@ -376,16 +376,18 @@ class AudioEngine {
     const nowMs = performance.now();
 
     // 1. Edge-bounce Debouncing:
-    // If the exact same note was triggered < 40ms ago (touch jitter on key boundary), ignore duplicate!
+    // If the exact same note was triggered < 35ms ago (touch jitter on key boundary), ignore duplicate!
     const lastTrigger = this.noteLastTriggerTime.get(note) || 0;
-    if (nowMs - lastTrigger < 40) {
+    if (nowMs - lastTrigger < 35) {
       return;
     }
 
-    // 2. Glissando density control:
-    // Swipes faster than 38ms between distinct notes are clamped to prevent audio thread overload and scratching
-    const isGlissando = nowMs - this.lastAnyNoteTime < 140;
-    if (nowMs - this.lastAnyNoteTime < 38) {
+    // 2. Glissando density control (ONLY for interactive human finger swipes, NEVER for simultaneous chords or MIDI Demo playback!):
+    // Simultaneous notes in a chord or MIDI track arrive within 0-8ms of each other and must ALL be played.
+    // A human finger glissando across adjacent keys spaces notes ~12ms-90ms apart.
+    const deltaAny = nowMs - this.lastAnyNoteTime;
+    const isGlissando = isInteractive && deltaAny >= 12 && deltaAny < 110;
+    if (isInteractive && deltaAny >= 12 && deltaAny < 32) {
       return;
     }
 

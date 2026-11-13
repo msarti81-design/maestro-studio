@@ -31,12 +31,12 @@
       "username": "Pianista_957",
       "platform": "Browser Mobile",
       "firstSeen": "2026-11-11T05:48:17.662Z",
-      "lastSeen": "2026-11-11T22:15:20.944Z",
-      "lastView": "home",
-      "totalPings": 81,
-      "totalSessions": 58,
+      "lastSeen": "2026-11-13T17:53:13.744Z",
+      "lastView": "piano",
+      "totalPings": 116,
+      "totalSessions": 78,
       "screen": "444x985",
-      "theme": "midnight",
+      "theme": "marble",
       "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
     },
     "dev_1794390163971_0oovbag": {
@@ -284,6 +284,228 @@
       "totalPings": 1,
       "totalSessions": 1,
       "theme": "midnight"
+    },
+    "dev_1794508077715_yhfavzs": {
+      "deviceId": "dev_1794508077715_yhfavzs",
+      "username": "Pianista_404",
+      "platform": "Browser Mobile",
+      "firstSeen": "2026-11-12T18:27:58.234Z",
+      "lastSeen": "2026-11-12T19:04:26.185Z",
+      "lastView": "piano",
+      "totalPings": 5,
+      "totalSessions": 5,
+      "screen": "444x985",
+      "theme": "midnight",
+      "lastSong": ""
+    },
+    "dev_1794510316711_4bv2j5e": {
+      "deviceId": "dev_1794510316711_4bv2j5e",
+      "username": "Pianista_553",
+      "platform": "Browser Mobile",
+      "firstSeen": "2026-11-12T19:05:17.206Z",
+      "lastSeen": "2026-11-12T19:18:36.177Z",
+      "lastView": "home",
+      "totalPings": 11,
+      "totalSessions": 9,
+      "screen": "444x985",
+      "theme": "midnight",
+      "lastSong": ""
+    },
+    "dev_1794511132554_p51el6g": {
+      "deviceId": "dev_1794511132554_p51el6g",
+      "username": "Pianista_513",
+      "platform": "Browser Mobile",
+      "firstSeen": "2026-11-12T19:18:53.057Z",
+      "lastSeen": "2026-11-12T19:22:05.768Z",
+      "lastView": "stats",
+      "totalPings": 6,
+      "totalSessions": 5,
+      "screen": "444x985",
+      "theme": "midnight",
+      "lastSong": ""
+    },
+    "dev_1793965204430_5wy32h0": {
+      "deviceId": "dev_1793965204430_5wy32h0",
+      "username": "Pianista_656",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-12T00:29:30.686Z",
+      "lastSeen": "2026-11-12T00:29:30.686Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793966460286_8gep6v0": {
+      "deviceId": "dev_1793966460286_8gep6v0",
+      "username": "Pianista_314",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-12T05:23:54.671Z",
+      "lastSeen": "2026-11-12T05:23:54.671Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793964109454_rvcffht": {
+      "deviceId": "dev_1793964109454_rvcffht",
+      "username": "Pianista_146",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-12T05:27:12.509Z",
+      "lastSeen": "2026-11-12T05:27:12.509Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1794027948519_n3565vg": {
+      "deviceId": "dev_1794027948519_n3565vg",
+      "username": "Pianista_790",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-12T06:48:11.267Z",
+      "lastSeen": "2026-11-12T06:48:11.267Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1793985662103_19h6jgx": {
+      "deviceId": "dev_1793985662103_19h6jgx",
+      "username": "Pianista_791",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-12T07:50:35.801Z",
+      "lastSeen": "2026-11-12T07:50:35.801Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1794493135167_pl77ozd": {
+      "deviceId": "dev_1794493135167_pl77ozd",
+      "username": "Pianista_237",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-12T14:18:56.995Z",
+      "lastSeen": "2026-11-12T14:18:56.995Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
+    },
+    "dev_1794511845139_o3t28sd": {
+      "deviceId": "dev_1794511845139_o3t28sd",
+      "username": "Pianista_956",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-12T19:30:48.374Z",
+      "lastSeen": "2026-11-13T13:39:53.305Z",
+      "lastView": "piano",
+      "totalPings": 96,
+      "totalSessions": 48,
+      "screen": "985x444",
+      "theme": "midnight",
+      "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+    },
+    "dev_1794547182993_4i6edab": {
+      "deviceId": "dev_1794547182993_4i6edab",
+      "username": "Pianista_909",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-13T05:19:45.438Z",
+      "lastSeen": "2026-11-13T05:23:33.272Z",
+      "lastView": "piano",
+      "totalPings": 5,
+      "totalSessions": 2,
+      "screen": "725x435",
+      "theme": "midnight",
+      "lastSong": ""
+    },
+    "dev_1794547347635_z1n2kq4": {
+      "deviceId": "dev_1794547347635_z1n2kq4",
+      "username": "Pianista_364",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-13T05:22:33.645Z",
+      "lastSeen": "2026-11-13T05:27:18.204Z",
+      "lastView": "piano",
+      "totalPings": 6,
+      "totalSessions": 2,
+      "screen": "725x435",
+      "theme": "midnight",
+      "lastSong": ""
+    },
+    "dev_1794548736495_smn65dp": {
+      "deviceId": "dev_1794548736495_smn65dp",
+      "username": "Pianista_485",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-13T05:45:41.528Z",
+      "lastSeen": "2026-11-13T06:06:29.877Z",
+      "lastView": "piano",
+      "totalPings": 21,
+      "totalSessions": 2,
+      "screen": "725x435",
+      "theme": "midnight",
+      "lastSong": ""
+    },
+    "dev_1794548909360_arhbcq8": {
+      "deviceId": "dev_1794548909360_arhbcq8",
+      "username": "Pianista_226",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-13T05:48:31.859Z",
+      "lastSeen": "2026-11-13T05:57:20.910Z",
+      "lastView": "piano",
+      "totalPings": 19,
+      "totalSessions": 12,
+      "screen": "725x435",
+      "theme": "gold",
+      "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+    },
+    "dev_1794549695865_1q3xxla": {
+      "deviceId": "dev_1794549695865_1q3xxla",
+      "username": "Pianista_817",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-13T06:01:38.877Z",
+      "lastSeen": "2026-11-13T06:07:19.584Z",
+      "lastView": "piano",
+      "totalPings": 14,
+      "totalSessions": 11,
+      "screen": "725x435",
+      "theme": "marble",
+      "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+    },
+    "dev_1794550469476_tk208rf": {
+      "deviceId": "dev_1794550469476_tk208rf",
+      "username": "Pianista_286",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-13T06:14:34.042Z",
+      "lastSeen": "2026-11-13T06:22:10.425Z",
+      "lastView": "piano",
+      "totalPings": 14,
+      "totalSessions": 9,
+      "screen": "725x435",
+      "theme": "mahogany",
+      "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+    },
+    "dev_1794592519794_zdq5pd9": {
+      "deviceId": "dev_1794592519794_zdq5pd9",
+      "username": "Pianista_429",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-13T17:57:31.344Z",
+      "lastSeen": "2026-11-13T17:57:38.408Z",
+      "lastView": "piano",
+      "totalPings": 3,
+      "totalSessions": 2,
+      "screen": "985x444",
+      "theme": "midnight",
+      "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+    },
+    "dev_1794592712980_afuq83d": {
+      "deviceId": "dev_1794592712980_afuq83d",
+      "username": "Pianista_348",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-13T17:58:35.998Z",
+      "lastSeen": "2026-11-13T18:44:35.842Z",
+      "lastView": "piano",
+      "totalPings": 27,
+      "totalSessions": 9,
+      "screen": "985x444",
+      "theme": "midnight",
+      "lastSong": "Electric Piano"
     }
   },
   "daily": {
@@ -305,14 +527,43 @@
     },
     "2026-11-12": {
       "devices": [
-        "dev_1794433797008_9e0zykm"
+        "dev_1794433797008_9e0zykm",
+        "dev_1792226201606_1h3tezw",
+        "dev_1794508077715_yhfavzs",
+        "dev_1794510316711_4bv2j5e",
+        "dev_1794511132554_p51el6g",
+        "dev_1794511845139_o3t28sd"
       ],
-      "pings": 32
+      "pings": 151
+    },
+    "2026-11-13": {
+      "devices": [
+        "dev_1794511845139_o3t28sd",
+        "dev_1794547182993_4i6edab",
+        "dev_1794547347635_z1n2kq4",
+        "dev_1794548736495_smn65dp",
+        "dev_1794548909360_arhbcq8",
+        "dev_1792226201606_1h3tezw",
+        "dev_1794549695865_1q3xxla",
+        "dev_1794550469476_tk208rf",
+        "dev_1794592519794_zdq5pd9",
+        "dev_1794592712980_afuq83d"
+      ],
+      "pings": 143
     }
   },
   "songs": {
-    "Inno alla Gioia (Ode to Joy - Completo)": 23,
-    "Per Elisa (Für Elise - Completo)": 2,
-    "La Primavera (Le Quattro Stagioni)": 4
+    "Inno alla Gioia (Ode to Joy - Completo)": 37,
+    "Per Elisa (Für Elise - Completo)": 35,
+    "La Primavera (Le Quattro Stagioni)": 4,
+    "La Donna è Mobile (Rigoletto)": 1,
+    "O Sole Mio": 1,
+    "Dukas - L'Apprendista Stregone": 1,
+    "Nessun Dorma (Turandot)": 1,
+    "Carnevale di Venezia": 2,
+    "Va, Pensiero (Nabucco)": 1,
+    "Funiculì Funiculà": 1,
+    "Il Mattino (Morning Mood - Peer Gynt)": 1,
+    "Electric Piano": 2
   }
 }

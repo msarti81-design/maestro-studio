@@ -170,12 +170,21 @@ export function inspectMidiTracks(arrayBuffer: ArrayBuffer, fileName: string): M
       const delta = readVarInt(data, offset);
       offset = delta.newOffset;
       currentTick += delta.value;
+      if (offset >= trackEnd || offset >= data.byteLength) break;
 
       let statusByte = data.getUint8(offset);
       if (statusByte & 0x80) {
-        runningStatus = statusByte;
         offset++;
+        // Standard MIDI 1.0: Only Channel Voice messages (0x80..0xEF) update runningStatus.
+        // Meta Events (0xFF) in SMF files MUST NOT overwrite runningStatus!
+        if (statusByte < 0xf0) {
+          runningStatus = statusByte;
+        }
       } else {
+        if (!runningStatus) {
+          offset++;
+          continue;
+        }
         statusByte = runningStatus;
       }
 
@@ -215,9 +224,11 @@ export function inspectMidiTracks(arrayBuffer: ArrayBuffer, fileName: string): M
         } else {
           if (activeNotes.has(key)) {
             const start = activeNotes.get(key)!;
-            const noteObj: RawNote = { midi, tickStart: start, tickEnd: currentTick, trackIndex: track, channel };
-            trackNotes.push(noteObj);
-            allNotes.push(noteObj);
+            if (currentTick > start) {
+              const noteObj: RawNote = { midi, tickStart: start, tickEnd: currentTick, trackIndex: track, channel };
+              trackNotes.push(noteObj);
+              allNotes.push(noteObj);
+            }
           }
           activeNotes.set(key, currentTick);
         }
@@ -252,20 +263,24 @@ export function inspectMidiTracks(arrayBuffer: ArrayBuffer, fileName: string): M
 
         // Track Name (0x03)
         if (metaType === 0x03 && metaLength.value > 0) {
-          const name = getString(data, offset, metaLength.value);
-          trackName = name.trim();
-          if (!detectedTitle && trackName) {
-            detectedTitle = trackName;
+          const name = getString(data, offset, metaLength.value).replace(/\0/g, '').trim();
+          if (name) {
+            trackName = name;
+            if (!detectedTitle) {
+              detectedTitle = trackName;
+            }
           }
         }
         // Instrument Name (0x04)
         else if (metaType === 0x04 && metaLength.value > 0) {
-          instrumentMeta = getString(data, offset, metaLength.value).trim();
+          instrumentMeta = getString(data, offset, metaLength.value).replace(/\0/g, '').trim();
         }
         // Set Tempo (0x51)
         else if (metaType === 0x51 && metaLength.value === 3) {
           const micros = (data.getUint8(offset) << 16) | (data.getUint8(offset + 1) << 8) | data.getUint8(offset + 2);
-          tempoChanges.push({ tick: currentTick, microsPerBeat: micros });
+          if (micros > 0) {
+            tempoChanges.push({ tick: currentTick, microsPerBeat: micros });
+          }
         }
 
         offset += metaLength.value;
@@ -274,18 +289,22 @@ export function inspectMidiTracks(arrayBuffer: ArrayBuffer, fileName: string): M
       else if (statusByte === 0xf0 || statusByte === 0xf7) {
         const sysexLength = readVarInt(data, offset);
         offset = sysexLength.newOffset + sysexLength.value;
+      } else {
+        // Unknown system common byte
+        offset++;
       }
     }
 
     // Flush any open notes
     activeNotes.forEach((start, key) => {
       const [chStr, midiStr] = key.split('_');
+      const endTick = Math.max(start + Math.round(ticksPerBeat / 4), currentTick);
       const noteObj: RawNote = {
         midi: parseInt(midiStr, 10),
         tickStart: start,
-        tickEnd: currentTick,
+        tickEnd: endTick,
         trackIndex: track,
-        channel: parseInt(chStr, 10)
+        channel: parseInt(chStr, 10),
       };
       trackNotes.push(noteObj);
       allNotes.push(noteObj);
@@ -303,72 +322,22 @@ export function inspectMidiTracks(arrayBuffer: ArrayBuffer, fileName: string): M
     offset = trackEnd;
   }
 
-  // 3. Format into MidiTrackDetail items
+  // 3. Format into MidiTrackDetail items (splitting any multi-channel tracks so Drums ch 9 and different instruments are never mixed)
   const finalTracks: MidiTrackDetail[] = [];
 
-  // If Format 0 (single track) but multiple channels, decompose by channel
-  const tracksWithNotes = tracksData.filter((t) => t.notes.length > 0);
+  tracksData.forEach((t) => {
+    if (t.notes.length === 0) return;
 
-  if (tracksWithNotes.length === 1 && tracksWithNotes[0].channels.size > 1) {
-    const single = tracksWithNotes[0];
-    const uniqueChannels = Array.from(single.channels).sort((a, b) => a - b);
+    const uniqueChannels = Array.from(t.channels).sort((a, b) => a - b);
+    const shouldSplitByChannel = uniqueChannels.length > 1;
 
     uniqueChannels.forEach((ch) => {
-      const chNotes = single.notes.filter((n) => n.channel === ch);
+      const chNotes = shouldSplitByChannel ? t.notes.filter((n) => n.channel === ch) : t.notes;
       if (chNotes.length === 0) return;
 
-      const isDrums = ch === 9; // Channel 10 is 0-indexed 9
-      const prog = single.programPerChannel.get(ch);
+      const isDrums = ch === 9; // Channel 10 is 0-indexed 9 in General MIDI
+      const prog = t.programPerChannel.get(ch);
       const gmName = prog !== undefined ? GM_INSTRUMENTS[prog] || `Strumento #${prog}` : '';
-      const isPiano = !isDrums && (prog === undefined || (prog >= 0 && prog <= 7));
-
-      let role: MidiTrackRole = 'other';
-      if (isDrums) {
-        role = 'drums';
-      } else if (prog !== undefined && prog >= 32 && prog <= 39) {
-        role = 'bass';
-      } else if (isPiano) {
-        role = 'chords';
-      } else if (prog !== undefined && ((prog >= 56 && prog <= 87) || prog === 11 || prog === 40 || prog === 73)) {
-        role = 'melody';
-      }
-
-      let trackTitle = isDrums
-        ? 'Batteria / Percussioni'
-        : gmName || (isPiano ? 'Pianoforte' : `Strumento Canale ${ch + 1}`);
-
-      finalTracks.push({
-        id: `ch_${ch}`,
-        trackIndex: 0,
-        channel: ch,
-        name: trackTitle,
-        instrumentName: isDrums ? 'Percussioni (Canale 10)' : gmName || (isPiano ? 'Acoustic Piano (Default)' : 'Generico'),
-        programNumber: prog,
-        noteCount: chNotes.length,
-        isDrums,
-        isPiano,
-        role,
-        notes: chNotes,
-      });
-    });
-  } else {
-    // Multi-track Format 1
-    tracksData.forEach((t) => {
-      if (t.notes.length === 0) return;
-
-      const channelsArr = Array.from(t.channels);
-      const isDrums = channelsArr.length === 1 && channelsArr[0] === 9;
-
-      // Primary program
-      let prog: number | undefined;
-      for (const ch of channelsArr) {
-        if (t.programPerChannel.has(ch)) {
-          prog = t.programPerChannel.get(ch);
-          break;
-        }
-      }
-
-      const gmName = prog !== undefined ? GM_INSTRUMENTS[prog] : '';
       const textToInspect = `${t.name} ${t.instrumentMeta} ${gmName}`.toLowerCase();
 
       const isPiano =
@@ -396,7 +365,13 @@ export function inspectMidiTracks(arrayBuffer: ArrayBuffer, fileName: string): M
         textToInspect.includes('guida') ||
         textToInspect.includes('canta') ||
         textToInspect.includes('solo') ||
-        (prog !== undefined && ((prog >= 56 && prog <= 87) || prog === 11 || prog === 40 || prog === 73))
+        textToInspect.includes('main') ||
+        textToInspect.includes('shark') ||
+        (prog !== undefined &&
+          ((prog >= 8 && prog <= 15) || // Marimba, Xylophone, Music Box, Vibraphone, Glockenspiel
+            (prog >= 21 && prog <= 23) || // Accordion, Harmonica
+            (prog >= 40 && prog <= 41) || // Violin, Viola
+            (prog >= 52 && prog <= 87))) // Choir, Brass, Sax, Reed, Flute/Pipe, Synth Lead
       ) {
         role = 'melody';
       } else if (isPiano || textToInspect.includes('chord') || textToInspect.includes('accordi') || textToInspect.includes('pad')) {
@@ -404,40 +379,81 @@ export function inspectMidiTracks(arrayBuffer: ArrayBuffer, fileName: string): M
       }
 
       let displayName = t.name || t.instrumentMeta || gmName || `Traccia ${t.trackIndex + 1}`;
+      if (shouldSplitByChannel && gmName && !displayName.toLowerCase().includes(gmName.toLowerCase())) {
+        displayName = `${displayName} (${gmName})`;
+      } else if (shouldSplitByChannel && !gmName) {
+        displayName = `${displayName} (Canale ${ch + 1})`;
+      }
       if (isDrums && !displayName.toLowerCase().includes('drum') && !displayName.toLowerCase().includes('batteria')) {
         displayName += ' (Batteria)';
       }
 
       finalTracks.push({
-        id: `trk_${t.trackIndex}`,
+        id: shouldSplitByChannel ? `trk_${t.trackIndex}_ch_${ch}` : `trk_${t.trackIndex}`,
         trackIndex: t.trackIndex,
-        channel: channelsArr[0],
+        channel: ch,
         name: displayName,
-        instrumentName: gmName || t.instrumentMeta || (isDrums ? 'Batteria' : isPiano ? 'Pianoforte' : 'Strumento Melodico'),
+        instrumentName: isDrums
+          ? 'Percussioni (Canale 10)'
+          : gmName || t.instrumentMeta || (isPiano ? 'Pianoforte' : 'Strumento Melodico'),
         programNumber: prog,
-        noteCount: t.notes.length,
+        noteCount: chNotes.length,
         isDrums,
         isPiano,
         role,
-        notes: t.notes,
+        notes: chNotes,
       });
     });
+  });
+
+  // 4. Smart Heuristic Melody Promotion:
+  // If no track was explicitly tagged 'melody' (e.g. all tracks are named "Track 1", "Piano", etc.),
+  // identify the primary melodic track by analyzing average pitch (C4..C6) and note count!
+  const nonDrumTracks = finalTracks.filter((t) => !t.isDrums && t.notes.length > 0);
+  if (nonDrumTracks.length > 0 && !nonDrumTracks.some((t) => t.role === 'melody')) {
+    const maxNotes = Math.max(...nonDrumTracks.map((t) => t.noteCount), 1);
+    let bestTrack: MidiTrackDetail | null = null;
+    let bestScore = -9999;
+
+    for (const trk of nonDrumTracks) {
+      const avgMidi = trk.notes.reduce((sum, n) => sum + n.midi, 0) / trk.notes.length;
+      // Ideal vocal/lead melody range is MIDI 58 (A#3) to 84 (C6)
+      const pitchFitness = avgMidi >= 58 && avgMidi <= 84 ? 35 : avgMidi >= 50 ? 15 : -25;
+      const countFitness = (trk.noteCount / maxNotes) * 40;
+      const score = pitchFitness + countFitness;
+      if (score > bestScore) {
+        bestScore = score;
+        bestTrack = trk;
+      }
+    }
+
+    if (bestTrack) {
+      bestTrack.role = 'melody';
+    }
   }
 
-  // Calculate BPM
+  // Calculate BPM (prefer first musical tempo change if multiple exist at or near start)
   tempoChanges.sort((a, b) => a.tick - b.tick);
-  const firstMicros = tempoChanges[0]?.microsPerBeat || 500000;
-  const bpm = Math.round(60000000 / firstMicros);
+  // Find the dominant/initial tempo (if tick 0 has dummy 120 BPM and immediately changes at tick <= ticksPerBeat, use the real tempo)
+  let primaryMicros = tempoChanges[0]?.microsPerBeat || 500000;
+  for (const tc of tempoChanges) {
+    if (tc.tick <= ticksPerBeat) {
+      primaryMicros = tc.microsPerBeat;
+    } else {
+      break;
+    }
+  }
+  const bpm = Math.round(60000000 / primaryMicros);
 
   const cleanTitle =
+    fileName.replace(/\.(mid|midi)$/i, '').replace(/[-_]/g, ' ').trim() ||
     detectedTitle ||
-    fileName.replace(/\.(mid|midi)$/i, '').replace(/[-_]/g, ' ') ||
     'Brano MIDI';
 
   return {
     fileName,
     title: cleanTitle,
-    bpm: bpm > 30 && bpm < 240 ? bpm : 120,
+    bpm: bpm >= 30 && bpm <= 240 ? bpm : 120,
     ticksPerBeat,
     tempoChanges,
     tracks: finalTracks,
@@ -463,26 +479,20 @@ export function buildSongFromMidiStructure(
       }
     }
   } else {
-    // Default smart selection:
-    // If piano tracks exist, pick only piano tracks
-    const pianoTracks = structure.tracks.filter((t) => t.isPiano && !t.isDrums);
-    if (pianoTracks.length > 0) {
-      chosenNotes = pianoTracks.flatMap((t) => t.notes);
+    // Default smart selection: include ALL non-drum melodic & harmonic tracks!
+    // Never discard non-piano melodic tracks (e.g., Marimba, Flute, Voice, Strings, Synth Lead in Baby Shark).
+    const melodicTracks = structure.tracks.filter((t) => !t.isDrums);
+    if (melodicTracks.length > 0) {
+      chosenNotes = melodicTracks.flatMap((t) => t.notes);
     } else {
-      // Otherwise pick non-drum tracks
-      const melodicTracks = structure.tracks.filter((t) => !t.isDrums);
-      if (melodicTracks.length > 0) {
-        chosenNotes = melodicTracks.flatMap((t) => t.notes);
-      } else {
-        chosenNotes = structure.rawNotes;
-      }
+      chosenNotes = structure.rawNotes;
     }
   }
 
   // Filter piano range (A0 = 21 to C8 = 108) and positive duration
   const validNotes = chosenNotes
     .filter((n) => n.midi >= 21 && n.midi <= 108 && n.tickEnd > n.tickStart)
-    .sort((a, b) => a.tickStart - b.tickStart);
+    .sort((a, b) => a.tickStart - b.tickStart || b.midi - a.midi);
 
   if (validNotes.length === 0) {
     throw new Error('Nessuna nota compatibile con il pianoforte trovata nelle tracce selezionate.');
@@ -499,29 +509,49 @@ export function buildSongFromMidiStructure(
     for (const change of tempoChanges) {
       if (tick <= change.tick) break;
       const deltaTicks = change.tick - prevTick;
-      seconds += (deltaTicks / ticksPerBeat) * (currentMicros / 1000000);
+      if (deltaTicks > 0) {
+        seconds += (deltaTicks / ticksPerBeat) * (currentMicros / 1000000);
+      }
       prevTick = change.tick;
       currentMicros = change.microsPerBeat;
     }
 
     const remainingTicks = tick - prevTick;
-    seconds += (remainingTicks / ticksPerBeat) * (currentMicros / 1000000);
+    if (remainingTicks > 0) {
+      seconds += (remainingTicks / ticksPerBeat) * (currentMicros / 1000000);
+    }
     return seconds;
   }
 
   const firstNoteTime = tickToSeconds(validNotes[0].tickStart);
-  const timeOffset = Math.max(0, firstNoteTime - 1.2);
+  const timeOffset = Math.max(0, firstNoteTime - 0.8);
 
-  const parsedNotes = validNotes.map((n) => {
+  const rawParsedNotes = validNotes.map((n) => {
     const startTime = Math.max(0, tickToSeconds(n.tickStart) - timeOffset);
-    const endTime = Math.max(startTime + 0.1, tickToSeconds(n.tickEnd) - timeOffset);
-    const duration = Math.max(0.15, endTime - startTime);
+    const endTime = Math.max(startTime + 0.08, tickToSeconds(n.tickEnd) - timeOffset);
+    const duration = Math.max(0.12, endTime - startTime);
     return {
       note: midiNumberToNoteName(n.midi),
+      midi: n.midi,
       time: Math.round(startTime * 100) / 100,
       duration: Math.round(duration * 100) / 100,
     };
   });
+
+  // Deduplicate unison notes triggered at the exact same timestamp across doubled MIDI tracks
+  const parsedNotes: { note: string; time: number; duration: number }[] = [];
+  for (const item of rawParsedNotes) {
+    const prevSame = parsedNotes[parsedNotes.length - 1];
+    const isDuplicateUnison =
+      parsedNotes.some((p) => p.note === item.note && Math.abs(p.time - item.time) <= 0.025);
+    if (!isDuplicateUnison && (!prevSame || prevSame.note !== item.note || Math.abs(prevSame.time - item.time) > 0.025)) {
+      parsedNotes.push({
+        note: item.note,
+        time: item.time,
+        duration: item.duration,
+      });
+    }
+  }
 
   return {
     id: `midi_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,

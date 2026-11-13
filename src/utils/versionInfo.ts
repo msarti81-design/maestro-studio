@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.227';
-export const APP_BUILD_DATE = '13 Nov 2026 - 15:45';
-export const APP_COMMIT = 'c7e9a21';
+export const APP_VERSION = '1.0.228';
+export const APP_BUILD_DATE = '13 Nov 2026 - 16:30';
+export const APP_COMMIT = 'f4b8d19';
 export const APP_CHANGELOG = [
+  'Fixed multi-track & Karaoke MIDI import (Baby Shark & complex MIDIs): full Running Status preservation after Meta events, per-channel splitting & full polyphonic melody + chord playback',
   'New "Rimbalzi" (Bouncing Rhythm Balls) FX mode: colorful 3D glowing spheres bounce on keys in musical rhythm',
   'Interactive Onboarding Walkthrough & Progress Checklist with automatic step return pill',
-  'In-App Rate VirtuKeys on Google Play & Share App with customizable message',
-  'Production signed AAB & APK build v1.0.227 (versionCode 10227) for Google Play Console',
+  'Production signed AAB & APK build v1.0.228 (versionCode 10228) for Google Play Console',
 ];
 
 export interface ServerVersionInfo {

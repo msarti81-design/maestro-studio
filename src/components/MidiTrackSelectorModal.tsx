@@ -46,25 +46,14 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
 
     const initial = new Set<string>();
 
-    // Priority 1: Check if there's an explicit melody/vocal track
-    const melodyTracks = structure.tracks.filter((t) => t.role === 'melody' && !t.isDrums);
-    const pianoTracks = structure.tracks.filter((t) => (t.role === 'chords' || t.isPiano) && !t.isDrums);
-
-    if (melodyTracks.length > 0) {
-      // Pre-select melody track(s) + piano tracks (melody + accompaniment)
-      melodyTracks.forEach((t) => initial.add(t.id));
-      pianoTracks.forEach((t) => initial.add(t.id));
-    } else if (pianoTracks.length > 0) {
-      // Only piano
-      pianoTracks.forEach((t) => initial.add(t.id));
+    // Pre-select all non-drum melodic/harmonic tracks by default so songs like Baby Shark
+    // (where the lead melody may be on Marimba, Xylophone, Synth, Flute, or an untagged track
+    // alongside a Piano accompaniment track) never lose their main melody!
+    const nonDrumTracks = structure.tracks.filter((t) => !t.isDrums);
+    if (nonDrumTracks.length > 0) {
+      nonDrumTracks.forEach((t) => initial.add(t.id));
     } else {
-      // All non-drum tracks
-      const nonDrumTracks = structure.tracks.filter((t) => !t.isDrums);
-      if (nonDrumTracks.length > 0) {
-        nonDrumTracks.forEach((t) => initial.add(t.id));
-      } else {
-        structure.tracks.forEach((t) => initial.add(t.id));
-      }
+      structure.tracks.forEach((t) => initial.add(t.id));
     }
 
     setSelectedIds(initial);
@@ -155,16 +144,16 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
     const ticksPerBeat = structure.ticksPerBeat || 480;
     const msPerTick = (60000 / bpm) / ticksPerBeat;
 
-    // Schedule up to 25 notes or max 8 seconds
-    const previewNotes = notesCopy.slice(0, 25);
+    // Schedule up to 60 notes or max 12 seconds so the melody is clearly recognizable
+    const previewNotes = notesCopy.slice(0, 60);
     const timers: NodeJS.Timeout[] = [];
 
     previewNotes.forEach((n) => {
       const delayMs = Math.max(0, (n.tickStart - firstTick) * msPerTick);
-      if (delayMs <= 8000) {
+      if (delayMs <= 12000) {
         const timer = setTimeout(() => {
           const noteName = midiNumberToNoteName(n.midi);
-          audioEngine.playNote(noteName, '8n', track.isDrums ? 'piano' : 'piano');
+          audioEngine.playNote(noteName, '8n', 'piano', false);
         }, delayMs);
         timers.push(timer);
       }
@@ -172,7 +161,7 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
 
     // Auto-stop preview after max notes duration
     const lastDelay = previewNotes.length > 0
-      ? Math.min(8500, (previewNotes[previewNotes.length - 1].tickStart - firstTick) * msPerTick + 800)
+      ? Math.min(12500, (previewNotes[previewNotes.length - 1].tickStart - firstTick) * msPerTick + 800)
       : 3000;
 
     const endTimer = setTimeout(() => {

@@ -186,15 +186,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.220",
-      buildDate: "2026-11-07 12:40",
-      commit: "d0e1f23",
+      version: "1.0.228",
+      buildDate: "2026-11-13 16:30",
+      commit: "f4b8d19",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Fix Song Library Tab 3 (Compose / Record) JSON & MIDI import buttons: inputs now permanently mounted at modal root",
-        "Automatic buffer population: imported MIDI or JSON notes immediately load into Tab 3 composer ready for staff editing",
-        "Signed release AAB generation for Play Console v1.0.219"
+        "Fixed multi-track & Karaoke MIDI import (Baby Shark & complex MIDIs): full Running Status preservation & polyphonic melody + chord playback",
+        "New Bouncing Rhythm Balls FX mode: colorful 3D spheres bounce across piano keys in rhythm",
+        "Interactive Onboarding Walkthrough & Progress Checklist with automatic step return pill",
+        "Signed release AAB generation for Google Play Console v1.0.228 (versionCode 10228)"
       ]
     });
   });

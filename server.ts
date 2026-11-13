@@ -252,16 +252,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.227",
-      buildDate: "2026-11-13 15:45",
-      commit: "c7e9a21",
+      version: "1.0.228",
+      buildDate: "2026-11-13 16:30",
+      commit: "f4b8d19",
       server: "freeserv.it/Song",
       status: "online",
       features: [
+        "Fixed multi-track & Karaoke MIDI import (Baby Shark & complex MIDIs): full Running Status preservation & polyphonic melody + chord playback",
         "New Bouncing Rhythm Balls FX mode: colorful 3D spheres bounce across piano keys in rhythm",
         "Interactive Onboarding Walkthrough & Progress Checklist with automatic step return pill",
-        "In-App Rate VirtuKeys on Google Play & Share App with customizable message",
-        "Signed release AAB generation for Google Play Console v1.0.227 (versionCode 10227)",
+        "Signed release AAB generation for Google Play Console v1.0.228 (versionCode 10228)",
       ],
     });
   });

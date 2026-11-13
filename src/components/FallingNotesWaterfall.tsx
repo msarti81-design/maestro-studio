@@ -750,7 +750,12 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const sortedNotes = useMemo(() => {
     return [...effectiveSong.notes]
       .map((n, originalIndex) => ({ ...n, originalIndex }))
-      .sort((a, b) => a.time - b.time);
+      .sort((a, b) => {
+        const dt = a.time - b.time;
+        if (Math.abs(dt) > 0.01) return dt;
+        // For simultaneous notes on the same beat, trigger bass/chords first and highest melody note last
+        return noteNameToMidiNumber(a.note) - noteNameToMidiNumber(b.note);
+      });
   }, [effectiveSong.notes]);
 
   const sortedNotesRef = useRef(sortedNotes);
@@ -952,7 +957,8 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             const origIdx = sn.originalIndex;
             if (!hitNotesSetRef.current.has(origIdx) && newTime >= sn.time) {
               hitNotesSetRef.current.add(origIdx);
-              audioEngine.playNote(getTransposedNoteRef.current(sn.note), '4n', 'piano');
+              const durTone = sn.duration > 0.8 ? '2n' : sn.duration < 0.25 ? '16n' : '8n';
+              audioEngine.playNote(getTransposedNoteRef.current(sn.note), durTone, 'piano', false);
               spawnNoteSparks(sn.note);
             }
 

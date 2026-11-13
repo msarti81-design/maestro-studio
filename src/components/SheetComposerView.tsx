@@ -473,10 +473,11 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
   };
 
   const applyImportedMidiToSheet = (parsed: InteractiveSong) => {
-    const melody: NoteEvent[] = parsed.notes.map((n, idx) => ({
+    const beatSec = 60 / (parsed.bpm || 120);
+    const melody: NoteEvent[] = parsed.notes.map((n) => ({
       note: n.note,
       duration: n.duration > 0.8 ? '2n' : n.duration < 0.3 ? '8n' : '4n',
-      time: idx,
+      time: Math.round((n.time / beatSec) * 100) / 100,
     }));
 
     const newId = `midi_${Date.now()}`;
