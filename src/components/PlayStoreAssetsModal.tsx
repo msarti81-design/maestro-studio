@@ -23,66 +23,66 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
 
   const assets: AssetInfo[] = [
     {
-      title: 'Icona App Ufficiale (Hi-Res App Icon)',
+      title: 'Official App Icon (Hi-Res App Icon)',
       filename: 'google-play-icon-512x512.png',
-      specs: '512 x 512 px • PNG a 32 bit con trasparenza • max 1MB',
-      description: 'Icona principale per la scheda su Google Play Store. Senza bordi arrotondati pre-ritagliati (Google applica la maschera automatica).',
+      specs: '512 x 512 px • 32-bit PNG with transparency • max 1MB',
+      description: 'Main app icon for Google Play Store listing. No pre-rounded corners (Google applies the mask automatically).',
       url: '/play-store/google-play-icon-512x512.png',
-      tag: 'OBBLIGATORIA',
+      tag: 'REQUIRED',
       tagColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
     },
     {
-      title: 'Grafica Promozionale (Feature Graphic)',
+      title: 'Feature Graphic',
       filename: 'google-play-feature-graphic-1024x500.png',
-      specs: '1024 x 500 px • PNG 24 bit • max 15MB',
-      description: 'Banner in cima alla scheda del Google Play Store e nei caroselli in evidenza. Design premium con tastiera concertistica e cascata neon.',
+      specs: '1024 x 500 px • 24-bit PNG • max 15MB',
+      description: 'Top banner for the Google Play Store listing and featured carousels. Concert keyboard & neon waterfall design.',
       url: '/play-store/google-play-feature-graphic-1024x500.png',
-      tag: 'OBBLIGATORIA',
+      tag: 'REQUIRED',
       tagColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
     },
     {
-      title: 'Screenshot 1: Pianoforte Gran Coda & Cascata Waterfall',
+      title: 'Screenshot 1: Concert Grand Piano & Waterfall',
       filename: 'screenshot-1-piano-waterfall.png',
       specs: '1920 x 1080 px • Landscape 16:9 • FHD',
-      description: 'Schermata principale di esecuzione: cascata di note stile Synthesia a 88 tasti, latenza ultra-bassa, controllo ottave e pedale.',
+      description: 'Main performance screen: 88-key Synthesia-style falling notes, ultra-low latency, octave control and sustain pedal.',
       url: '/play-store/screenshot-1-piano-waterfall.png',
-      tag: 'CONSIGLIATO',
+      tag: 'RECOMMENDED',
       tagColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
-      title: 'Screenshot 2: Compositore Spartiti a Doppio Rigo',
+      title: 'Screenshot 2: Grand Staff Sheet Music Composer',
       filename: 'screenshot-2-sheet-composer.png',
       specs: '1920 x 1080 px • Landscape 16:9 • FHD',
-      description: 'Editor di spartiti a doppio rigo (Chiave di Violino e Chiave di Basso) con inserimento note, riproduzione live ed esportazione.',
+      description: 'Dual-staff sheet music editor (Treble and Bass Clef) with note entry, live playback, and MIDI/JSON export.',
       url: '/play-store/screenshot-2-sheet-composer.png',
-      tag: 'CONSIGLIATO',
+      tag: 'RECOMMENDED',
       tagColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
-      title: 'Screenshot 3: Multi-Traccia Jam Band & Batteria Live',
+      title: 'Screenshot 3: Multi-Track Jam Band & Live Drums',
       filename: 'screenshot-3-jam-band.png',
       specs: '1920 x 1080 px • Landscape 16:9 • FHD',
-      description: 'Mixer multi-strumento per suonare insieme a batteria acustica, linee di basso funk e tappeti di sintetizzatore d’ambiente.',
+      description: 'Multi-instrument mixer to jam alongside acoustic drums, funk basslines, and ambient synth pads.',
       url: '/play-store/screenshot-3-jam-band.png',
-      tag: 'CONSIGLIATO',
+      tag: 'RECOMMENDED',
       tagColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
-      title: 'Screenshot 4: Palestra Scale & Esercizi Hanon',
+      title: 'Screenshot 4: Scale Gym & Hanon Exercises',
       filename: 'screenshot-4-scale-gym.png',
       specs: '1920 x 1080 px • Landscape 16:9 • FHD',
-      description: 'Allenamento dita per agilità e diteggiatura guidata (1-2-3-4-5) su scale maggiori, minori, pentatoniche e blues.',
+      description: 'Finger agility training and guided fingering (1-2-3-4-5) across major, minor, pentatonic, and blues scales.',
       url: '/play-store/screenshot-4-scale-gym.png',
-      tag: 'CONSIGLIATO',
+      tag: 'RECOMMENDED',
       tagColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
-      title: 'Screenshot 5: Studio Registrazione Audio & MIDI',
+      title: 'Screenshot 5: Audio & MIDI Recording Studio',
       filename: 'screenshot-5-recordings-studio.png',
       specs: '1920 x 1080 px • Landscape 16:9 • FHD',
-      description: 'Libreria registrazioni, visualizzatore di forma d’onda master stereo, esportazione istantanea WAV e file MIDI (.mid).',
+      description: 'Recordings library, stereo master waveform viewer, and instant WAV / MIDI (.mid) export.',
       url: '/play-store/screenshot-5-recordings-studio.png',
-      tag: 'CONSIGLIATO',
+      tag: 'RECOMMENDED',
       tagColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
   ];
@@ -98,13 +98,13 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
             </div>
             <div>
               <h2 className="text-lg font-black text-white flex items-center gap-2">
-                <span>Immagini Ufficiali Google Play Store</span>
+                <span>Official Google Play Store Assets</span>
                 <span className="text-[10px] bg-amber-500/20 text-amber-300 font-extrabold px-2.5 py-0.5 rounded-full border border-amber-500/30">
-                  PRONTE PER LA PUBBLICAZIONE
+                  READY FOR PUBLISHING
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
-                Icona 512x512, Grafica Promozionale 1024x500 e Schermate 16:9 FHD per Google Play Console
+                512x512 Icon, 1024x500 Feature Graphic, and 16:9 FHD Screenshots for Google Play Console
               </p>
             </div>
           </div>
@@ -120,7 +120,7 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
         <div className="px-6 py-3.5 bg-slate-950/80 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-slate-300">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Tutti i file rispettano le specifiche esatte di Google Play Console al 100%.</span>
+            <span>All files meet exact Google Play Console specifications 100%.</span>
           </div>
 
           <a
@@ -129,7 +129,7 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
             className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-110 active:scale-95 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer transition-all"
           >
             <Download className="w-4 h-4 stroke-[2.5]" />
-            <span>SCARICA PACCHETTO COMPLETO (ZIP)</span>
+            <span>DOWNLOAD FULL PACKAGE (ZIP)</span>
           </a>
         </div>
 
@@ -137,7 +137,7 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
         <div className="px-6 py-3 bg-amber-500/10 border-b border-amber-500/30 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-amber-200">
             <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>Chiavi di Firma Play Console (release.jks e upload_cert.pem):</span>
+            <span>Play Console Signing Keys (release.jks &amp; upload_cert.pem):</span>
           </div>
           <div className="flex items-center gap-2">
             <a
@@ -146,7 +146,7 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
               className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Scarica release.jks</span>
+              <span>Download release.jks</span>
             </a>
             <a
               href="/play-store/upload_cert.pem"
@@ -154,7 +154,7 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg text-xs flex items-center gap-1.5 border border-slate-700 cursor-pointer transition-colors"
             >
               <Download className="w-3.5 h-3.5 text-amber-400" />
-              <span>Scarica upload_cert.pem</span>
+              <span>Download upload_cert.pem</span>
             </a>
           </div>
         </div>
@@ -179,7 +179,7 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white font-bold text-xs backdrop-blur-xs">
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Ingrandisci</span>
+                  <span>Zoom In</span>
                 </div>
               </div>
 
@@ -207,7 +207,7 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
                   className="w-full md:w-auto px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-colors border border-slate-700 cursor-pointer shadow-sm"
                 >
                   <Download className="w-4 h-4 text-amber-400" />
-                  <span>Scarica PNG</span>
+                  <span>Download PNG</span>
                 </a>
               </div>
             </div>
@@ -225,7 +225,7 @@ export const PlayStoreAssetsModal: React.FC<PlayStoreAssetsModalProps> = ({ isOp
             onClick={onClose}
             className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
           >
-            Chiudi
+            Close
           </button>
         </div>
       </div>

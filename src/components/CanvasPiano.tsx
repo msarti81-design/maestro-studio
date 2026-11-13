@@ -2699,8 +2699,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
 
           // 5. Floating HUD Guidance Badge
           ctx.save();
-          const fingerLabel = FINGER_NAMES[activeGuidanceFingerVal]?.name || `Dito ${activeGuidanceFingerVal}`;
-          const badgeText = `🖐️ Dito ${activeGuidanceFingerVal} (${fingerLabel}) • ${targetKey.label || activeGuidanceNoteVal}`;
+          const fingerLabel = FINGER_NAMES[activeGuidanceFingerVal]?.name || `Finger ${activeGuidanceFingerVal}`;
+          const badgeText = `🖐️ Finger ${activeGuidanceFingerVal} (${fingerLabel}) • ${targetKey.label || activeGuidanceNoteVal}`;
 
           const bannerW = Math.max(180, Math.min(280, targetKey.width * 4));
           const bannerH = activeGuidanceTipVal ? 46 : 32;

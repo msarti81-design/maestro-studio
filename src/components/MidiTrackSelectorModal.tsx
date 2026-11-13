@@ -181,7 +181,7 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
     stopAudioPreview();
 
     if (selectedIds.size === 0) {
-      alert('Seleziona almeno una traccia da importare.');
+      alert('Please select at least one track to import.');
       return;
     }
 
@@ -190,7 +190,7 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
       const song = buildSongFromMidiStructure(structure, chosenIds);
       onConfirm(song, chosenIds);
     } catch (err: any) {
-      alert(`Errore nella conversione del brano: ${err.message || 'Errore imprevisto'}`);
+      alert(`Error converting song: ${err.message || 'Unexpected error'}`);
     }
   };
 
@@ -229,13 +229,13 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-lg sm:text-xl font-bold text-white tracking-wide">Filtra Strumenti MIDI</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-white tracking-wide">Filter MIDI Instruments</h3>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
                   {structure.bpm} BPM
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-400 mt-0.5 line-clamp-1 font-medium">
-                {structure.title} ({structure.totalNotes} note originali in {structure.tracks.length} tracce)
+                {structure.title} ({structure.totalNotes} notes across {structure.tracks.length} tracks)
               </p>
             </div>
           </div>
@@ -245,7 +245,7 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
               onClose();
             }}
             className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors"
-            title="Chiudi"
+            title="Close"
           >
             ✕
           </button>
@@ -254,48 +254,48 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
         {/* Quick Explanation Banner */}
         <div className="px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20 text-xs text-amber-200/90 flex items-center justify-between gap-2">
           <span>
-            💡 <strong>Come riconoscere il brano:</strong> premi <strong>▶️ Ascolta</strong> su ogni traccia per sentire subito quale contiene la melodia del canto!
+            💡 <strong>How to spot the lead melody:</strong> tap <strong>▶️ Listen</strong> on any track to preview it right away!
           </span>
         </div>
 
         {/* Preset Filter Buttons */}
         <div className="px-4 py-3 bg-slate-800/40 border-b border-slate-800/80 flex items-center flex-wrap gap-1.5 text-xs">
-          <span className="text-slate-400 font-medium mr-1">Filtri rapidi:</span>
+          <span className="text-slate-400 font-medium mr-1">Quick filters:</span>
           <button
             onClick={selectMelodyOnly}
             className="px-2.5 py-1 rounded-md bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-all active:scale-95 flex items-center gap-1"
           >
-            🎤 Solo Voce/Canto
+            🎤 Lead Melody Only
           </button>
           <button
             onClick={selectMelodyAndChords}
             className="px-2.5 py-1 rounded-md bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-all active:scale-95 flex items-center gap-1"
           >
-            🎹 Voce + Accordi
+            🎹 Melody + Chords
           </button>
           <button
             onClick={selectExcludeDrums}
             className="px-2.5 py-1 rounded-md bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 text-xs font-semibold transition-all active:scale-95"
           >
-            🚫🥁 No Batteria
+            🚫🥁 No Drums
           </button>
           <button
             onClick={selectOnlyPiano}
             className="px-2.5 py-1 rounded-md bg-slate-700/60 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-all"
           >
-            Solo Piano
+            Piano Only
           </button>
           <button
             onClick={selectAll}
             className="px-2.5 py-1 rounded-md bg-slate-700/60 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-all"
           >
-            Tutte
+            All
           </button>
           <button
             onClick={selectNone}
             className="px-2.5 py-1 rounded-md bg-slate-700/60 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-all"
           >
-            Azzera
+            Clear
           </button>
         </div>
 
@@ -339,22 +339,22 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
                       {/* Role Badges */}
                       {track.role === 'melody' && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40">
-                          🎤 Melodia / Voce
+                          🎤 Melody / Lead
                         </span>
                       )}
                       {track.role === 'chords' && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                          🎹 Accordi / Piano
+                          🎹 Chords / Piano
                         </span>
                       )}
                       {track.role === 'bass' && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">
-                          🎸 Basso
+                          🎸 Bass
                         </span>
                       )}
                       {track.isDrums && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40">
-                          🥁 Batteria (Ch 10)
+                          🥁 Drums (Ch 10)
                         </span>
                       )}
                     </div>
@@ -362,7 +362,7 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
                     <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
                       <span>{track.instrumentName}</span>
                       {track.channel !== undefined && (
-                        <span className="text-slate-500">• Canale {track.channel + 1}</span>
+                        <span className="text-slate-500">• Channel {track.channel + 1}</span>
                       )}
                     </div>
                   </div>
@@ -379,10 +379,10 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
                         ? 'bg-rose-600 hover:bg-rose-500 text-white animate-pulse'
                         : 'bg-slate-700/80 hover:bg-slate-600 text-indigo-300 hover:text-white border border-slate-600'
                     }`}
-                    title={isPreviewing ? 'Ferma anteprima audio' : 'Ascolta anteprima di questa traccia'}
+                    title={isPreviewing ? 'Stop preview' : 'Preview this track audio'}
                   >
                     <span>{isPreviewing ? '⏹️' : '▶️'}</span>
-                    <span className="hidden sm:inline">{isPreviewing ? 'Stop' : 'Ascolta'}</span>
+                    <span className="hidden sm:inline">{isPreviewing ? 'Stop' : 'Listen'}</span>
                   </button>
 
                   {/* Note Count Badge */}
@@ -393,7 +393,7 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
                         : 'bg-slate-800 text-slate-500'
                     }`}
                   >
-                    {track.noteCount} note
+                    {track.noteCount} notes
                   </span>
                 </div>
               </div>
@@ -404,12 +404,12 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
         {/* Footer */}
         <div className="p-4 border-t border-slate-800 bg-slate-950/80 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="text-xs sm:text-sm text-center sm:text-left">
-            <span className="text-slate-400">Selezionate: </span>
+            <span className="text-slate-400">Selected: </span>
             <span className="font-bold text-emerald-400">
-              {selectedIds.size} / {structure.tracks.length} tracce
+              {selectedIds.size} / {structure.tracks.length} tracks
             </span>
             <span className="text-slate-500 mx-2">•</span>
-            <span className="font-bold text-white">{totalSelectedNotes} note totali</span>
+            <span className="font-bold text-white">{totalSelectedNotes} total notes</span>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
@@ -420,7 +420,7 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
               }}
               className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs sm:text-sm font-semibold transition-colors flex-1 sm:flex-initial"
             >
-              Annulla
+              Cancel
             </button>
             <button
               onClick={handleApply}
@@ -431,7 +431,7 @@ export const MidiTrackSelectorModal: React.FC<MidiTrackSelectorModalProps> = ({
                   : 'bg-slate-800 text-slate-500 cursor-not-allowed'
               }`}
             >
-              <span>🎹 Importa {totalSelectedNotes} Note</span>
+              <span>🎹 Import {totalSelectedNotes} Notes</span>
             </button>
           </div>
         </div>

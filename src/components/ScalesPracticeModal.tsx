@@ -199,10 +199,10 @@ export const ScalesPracticeModal: React.FC<ScalesPracticeModalProps> = ({
               {/* Note and Fingering Strip Preview */}
               <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-400 font-semibold">
-                  <span>Sequenza Note & Dita:</span>
+                  <span>Notes &amp; Fingering Sequence:</span>
                   {activeNoteIdx !== null && (
                     <span className="text-amber-300 font-mono font-bold animate-pulse">
-                      In ascolto: {currentNote} (Dito {currentFinger} • {FINGER_NAMES[currentFinger || 1]?.name})
+                      Listening: {currentNote} (Finger {currentFinger} • {FINGER_NAMES[currentFinger || 1]?.name})
                     </span>
                   )}
                 </div>
@@ -241,14 +241,14 @@ export const ScalesPracticeModal: React.FC<ScalesPracticeModalProps> = ({
                 className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-sm rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-amber-500/25 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
                 <Hand className="w-5 h-5 text-slate-950 animate-bounce" />
-                <span>APRI NEL PIANOFORTE CON MANO TRASPARENTE</span>
+                <span>OPEN ON PIANO WITH TRANSPARENT HAND</span>
                 <ArrowRight className="w-4 h-4 text-slate-950" />
               </button>
 
               {/* Secondary Controls: In-modal audio preview & tempo */}
               <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-400 font-semibold">Velocità:</span>
+                  <span className="text-slate-400 font-semibold">Speed:</span>
                   <input
                     type="range"
                     min="40"

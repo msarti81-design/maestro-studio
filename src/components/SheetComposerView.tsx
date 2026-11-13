@@ -131,7 +131,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
         if (found) {
           setSongs(prev => [found, ...prev.filter(p => p.id !== activeId)]);
           setSelectedSongId(activeId);
-          showToast(`✓ Note caricate nel compositore: "${found.title}"`);
+          showToast(`✓ Notes loaded into composer: "${found.title}"`);
         }
       }
     } catch (e) {}
@@ -193,6 +193,9 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
   const [isFingeringRulesOpen, setIsFingeringRulesOpen] = useState<boolean>(false);
   const [pendingMidiStructure, setPendingMidiStructure] = useState<MidiParsedStructure | null>(null);
   const [isMidiSelectorOpen, setIsMidiSelectorOpen] = useState<boolean>(false);
+  const [isTitleEditorPinned, setIsTitleEditorPinned] = useState<boolean>(false);
+  const pinnedTitleInputRef = useRef<HTMLInputElement>(null);
+  const didFocusPinnedRef = useRef<boolean>(false);
 
   // Precompute automatic optimal fingering for current melody using standard piano rules
   const autoMelodyFingering = useMemo(() => {
@@ -484,7 +487,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
     const importedSong: SheetSong = {
       id: newId,
       title: parsed.title,
-      description: `Spartito importato da file MIDI (${parsed.notes.length} note)`,
+      description: `Sheet imported from MIDI file (${parsed.notes.length} notes)`,
       key: 'C Major (C)',
       bpm: parsed.bpm || 120,
       timeSignature: '4/4',
@@ -499,7 +502,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
     setIsImportModalOpen(false);
     setImportJsonText('');
     setHasUnsavedChanges(false);
-    showToast(`✓ File MIDI "${importedSong.title}" (${melody.length} note) importato con successo!`);
+    showToast(`✓ MIDI file "${importedSong.title}" (${melody.length} notes) imported successfully!`);
   };
 
   const handleConfirmMidiSelectionInSheet = (song: InteractiveSong) => {
@@ -508,14 +511,14 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
     applyImportedMidiToSheet(song);
   };
 
-  const parseAndApplySheetContent = (content: string | ArrayBuffer, originalFileName = 'spartito') => {
+  const parseAndApplySheetContent = (content: string | ArrayBuffer, originalFileName = 'sheet') => {
     setImportError(null);
     try {
       // 1. Is it a MIDI ArrayBuffer?
       if (content instanceof ArrayBuffer) {
         const structure = inspectMidiTracks(content, originalFileName);
         if (structure.tracks.length === 0 || structure.totalNotes === 0) {
-          throw new Error('Nessuna traccia o nota trovata nel file MIDI.');
+          throw new Error('No tracks or notes found in the MIDI file.');
         }
 
         if (structure.tracks.length > 1 || structure.tracks.some((t) => t.isDrums)) {
@@ -531,14 +534,14 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
       }
 
       const text = typeof content === 'string' ? content.trim() : '';
-      if (!text) throw new Error('Il file o testo selezionato è vuoto.');
+      if (!text) throw new Error('The selected file or text is empty.');
 
       // 2. Is it XML / MusicXML?
       if (text.startsWith('<')) {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(text, 'text/xml');
         const titleEl = xmlDoc.querySelector('work-title') || xmlDoc.querySelector('movement-title');
-        const title = titleEl?.textContent?.trim() || originalFileName.replace(/\.[^/.]+$/, '') || 'Spartito XML';
+        const title = titleEl?.textContent?.trim() || originalFileName.replace(/\.[^/.]+$/, '') || 'XML Sheet';
 
         const noteNodes = xmlDoc.querySelectorAll('note');
         const melody: NoteEvent[] = [];
@@ -572,14 +575,14 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
         });
 
         if (melody.length === 0) {
-          throw new Error('Nessuna nota valida trovata nel file MusicXML.');
+          throw new Error('No valid notes found in the MusicXML file.');
         }
 
         const newId = `xml_${Date.now()}`;
         const importedSong: SheetSong = {
           id: newId,
           title,
-          description: 'Spartito importato da XML/MusicXML',
+          description: 'Sheet imported from XML/MusicXML',
           key: 'C Major (C)',
           bpm: 100,
           timeSignature: '4/4',
@@ -594,17 +597,17 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
         setIsImportModalOpen(false);
         setImportJsonText('');
         setHasUnsavedChanges(false);
-        showToast(`✓ Spartito XML "${importedSong.title}" (${melody.length} note) importato!`);
+        showToast(`✓ XML sheet "${importedSong.title}" (${melody.length} notes) imported!`);
         return;
       }
 
       // 3. Is it JSON?
       const parsed = JSON.parse(text);
-      const title = parsed.title || parsed.name || originalFileName.replace(/\.[^/.]+$/, '') || 'Spartito Importato';
+      const title = parsed.title || parsed.name || originalFileName.replace(/\.[^/.]+$/, '') || 'Imported Sheet';
       const rawNotes = Array.isArray(parsed.melody) ? parsed.melody : (Array.isArray(parsed.notes) ? parsed.notes : (Array.isArray(parsed) ? parsed : null));
 
       if (!rawNotes || !Array.isArray(rawNotes) || rawNotes.length === 0) {
-        throw new Error('Formato JSON non valido: deve contenere una lista di note musicali ("notes" o "melody").');
+        throw new Error('Invalid JSON format: must contain a list of musical notes ("notes" or "melody").');
       }
 
       const melody: NoteEvent[] = rawNotes.map((n: any, idx: number) => {
@@ -629,7 +632,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
       const importedSong: SheetSong = {
         id: newId,
         title,
-        description: parsed.description || 'Spartito importato da JSON',
+        description: parsed.description || 'Sheet imported from JSON',
         key: parsed.key || 'C Major (C)',
         bpm: parsed.bpm || 100,
         timeSignature: parsed.timeSignature || '4/4',
@@ -644,9 +647,9 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
       setIsImportModalOpen(false);
       setImportJsonText('');
       setHasUnsavedChanges(false);
-      showToast(`✓ Spartito JSON "${importedSong.title}" (${melody.length} note) importato con successo!`);
+      showToast(`✓ JSON sheet "${importedSong.title}" (${melody.length} notes) imported successfully!`);
     } catch (err: any) {
-      setImportError(err.message || 'Errore nella lettura del file. Verifica che il formato sia corretto.');
+      setImportError(err.message || 'Error reading file. Please verify the format is valid.');
     }
   };
 
@@ -662,7 +665,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
         if (arrayBuffer) {
           parseAndApplySheetContent(arrayBuffer, file.name);
         } else {
-          setImportError('File MIDI vuoto o non leggibile.');
+          setImportError('Empty or unreadable MIDI file.');
         }
       };
       reader.readAsArrayBuffer(file);
@@ -683,6 +686,55 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto p-2 sm:p-4 space-y-4 select-none">
+      {/* TOP-PINNED TITLE EDITOR FOR MOBILE / ANDROID SOFT KEYBOARD (Always stays at top y=6px above the keyboard) */}
+      {isTitleEditorPinned && (
+        <div
+          className="fixed inset-0 z-[150] bg-slate-950/75 backdrop-blur-xs flex items-start justify-center p-2 pt-2"
+          onClick={() => setIsTitleEditorPinned(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl bg-slate-900 border-2 border-amber-400 rounded-2xl p-2.5 shadow-2xl flex flex-col gap-2"
+          >
+            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-300 px-1">
+              <span>✏️ Edit Sheet Title</span>
+              <span className="text-slate-400 font-normal">Always visible above keyboard</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={(el) => {
+                  pinnedTitleInputRef.current = el;
+                  if (el && !didFocusPinnedRef.current) {
+                    didFocusPinnedRef.current = true;
+                    el.focus();
+                  } else if (!el) {
+                    didFocusPinnedRef.current = false;
+                  }
+                }}
+                type="text"
+                autoFocus
+                value={currentSong.title}
+                onChange={(e) => updateCurrentSong((s) => ({ ...s, title: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setIsTitleEditorPinned(false);
+                  }
+                }}
+                placeholder="Enter song title..."
+                className="flex-1 bg-slate-950 text-white font-black text-sm sm:text-base px-3 py-2 rounded-xl border border-amber-500/70 focus:border-amber-400 outline-none select-text"
+              />
+              <button
+                type="button"
+                onClick={() => setIsTitleEditorPinned(false)}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow cursor-pointer shrink-0"
+              >
+                ✓ Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {saveToast && (
         <div className="fixed top-4 right-4 z-50 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2 border border-amber-300 animate-in fade-in slide-in-from-top-4 duration-300 text-xs sm:text-sm">
@@ -706,13 +758,13 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
           className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-bold text-xs rounded-xl border border-slate-700 flex items-center gap-2 cursor-pointer transition-all shadow-sm"
         >
           <ArrowLeft className="w-4 h-4 text-amber-400" />
-          <span>← Torna al Pianoforte</span>
+          <span>← Back to Piano</span>
         </button>
 
         <div className="hidden sm:flex items-center gap-2 text-xs">
           <span className="font-bold text-slate-300 truncate max-w-xs">{currentSong.title}</span>
           <span className="text-slate-600">•</span>
-          <span className="text-amber-400 font-bold">{currentSong.melody.length} Note sul Pentagramma</span>
+          <span className="text-amber-400 font-bold">{currentSong.melody.length} Notes on Staff</span>
         </div>
 
         <button
@@ -730,7 +782,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
           className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer transition-all"
         >
           <Play className="w-3.5 h-3.5 fill-current" />
-          <span>🎹 Suona al Pianoforte</span>
+          <span>🎹 Play on Piano</span>
         </button>
       </div>
 
@@ -747,11 +799,31 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
               <input
                 type="text"
                 value={currentSong.title}
+                onFocus={(e) => {
+                  const isCompactOrTouch =
+                    typeof window !== 'undefined' &&
+                    (window.innerHeight < 700 ||
+                      'ontouchstart' in window ||
+                      navigator.maxTouchPoints > 0);
+                  if (isCompactOrTouch) {
+                    setIsTitleEditorPinned(true);
+                  } else {
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
                 onChange={(e) => updateCurrentSong(s => ({ ...s, title: e.target.value }))}
                 placeholder="Sheet Title..."
-                className="bg-slate-800/80 hover:bg-slate-800 focus:bg-slate-800 text-white font-black text-sm sm:text-base px-2 py-0.5 rounded-lg border border-slate-700 focus:border-amber-400 outline-none max-w-[220px] sm:max-w-[280px] truncate"
+                className="bg-slate-800/80 hover:bg-slate-800 focus:bg-slate-800 text-white font-black text-sm sm:text-base px-2 py-0.5 rounded-lg border border-slate-700 focus:border-amber-400 outline-none max-w-[220px] sm:max-w-[280px] truncate select-text"
                 title="Edit sheet title"
               />
+              <button
+                type="button"
+                onClick={() => setIsTitleEditorPinned(true)}
+                className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md text-[10px] text-amber-300 font-bold cursor-pointer"
+                title="Edit title at the top (keeps title visible above soft keyboard)"
+              >
+                ✏️
+              </button>
 
               {isPreset ? (
                 <span className="text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full">
@@ -903,7 +975,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
 
         {/* Musical Key */}
         <div className="space-y-1">
-          <span className="text-[10px] text-slate-400 font-bold uppercase block">Tonalit&agrave;</span>
+          <span className="text-[10px] text-slate-400 font-bold uppercase block">Key</span>
           <input
             type="text"
             value={currentSong.key}
@@ -914,7 +986,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
 
         {/* Input Target Channel */}
         <div className="space-y-1">
-          <span className="text-[10px] text-slate-400 font-bold uppercase block">Destinazione Note</span>
+          <span className="text-[10px] text-slate-400 font-bold uppercase block">Note Target</span>
           <div className="grid grid-cols-2 gap-1">
             <button
               onClick={() => setTargetChannel('melody')}
@@ -934,7 +1006,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
                   : 'bg-slate-800 text-slate-400 hover:text-white'
               }`}
             >
-              Basso 🎸
+              Bass 🎸
             </button>
           </div>
         </div>
@@ -976,27 +1048,27 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" />
-            <h3 className="font-bold text-white text-sm">Sequenza Melodia (Pianoforte)</h3>
-            <span className="text-xs text-slate-400 font-mono">({currentSong.melody.length} note)</span>
+            <h3 className="font-bold text-white text-sm">Melody Sequence (Piano)</h3>
+            <span className="text-xs text-slate-400 font-mono">({currentSong.melody.length} notes)</span>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setIsFingeringRulesOpen(true)}
               className="px-2.5 py-1 text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 rounded-lg border border-amber-500/30 flex items-center gap-1 transition-colors cursor-pointer"
-              title="Regole standard di diteggiatura ed ergonomia della mano"
+              title="Standard piano fingering and ergonomics rules"
             >
-              <span>🖐️ Regole Dita</span>
+              <span>🖐️ Fingering Rules</span>
             </button>
 
             {currentSong.melody.length > 0 && (
               <button
                 onClick={handleClearMelody}
                 className="px-2.5 py-1 text-xs font-bold bg-red-500/15 hover:bg-red-500/25 text-red-300 rounded-lg border border-red-500/30 flex items-center gap-1 transition-colors"
-                title="Svuota e cancella tutte le note della melodia"
+                title="Clear all notes from the melody"
               >
                 <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                <span>Svuota Melodia</span>
+                <span>Clear Melody</span>
               </button>
             )}
 
@@ -1078,9 +1150,9 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
 
                     <div>
                       <div className="flex items-center justify-between">
-                        <label className="text-[9px] text-slate-400 font-bold uppercase block">Dito</label>
+                        <label className="text-[9px] text-slate-400 font-bold uppercase block">Finger</label>
                         <span className={`text-[9px] font-bold ${mNote.finger ? 'text-amber-400 font-black' : 'text-slate-400'}`}>
-                          {mNote.finger ? `🖐️ Dito ${mNote.finger}` : `Auto: ${calculatedFinger}`}
+                          {mNote.finger ? `🖐️ Finger ${mNote.finger}` : `Auto: ${calculatedFinger}`}
                         </span>
                       </div>
                       <select
@@ -1091,14 +1163,14 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
                             ? 'bg-amber-950/60 border-amber-500/50 text-amber-200 font-bold'
                             : 'bg-slate-900 border-slate-700 text-slate-300'
                         }`}
-                        title="Decidi il dito per questa nota o lascia 'Auto' per il calcolo standard"
+                        title="Choose the finger for this note or leave 'Auto' for standard calculation"
                       >
-                        <option value="">Auto (Dito {calculatedFinger} Standard)</option>
-                        <option value="1">1 - Pollice 👍</option>
-                        <option value="2">2 - Indice ☝️</option>
-                        <option value="3">3 - Medio 🖐️</option>
-                        <option value="4">4 - Anulare 💍</option>
-                        <option value="5">5 - Mignolo 🤙</option>
+                        <option value="">Auto (Finger {calculatedFinger} Standard)</option>
+                        <option value="1">1 - Thumb 👍</option>
+                        <option value="2">2 - Index ☝️</option>
+                        <option value="3">3 - Middle 🖐️</option>
+                        <option value="4">4 - Ring 💍</option>
+                        <option value="5">5 - Pinky 🤙</option>
                       </select>
                     </div>
                   </div>
@@ -1109,13 +1181,13 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
         )}
       </div>
 
-      {/* BASSLINE SEQUENCE (Basso) */}
+      {/* BASSLINE SEQUENCE */}
       <div className="bg-slate-900 border border-slate-800 p-3 sm:p-5 rounded-2xl space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
-            <h3 className="font-bold text-white text-sm">Sequenza Basso (Basso Elettrico)</h3>
-            <span className="text-xs text-slate-400 font-mono">({currentSong.bassline.length} note)</span>
+            <h3 className="font-bold text-white text-sm">Bassline Sequence (Electric Bass)</h3>
+            <span className="text-xs text-slate-400 font-mono">({currentSong.bassline.length} notes)</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1123,10 +1195,10 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
               <button
                 onClick={handleClearBassline}
                 className="px-2.5 py-1 text-xs font-bold bg-red-500/15 hover:bg-red-500/25 text-red-300 rounded-lg border border-red-500/30 flex items-center gap-1 transition-colors"
-                title="Svuota e cancella tutte le note del basso"
+                title="Clear all bassline notes"
               >
                 <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                <span>Svuota Basso</span>
+                <span>Clear Bass</span>
               </button>
             )}
 
@@ -1351,7 +1423,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
 
             <div className="p-5 space-y-4 overflow-y-auto text-xs">
               <p className="text-slate-300">
-                Seleziona un file <strong>MIDI (.mid)</strong>, <strong>JSON</strong> o <strong>MusicXML</strong> dal tuo dispositivo, oppure incolla il codice dello spartito:
+                Select a <strong>MIDI (.mid)</strong>, <strong>JSON</strong>, or <strong>MusicXML</strong> file from your device, or paste the sheet code below:
               </p>
 
               {/* Hidden Inputs for Android Compatibility */}
@@ -1390,7 +1462,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
                   className="py-3 px-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer text-xs"
                 >
                   <Music className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-                  <span>🎹 Scegli File MIDI (.mid)</span>
+                  <span>🎹 Choose MIDI File (.mid)</span>
                 </button>
 
                 <button
@@ -1399,18 +1471,18 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
                   className="py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer text-xs"
                 >
                   <Upload className="w-4 h-4 text-white stroke-[2.5]" />
-                  <span>📄 Scegli File JSON / XML</span>
+                  <span>📄 Choose JSON / XML File</span>
                 </button>
               </div>
 
               <div>
                 <label className="text-[10px] text-slate-400 font-bold uppercase block mb-1.5">
-                  Oppure Incolla Codice Spartito XML / JSON
+                  Or Paste XML / JSON Sheet Code
                 </label>
                 <textarea
                   value={importJsonText}
                   onChange={(e) => setImportJsonText(e.target.value)}
-                  placeholder="Incolla qui codice XML o JSON spartito..."
+                  placeholder="Paste XML or JSON sheet code here..."
                   rows={5}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-white outline-none focus:border-indigo-500"
                 />
@@ -1429,7 +1501,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
                 onClick={() => setIsImportModalOpen(false)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold rounded-xl text-xs cursor-pointer"
               >
-                Annulla
+                Cancel
               </button>
               <button
                 type="button"
@@ -1437,7 +1509,7 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
                 disabled={!importJsonText.trim()}
                 className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
               >
-                Carica Spartito Incollato
+                Load Pasted Sheet
               </button>
             </div>
           </div>

@@ -378,14 +378,14 @@ export function inspectMidiTracks(arrayBuffer: ArrayBuffer, fileName: string): M
         role = 'chords';
       }
 
-      let displayName = t.name || t.instrumentMeta || gmName || `Traccia ${t.trackIndex + 1}`;
+      let displayName = t.name || t.instrumentMeta || gmName || `Track ${t.trackIndex + 1}`;
       if (shouldSplitByChannel && gmName && !displayName.toLowerCase().includes(gmName.toLowerCase())) {
         displayName = `${displayName} (${gmName})`;
       } else if (shouldSplitByChannel && !gmName) {
-        displayName = `${displayName} (Canale ${ch + 1})`;
+        displayName = `${displayName} (Channel ${ch + 1})`;
       }
       if (isDrums && !displayName.toLowerCase().includes('drum') && !displayName.toLowerCase().includes('batteria')) {
-        displayName += ' (Batteria)';
+        displayName += ' (Drums)';
       }
 
       finalTracks.push({
@@ -394,8 +394,8 @@ export function inspectMidiTracks(arrayBuffer: ArrayBuffer, fileName: string): M
         channel: ch,
         name: displayName,
         instrumentName: isDrums
-          ? 'Percussioni (Canale 10)'
-          : gmName || t.instrumentMeta || (isPiano ? 'Pianoforte' : 'Strumento Melodico'),
+          ? 'Percussion (Channel 10)'
+          : gmName || t.instrumentMeta || (isPiano ? 'Piano' : 'Melodic Instrument'),
         programNumber: prog,
         noteCount: chNotes.length,
         isDrums,
@@ -448,7 +448,7 @@ export function inspectMidiTracks(arrayBuffer: ArrayBuffer, fileName: string): M
   const cleanTitle =
     fileName.replace(/\.(mid|midi)$/i, '').replace(/[-_]/g, ' ').trim() ||
     detectedTitle ||
-    'Brano MIDI';
+    'MIDI Song';
 
   return {
     fileName,
@@ -495,7 +495,7 @@ export function buildSongFromMidiStructure(
     .sort((a, b) => a.tickStart - b.tickStart || b.midi - a.midi);
 
   if (validNotes.length === 0) {
-    throw new Error('Nessuna nota compatibile con il pianoforte trovata nelle tracce selezionate.');
+    throw new Error('No piano-compatible notes found in the selected tracks.');
   }
 
   // Ticks to Seconds conversion
@@ -556,7 +556,7 @@ export function buildSongFromMidiStructure(
   return {
     id: `midi_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     title: structure.title,
-    author: 'Importato da MIDI',
+    author: 'Imported from MIDI',
     bpm: structure.bpm,
     difficulty: parsedNotes.length > 100 ? 'difficile' : parsedNotes.length > 40 ? 'medio' : 'facile',
     notes: parsedNotes,

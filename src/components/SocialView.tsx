@@ -264,7 +264,7 @@ const RoomCodeValidator: React.FC<{ roomCode: string; maestroMember: any; client
     <div className="text-[11px] text-emerald-300 bg-emerald-950/60 border border-emerald-500/40 px-3 py-2 rounded-xl font-bold flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <span>✅</span>
-        <span>Stanza <strong>{roomCode}</strong> pronta ({memberCount} utenti attivi). Pronto a collegarsi!</span>
+        <span>Room <strong>{roomCode}</strong> ready ({memberCount} active users). Ready to connect!</span>
       </div>
       <span className="bg-emerald-500 text-slate-950 px-2 py-0.5 rounded font-black text-[10px] uppercase shadow">
         Ready 🟢
@@ -636,12 +636,12 @@ export const SocialView: React.FC<SocialViewProps> = ({
         subtitle = `Be the first to guess the songs played on the piano!\n📍 Room Code: *${room}*`;
         break;
       default:
-        title = '🎹 PIANOFORTE SOCIAL & CHALLENGE';
-        subtitle = `Unisciti alla mia stanza sul pianoforte!\n📍 Codice: *${room}*`;
+        title = '🎹 SOCIAL PIANO & CHALLENGE';
+        subtitle = `Join my piano room!\n📍 Room Code: *${room}*`;
         break;
     }
 
-    const textMessage = `${title}\n\n${subtitle}\n\n🔗 *Clicca qui per entrare direttamente:*\n${shareUrl}`;
+    const textMessage = `${title}\n\n${subtitle}\n\n🔗 *Click here to join directly:*\n${shareUrl}`;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(textMessage)}`;
     window.open(waUrl, '_blank');
   };
@@ -711,7 +711,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
             <span>Multiplayer & Social Studio</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white flex items-center justify-center md:justify-start gap-2">
-            <span>Sale Virtuali & Didattica Musicale</span>
+            <span>Virtual Rooms &amp; Music Studio</span>
             <Sparkles className="w-5 h-5 text-amber-400" />
           </h1>
           <p className="text-slate-400 text-xs max-w-xl">
@@ -1157,14 +1157,14 @@ export const SocialView: React.FC<SocialViewProps> = ({
                       const val = e.target.value.toUpperCase();
                       setJoinInputs((prev) => ({ ...prev, [activeTab]: val }));
                     }}
-                    placeholder={`Es. ${activeTab.toUpperCase()}-101`}
+                    placeholder={`E.g. ${activeTab.toUpperCase()}-101`}
                     className="w-full bg-slate-900 border border-emerald-500/50 text-emerald-300 font-mono font-black text-xs sm:text-sm rounded-xl px-3 py-2 outline-none uppercase tracking-wider"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                    Il Tuo Ruolo in questa Stanza:
+                    Your Role in This Room:
                   </label>
                   <select
                     value={selectedRoles[activeTab]}
@@ -1184,17 +1184,17 @@ export const SocialView: React.FC<SocialViewProps> = ({
                   disabled={!joinInputs[activeTab].trim()}
                   className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:opacity-40 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <span>🚀 ENTRA IN QUESTA STANZA</span>
+                  <span>🚀 ENTER THIS ROOM</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Card B: Crea Nuova Stanza */}
+              {/* Card B: Create New Room */}
               <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                   <div className="flex items-center gap-2 text-amber-400 font-black text-xs sm:text-sm uppercase tracking-wide">
                     <span>👑</span>
-                    <span>Crea e Ospita una Nuova Stanza</span>
+                    <span>Create &amp; Host a New Room</span>
                   </div>
                   <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold uppercase">
                     Host
@@ -1203,22 +1203,22 @@ export const SocialView: React.FC<SocialViewProps> = ({
 
                 <div className="space-y-1">
                   <label className="text-[10px] text-slate-400 font-bold uppercase block">
-                    Codice Stanza Assegnato:
+                    Assigned Room Code:
                   </label>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 bg-slate-900 border border-slate-800 text-amber-400 font-mono font-black text-xs sm:text-sm rounded-xl px-3 py-2 flex items-center justify-between">
                       <span>{hostedRoomCodes[activeTab]}</span>
                       <span className="text-[9px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-bold uppercase">
-                        Attiva
+                        Active
                       </span>
                     </div>
                     <button
                       onClick={() => handleRegenerateHostedCode(activeTab)}
                       className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1 border border-slate-700 transition-all cursor-pointer"
-                      title="Genera nuovo codice"
+                      title="Generate new code"
                     >
                       <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                      <span className="hidden sm:inline">Nuovo</span>
+                      <span className="hidden sm:inline">New</span>
                     </button>
                   </div>
                 </div>
@@ -1247,7 +1247,7 @@ export const SocialView: React.FC<SocialViewProps> = ({
               </div>
             </div>
 
-            {/* Pulsante Avvio per altre modalità */}
+            {/* Launch Button for other modes */}
             <div className="pt-2">
               <button
                 onClick={() => handleLaunchSession()}
@@ -1255,11 +1255,11 @@ export const SocialView: React.FC<SocialViewProps> = ({
               >
                 <Play className="w-5 h-5 fill-slate-950 shrink-0" />
                 <span>
-                  {activeTab === 'battle' && `ENTRA NEL DUELLO 1v1 COME SFIDANTE (${currentRoomCode}) ⚔️`}
-                  {activeTab === 'duet' && `SUONA A QUATTRO MANI (${currentRoomCode}) 🖐️`}
-                  {activeTab === 'pianobar' && `ENTRA AL PIANO BAR LIVE (${currentRoomCode}) 🍸`}
-                  {activeTab === 'relay' && `INIZIA LA STAFFETTA MUSICALE (${currentRoomCode}) 🏃`}
-                  {activeTab === 'guess' && `SFIDA A INDOVINA LA CANZONE (${currentRoomCode}) ❓`}
+                  {activeTab === 'battle' && `ENTER 1v1 DUEL AS CHALLENGER (${currentRoomCode}) ⚔️`}
+                  {activeTab === 'duet' && `PLAY FOUR-HANDS DUET (${currentRoomCode}) 🖐️`}
+                  {activeTab === 'pianobar' && `ENTER LIVE PIANO BAR (${currentRoomCode}) 🍸`}
+                  {activeTab === 'relay' && `START MUSICAL RELAY (${currentRoomCode}) 🏃`}
+                  {activeTab === 'guess' && `PLAY GUESS THE SONG (${currentRoomCode}) ❓`}
                 </span>
               </button>
             </div>

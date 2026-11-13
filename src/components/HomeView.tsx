@@ -425,19 +425,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
               <div className="min-w-0">
                 <h3 className="text-sm sm:text-base font-black text-white group-hover:text-fuchsia-300 transition-colors leading-tight truncate">
-                  Orecchio
+                  Ear Training
                 </h3>
-                <span className="text-[10px] text-fuchsia-300/90 font-medium truncate block">Indovina la Nota</span>
+                <span className="text-[10px] text-fuchsia-300/90 font-medium truncate block">Guess the Note</span>
               </div>
             </div>
 
             <p className="text-slate-400 text-[11px] leading-snug line-clamp-2 h-[2.5rem]">
-              Allena l&apos;orecchio assoluto con la tastiera gigante dedicata: ascolta e indovina!
+              Train perfect pitch with the dedicated giant keyboard: listen and guess the note!
             </p>
           </div>
 
           <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-fuchsia-300 font-bold text-[11px] group-hover:text-fuchsia-200">
-            <span>Allena Orecchio</span>
+            <span>Train Ear</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
@@ -547,7 +547,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-lg transition-all cursor-pointer shadow-sm"
-            title="Norme sulla Privacy (Privacy Policy)"
+            title="Privacy Policy"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
             <span>Privacy</span>

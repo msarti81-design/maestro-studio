@@ -2281,8 +2281,8 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         {/* Mode Selector & Controls - Single Row */}
         <div className={`flex items-center gap-1 ${viewMode === 'sheet' ? 'bg-slate-100 border-slate-300 text-slate-900' : 'bg-slate-900/95 border-slate-800 text-white'} border rounded-lg p-0.5 backdrop-blur-md flex-nowrap shrink-0 overflow-x-auto scrollbar-thin max-w-[62vw] sm:max-w-[72vw]`}>
           {([
-            { id: 'learn', label: 'Impara', icon: '🎯' },
-            { id: 'fingering', label: 'Dita', icon: '🖐️' },
+            { id: 'learn', label: 'Learn', icon: '🎯' },
+            { id: 'fingering', label: 'Fingers', icon: '🖐️' },
             { id: 'arcade', label: 'Arcade', icon: '🎮' },
             { id: 'demo', label: 'Demo', icon: '🤖' },
           ] as const).map(({ id, label, icon }) => (
@@ -2307,12 +2307,12 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
               }`}
               title={
                 id === 'fingering'
-                  ? 'Guida passo-passo con la Mano Trasparente e numeri delle dita (1-5)'
+                  ? 'Step-by-step guide with Transparent Hand and finger numbers (1-5)'
                   : id === 'learn'
-                  ? 'Aspetta che tu suoni la nota corretta'
+                  ? 'Waits for you to play the right note'
                   : id === 'arcade'
-                  ? 'Gioco ritmico a tempo con punteggio'
-                  : 'Dimostrazione con mano virtuale che suona da sola'
+                  ? 'Timed rhythm game with live score'
+                  : 'Virtual hand demonstration playing automatically'
               }
             >
               <span>{icon}</span>
@@ -2332,21 +2332,21 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 ? 'bg-gradient-to-r from-emerald-500 to-cyan-400 text-slate-950 shadow-md ring-1 ring-emerald-300'
                 : 'bg-slate-800 text-slate-300 hover:text-white'
             }`}
-            title="Cambia visualizzazione tra note in caduta (Cascata) e pentagramma scorrevole (Spartito)"
+            title="Switch between falling notes (Waterfall) and scrolling music staff (Sheet)"
           >
-            <span>{viewMode === 'sheet' ? '🎼 Spartito' : '🎹 Cascata'}</span>
+            <span>{viewMode === 'sheet' ? '🎼 Sheet' : '🎹 Waterfall'}</span>
           </button>
 
           {/* Quick Info: Standard Fingering Rules button */}
           <button
             onClick={() => setIsFingeringRulesModalOpen(true)}
             className="p-0.5 text-amber-400 hover:text-amber-300 hover:bg-slate-800 rounded transition-colors cursor-pointer"
-            title="Regole Diteggiatura Pianistica"
+            title="Piano Fingering Rules"
           >
             <HelpCircle className="w-3 h-3" />
           </button>
 
-          {/* Selettore Mano (Mano Destra ✋ / Mano Sinistra 🤚 / Entrambe le Mani 👐) */}
+          {/* Hand Selector */}
           <button
             onClick={() => {
               const nextHand = selectedHand === 'right' ? 'left' : selectedHand === 'left' ? 'both' : 'right';
@@ -2360,12 +2360,12 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
                 : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
             }`}
-            title={`Mano: ${selectedHand === 'right' ? 'Mano Destra (Dx)' : selectedHand === 'left' ? 'Mano Sinistra (Sx)' : 'Entrambe le Mani (Insieme)'}. Clicca per cambiare!`}
+            title={`Hand: ${selectedHand === 'right' ? 'Right Hand (RH)' : selectedHand === 'left' ? 'Left Hand (LH)' : 'Both Hands'}. Click to switch!`}
           >
-            <span>{selectedHand === 'right' ? '✋ Dx' : selectedHand === 'left' ? '🤚 Sx' : '👐 Insieme'}</span>
+            <span>{selectedHand === 'right' ? '✋ RH' : selectedHand === 'left' ? '🤚 LH' : '👐 Both'}</span>
           </button>
 
-          {/* 🪄 Smart MIDI Filter: Solo Melodia (1 Mano) */}
+          {/* Smart MIDI Filter: Lead Melody Only (1 Hand) */}
           <button
             onClick={() => {
               const next = !isMelodyOnly;
@@ -2375,8 +2375,8 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
               setWaitingTargetNote(null);
               setLoopFeedbackMessage(
                 next
-                  ? '🪄 Solo Melodia (1 Mano) ATTIVO: accordi e doppie voci rimossi per rendere il brano suonabile!'
-                  : '🎼 Brano Originale Completo ripristinato (tutte le note MIDI)'
+                  ? '🪄 Lead Melody Only (1 Hand) ON: simultaneous chords removed for solo play!'
+                  : '🎼 Full Original Arrangement restored (all MIDI notes)'
               );
               setTimeout(() => setLoopFeedbackMessage(null), 3200);
             }}
@@ -2385,12 +2385,12 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 ? 'bg-gradient-to-r from-fuchsia-500 to-amber-500 text-slate-950 border-amber-300 shadow-sm'
                 : 'bg-slate-800/90 border-fuchsia-500/40 text-fuchsia-300 hover:text-white'
             }`}
-            title="Semplifica per 1 Mano (Solo Melodia): filtra automaticamente gli accordi simultanei dei file MIDI lasciando solo la melodia principale cantata!"
+            title="Simplify for 1 Hand (Lead Melody): filters simultaneous chords to keep the main melody line!"
           >
-            <span>🪄 1 Mano</span>
+            <span>🪄 1 Hand</span>
           </button>
 
-          {/* ✨ Selettore 13 Effetti Visivi Spettacolari (Tap per aprire galleria o ciclare) */}
+          {/* Visual FX Selector */}
           <button
             onClick={() => setIsFxPickerOpen((v) => !v)}
             className={`px-1.5 py-0.5 text-[9px] font-black rounded flex items-center gap-0.5 transition-all border cursor-pointer whitespace-nowrap ${
@@ -2398,41 +2398,41 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 ? 'bg-gradient-to-r from-amber-500/25 via-fuchsia-500/25 to-cyan-500/25 border-amber-400/70 text-amber-300 shadow-sm'
                 : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white'
             }`}
-            title="Scegli tra i 13 Effetti Visivi Spettacolari per i tuoi Video!"
+            title="Choose from 14 Visual Effects for your performance & videos!"
           >
             <span>
               {fxMode === 'all'
                 ? '👑 Ultra Mix'
                 : fxMode === 'bounce_balls'
-                ? '🏀 Rimbalzi'
+                ? '🏀 Bounce'
                 : fxMode === 'fireworks'
-                ? '🎆 Fuochi'
+                ? '🎆 Fireworks'
                 : fxMode === 'aurora'
                 ? '🌈 Laser'
                 : fxMode === 'lightning'
-                ? '⚡ Fulmini'
+                ? '⚡ Lightning'
                 : fxMode === 'fire'
                 ? '🔥 Lava'
                 : fxMode === 'vortex'
-                ? '🌀 Portale'
+                ? '🌀 Portal'
                 : fxMode === 'gold_rain'
-                ? '🎵 Note Oro'
+                ? '🎵 Gold Notes'
                 : fxMode === 'matrix'
                 ? '🟢 Matrix'
                 : fxMode === 'meteor'
-                ? '☄️ Meteore'
+                ? '☄️ Meteors'
                 : fxMode === 'crystal'
-                ? '💎 Cristalli'
+                ? '💎 Crystals'
                 : fxMode === 'wave'
-                ? '🌊 Onde'
+                ? '🌊 Waves'
                 : fxMode === 'stars'
-                ? '🌌 Stelle'
+                ? '🌌 Stars'
                 : '🚫 FX Off'}
             </span>
             <span className="text-[8px] opacity-80">▾</span>
           </button>
 
-          {/* Loop A-B Studio a Sezioni Controls */}
+          {/* Loop A-B Section Practice Controls */}
           <div className="flex items-center gap-0.5 bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-[9px]">
             <button
               onClick={() => {
@@ -2442,11 +2442,11 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                   setLoopTimeB(Math.min(songDuration, t + 4.0));
                 }
                 setIsLoopABActive(true);
-                setLoopFeedbackMessage(`📍 Punto A impostato a ${t.toFixed(1)}s (Loop Attivo)`);
+                setLoopFeedbackMessage(`📍 Loop Point A set at ${t.toFixed(1)}s (Loop Active)`);
                 setTimeout(() => setLoopFeedbackMessage(null), 2500);
               }}
               className="px-1 py-0.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded font-mono font-bold cursor-pointer"
-              title="Imposta punto A del Loop al tempo corrente"
+              title="Set Loop Point A to current time"
             >
               [A: {loopTimeA.toFixed(1)}s]
             </button>
@@ -2455,11 +2455,11 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 const t = Math.max(loopTimeA + 0.5, Math.round(currentTimeRef.current * 10) / 10);
                 setLoopTimeB(t);
                 setIsLoopABActive(true);
-                setLoopFeedbackMessage(`📍 Punto B impostato a ${t.toFixed(1)}s (Loop Attivo)`);
+                setLoopFeedbackMessage(`📍 Loop Point B set at ${t.toFixed(1)}s (Loop Active)`);
                 setTimeout(() => setLoopFeedbackMessage(null), 2500);
               }}
               className="px-1 py-0.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded font-mono font-bold cursor-pointer"
-              title="Imposta punto B del Loop al tempo corrente"
+              title="Set Loop Point B to current time"
             >
               [B: {loopTimeB.toFixed(1)}s]
             </button>
@@ -2467,13 +2467,13 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
               onClick={() => {
                 const next = !isLoopABActive;
                 setIsLoopABActive(next);
-                setLoopFeedbackMessage(next ? `🔁 Loop A-B Attivo (${loopTimeA.toFixed(1)}s - ${loopTimeB.toFixed(1)}s)` : `⏹️ Loop A-B Disattivato`);
+                setLoopFeedbackMessage(next ? `🔁 Loop A-B Active (${loopTimeA.toFixed(1)}s - ${loopTimeB.toFixed(1)}s)` : `⏹️ Loop A-B Off`);
                 setTimeout(() => setLoopFeedbackMessage(null), 2500);
               }}
               className={`px-1.5 py-0.5 rounded font-bold transition-all cursor-pointer ${
                 isLoopABActive ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
-              title={isLoopABActive ? 'Loop A-B attivo (Ripeti Frase)' : 'Attiva Loop A-B (Ripeti Frase)'}
+              title={isLoopABActive ? 'Loop A-B Active (Repeat Section)' : 'Enable Loop A-B (Repeat Section)'}
             >
               Loop {isLoopABActive ? 'ON' : 'OFF'}
             </button>
@@ -2489,7 +2489,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
               lastFrameTimeRef.current = null;
             }}
             className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-750 text-amber-300 border border-slate-700/60 rounded text-[9px] font-mono font-bold cursor-pointer transition-colors"
-            title="Velocità riproduzione (clicca per cambiare)"
+            title="Playback speed (click to cycle)"
           >
             {playbackSpeed}x
           </button>
@@ -2790,64 +2790,72 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         </div>
       )}
 
-      {/* FLOATING 13-FX GALLERY PICKER BAR */}
+      {/* FLOATING 14-FX GALLERY PICKER MODAL (Scrollable viewport modal so nothing gets clipped on mobile) */}
       {isFxPickerOpen && (
-        <div className="absolute top-8 left-2 right-2 z-40 bg-slate-950/95 border border-amber-500/50 rounded-xl p-2 shadow-2xl backdrop-blur-md animate-in fade-in">
-          <div className="flex items-center justify-between mb-1.5 px-1">
-            <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider">
-              ✨ Scegli Effetto Spettacolare per il Video (14 Modalità • 0ms Lag)
-            </span>
-            <button
-              onClick={() => setIsFxPickerOpen(false)}
-              className="text-slate-400 hover:text-white text-xs font-bold px-1.5 cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-1">
-            {([
-              { id: 'all', label: '👑 Ultra Mix', desc: 'Tutti insieme!' },
-              { id: 'bounce_balls', label: '🏀 Rimbalzi', desc: 'Sfere a ritmo sui tasti' },
-              { id: 'fireworks', label: '🎆 Fuochi', desc: 'Esplosioni 360°' },
-              { id: 'aurora', label: '🌈 Laser Aurora', desc: 'Raggi verticali' },
-              { id: 'lightning', label: '⚡ Fulmini Tesla', desc: 'Archi elettrici' },
-              { id: 'fire', label: '🔥 Inferno Lava', desc: 'Fiamme & braci' },
-              { id: 'vortex', label: '🌀 Portale 3D', desc: 'Galassia & onde' },
-              { id: 'gold_rain', label: '🎵 Note Oro 24K', desc: 'Simboli ♪ ♫ 𝄞' },
-              { id: 'matrix', label: '🟢 Cyber Matrix', desc: 'Pioggia digitale' },
-              { id: 'meteor', label: '☄️ Meteore', desc: 'Stelle cadenti' },
-              { id: 'crystal', label: '💎 Cristalli', desc: 'Prismi diamante' },
-              { id: 'wave', label: '🌊 Onde Audio', desc: 'Equalizzatore' },
-              { id: 'stars', label: '🌌 Galassia', desc: 'Cielo stellato' },
-              { id: 'off', label: '🚫 Nessuno', desc: 'Solo note pulite' },
-            ] as const).map((item) => (
+        <div
+          className="fixed inset-0 z-[130] bg-slate-950/75 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4"
+          onClick={() => setIsFxPickerOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-3xl max-h-[86dvh] bg-slate-900 border-2 border-amber-500/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+          >
+            <div className="flex items-center justify-between px-3 py-2 bg-slate-950/90 border-b border-slate-800 shrink-0">
+              <span className="text-[11px] sm:text-xs font-black text-amber-300 uppercase tracking-wider">
+                ✨ Note Key FX (14 Modes • Scroll to view all)
+              </span>
               <button
-                key={item.id}
-                onClick={() => {
-                  setFxMode(item.id);
-                  fxModeRef.current = item.id;
-                  if (item.id === 'off') {
-                    sparksRef.current = [];
-                    shockwavesRef.current = [];
-                    lightningBoltsRef.current = [];
-                    fireworksRef.current = [];
-                    laserBeamsRef.current = [];
-                    meteorsRef.current = [];
-                  }
-                  setIsFxPickerOpen(false);
-                  setLoopFeedbackMessage(`✨ Effetto attivo: ${item.label} (${item.desc})`);
-                  setTimeout(() => setLoopFeedbackMessage(null), 2400);
-                }}
-                className={`px-2 py-1 rounded-lg border text-left transition-all cursor-pointer flex flex-col ${
-                  fxMode === item.id
-                    ? 'bg-amber-500/25 border-amber-400 text-amber-200 font-black shadow'
-                    : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:bg-slate-800'
-                }`}
+                onClick={() => setIsFxPickerOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center cursor-pointer"
               >
-                <span className="text-[10px] font-extrabold truncate">{item.label}</span>
-                <span className="text-[8px] text-slate-400 truncate">{item.desc}</span>
+                ✕
               </button>
-            ))}
+            </div>
+            <div className="p-2.5 sm:p-3 overflow-y-auto touch-pan-y overscroll-contain grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-1.5 sm:gap-2">
+              {([
+                { id: 'all', label: '👑 Ultra Mix', desc: 'All together!' },
+                { id: 'bounce_balls', label: '🏀 Bounce Balls', desc: 'Rhythmic spheres' },
+                { id: 'fireworks', label: '🎆 Fireworks', desc: '360° bursts' },
+                { id: 'aurora', label: '🌈 Aurora Laser', desc: 'Vertical beams' },
+                { id: 'lightning', label: '⚡ Tesla Sparks', desc: 'Electric arcs' },
+                { id: 'fire', label: '🔥 Lava Blaze', desc: 'Flames & embers' },
+                { id: 'vortex', label: '🌀 3D Portal', desc: 'Galaxy & waves' },
+                { id: 'gold_rain', label: '🎵 24K Gold Notes', desc: 'Symbols ♪ ♫ 𝄞' },
+                { id: 'matrix', label: '🟢 Cyber Matrix', desc: 'Digital rain' },
+                { id: 'meteor', label: '☄️ Meteors', desc: 'Shooting stars' },
+                { id: 'crystal', label: '💎 Crystals', desc: 'Diamond prisms' },
+                { id: 'wave', label: '🌊 Audio Waves', desc: 'Equalizer bars' },
+                { id: 'stars', label: '🌌 Galaxy', desc: 'Starry sky' },
+                { id: 'off', label: '🚫 None', desc: 'Clean notes only' },
+              ] as const).map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setFxMode(item.id);
+                    fxModeRef.current = item.id;
+                    if (item.id === 'off') {
+                      sparksRef.current = [];
+                      shockwavesRef.current = [];
+                      lightningBoltsRef.current = [];
+                      fireworksRef.current = [];
+                      laserBeamsRef.current = [];
+                      meteorsRef.current = [];
+                    }
+                    setIsFxPickerOpen(false);
+                    setLoopFeedbackMessage(`✨ Active FX: ${item.label} (${item.desc})`);
+                    setTimeout(() => setLoopFeedbackMessage(null), 2400);
+                  }}
+                  className={`px-2.5 py-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-0.5 ${
+                    fxMode === item.id
+                      ? 'bg-amber-500/25 border-amber-400 text-amber-200 font-black shadow-md'
+                      : 'bg-slate-800/80 border-slate-700/80 text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="text-[11px] font-extrabold truncate">{item.label}</span>
+                  <span className="text-[9px] text-slate-400 truncate">{item.desc}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

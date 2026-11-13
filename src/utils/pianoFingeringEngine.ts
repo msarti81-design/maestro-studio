@@ -412,7 +412,7 @@ export function getPedagogicalFingeringTip(
   const fingerData = getFingerInfo(finger);
   const isBlack = isBlackKey(note);
   const isLeft = hand === 'left';
-  const handLabel = isLeft ? 'Mano Sinistra' : 'Mano Destra';
+  const handLabel = isLeft ? 'Left Hand' : 'Right Hand';
 
   if (prevNote && prevFinger !== undefined) {
     const currPitch = noteToMidiPitch(note);

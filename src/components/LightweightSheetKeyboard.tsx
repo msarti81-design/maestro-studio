@@ -15,11 +15,11 @@ interface LightweightSheetKeyboardProps {
 }
 
 const DURATIONS = [
-  { value: '16n', label: '1/16', desc: 'Sedicesimo' },
-  { value: '8n', label: '1/8', desc: 'Ottavo' },
-  { value: '4n', label: '1/4', desc: 'Quarto' },
-  { value: '2n', label: '1/2', desc: 'Metà' },
-  { value: '1m', label: '1/1', desc: 'Intero' },
+  { value: '16n', label: '1/16', desc: 'Sixteenth' },
+  { value: '8n', label: '1/8', desc: 'Eighth' },
+  { value: '4n', label: '1/4', desc: 'Quarter' },
+  { value: '2n', label: '1/2', desc: 'Half' },
+  { value: '1m', label: '1/1', desc: 'Whole' },
 ];
 
 export const LightweightSheetKeyboard: React.FC<LightweightSheetKeyboardProps> = ({

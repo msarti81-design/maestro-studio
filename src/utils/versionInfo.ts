@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.232';
-export const APP_BUILD_DATE = '13 Nov 2026 - 22:45';
-export const APP_COMMIT = 'd4a2b88';
+export const APP_VERSION = '1.0.233';
+export const APP_BUILD_DATE = '13 Nov 2026 - 22:55';
+export const APP_COMMIT = 'e5c3a19';
 export const APP_CHANGELOG = [
-  'Integrated 🌈 Pop Rainbow, 🐾 Pet & Paws, and 🍭 Sweet Pastel keyboard styles directly among Studio styles (no external Kids button)',
-  'Elevated Video Format selector modal (z-[120]) above the 88-key mini-keyboard and auto-restarts active song from 0:00 with current settings when recording starts',
-  'Fixed Video Download in App & Browser via both "⬇️ Scarica Video" button AND native 3-dots menu ("⋮ -> Scarica") with 384KB chunked server upload',
-  'Production signed AAB & APK build v1.0.232 (versionCode 10232) for Google Play Console',
+  'Made the 14-FX Gallery Picker a full scrollable viewport modal so all falling-note visual effects can be scrolled & selected cleanly on any screen',
+  'Added Top-Pinned Title Editor in Sheet Composer so the Android soft keyboard never covers the song title while typing',
+  'Integrated 🌈 Pop Rainbow, 🐾 Pet & Paws, and 🍭 Sweet Pastel keyboard styles directly among Studio styles + elevated Video Format modal',
+  'Fixed Video Download via both Download Video button & native 3-dots menu with 384KB chunked upload & full English UI (v1.0.233 / versionCode 10233)',
 ];
 
 export interface ServerVersionInfo {
@@ -49,7 +49,7 @@ export async function checkServerVersion(): Promise<{
       serverVersion: null,
       isUpToDate: false,
       status: 'offline',
-      error: err?.message || 'Connessione fallita',
+      error: err?.message || 'Connection failed',
     };
   }
 }

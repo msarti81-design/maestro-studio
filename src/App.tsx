@@ -388,9 +388,9 @@ export default function App() {
             <button
               onClick={() => handleSelectView('home')}
               className="flex items-center gap-1.5 text-[11px] font-black text-amber-300 hover:text-amber-200 cursor-pointer"
-              title="Torna alla Guida Interattiva al passo successivo"
+              title="Return to Interactive Guide at next step"
             >
-              <span>🚀 Torna al Tour (Scelta successiva)</span>
+              <span>🚀 Back to Tour (Next step)</span>
             </button>
             <button
               onClick={() => {
@@ -400,7 +400,7 @@ export default function App() {
                 handleSelectView(currentView);
               }}
               className="ml-1 pl-1.5 border-l border-slate-700 text-slate-400 hover:text-white text-xs font-bold cursor-pointer"
-              title="Chiudi avviso Tour"
+              title="Close Tour banner"
             >
               ✕
             </button>

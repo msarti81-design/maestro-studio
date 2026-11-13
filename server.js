@@ -1,5 +1,3 @@
-import { createRequire } from 'module'; const require = createRequire(import.meta.url);
-
 // server.ts
 import express from "express";
 import http from "http";
@@ -297,16 +295,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.232",
-      buildDate: "2026-11-13 22:45",
-      commit: "d4a2b88",
+      version: "1.0.233",
+      buildDate: "2026-11-13 22:55",
+      commit: "e5c3a19",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Integrated Pop Rainbow, Pet & Paws, and Sweet Pastel keyboards among Studio styles without Kids label",
-        "Elevated Video Format selector modal above mini-keyboard & auto-restarts song from 0:00 with current settings on video start",
-        "Fixed Video Download via both Scarica Video button AND native 3-dots menu (\u22EE -> Scarica) using 384KB chunked server upload",
-        "Signed release AAB & APK generation for Google Play Console v1.0.232 (versionCode 10232)"
+        "Scrollable 14-FX Gallery modal so all falling-note visual effects are reachable on mobile landscape",
+        "Top-pinned title editor in Sheet Composer so the soft keyboard never covers the title field",
+        "Integrated Pop Rainbow, Pet & Paws, and Sweet Pastel keyboards + elevated Video modal & auto-restart on video start",
+        "Signed release AAB & APK generation for Google Play Console v1.0.233 (versionCode 10233)"
       ]
     });
   });

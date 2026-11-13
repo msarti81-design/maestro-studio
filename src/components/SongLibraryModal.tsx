@@ -81,6 +81,9 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [pendingMidiStructure, setPendingMidiStructure] = useState<MidiParsedStructure | null>(null);
   const [isMidiSelectorOpen, setIsMidiSelectorOpen] = useState<boolean>(false);
+  const [isTitleEditorPinned, setIsTitleEditorPinned] = useState<boolean>(false);
+  const pinnedTitleInputRef = useRef<HTMLInputElement>(null);
+  const didFocusPinnedRef = useRef<boolean>(false);
 
   const reloadLists = () => {
     setPublishedSongs(getPublishedSongs());
@@ -208,7 +211,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
           const raw = event.target?.result as string;
           const parsed = JSON.parse(raw);
           // Tolerant parsing: support both { title, notes } and array of notes or nested song object
-          const title = parsed.title || parsed.name || file.name.replace(/\.[^/.]+$/, "") || 'Spartito Importato';
+          const title = parsed.title || parsed.name || file.name.replace(/\.[^/.]+$/, "") || 'Imported Sheet';
           const notes = Array.isArray(parsed.notes) ? parsed.notes : (Array.isArray(parsed.melody) ? parsed.melody : (Array.isArray(parsed) ? parsed : null));
           
           if (notes && Array.isArray(notes) && notes.length > 0) {
@@ -236,15 +239,15 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
             setNewTitle(importedSong.title);
             setNewBpm(importedSong.bpm || 100);
 
-            showToast(`📄 Spartito "${importedSong.title}" importato (${normalizedNotes.length} note)!`);
+            showToast(`📄 Sheet "${importedSong.title}" imported (${normalizedNotes.length} notes)!`);
             if (activeTab !== 'create') {
               setActiveTab('local');
             }
           } else {
-            alert('Formato file JSON non valido. Il file deve contenere una lista di note musicali ("notes" o "melody").');
+            alert('Invalid JSON format. The file must contain a list of musical notes ("notes" or "melody").');
           }
         } catch (err: any) {
-          alert(`Errore nella lettura del file JSON: ${err.message || 'File non valido'}`);
+          alert(`Error reading JSON file: ${err.message || 'Invalid file'}`);
         }
       };
       e.target.value = '';
@@ -262,12 +265,12 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
       setNewTitle(importedSong.title);
       setNewBpm(importedSong.bpm || 120);
 
-      showToast(`🎹 File MIDI "${importedSong.title}" importato (${importedSong.notes.length} note)!`);
+      showToast(`🎹 MIDI file "${importedSong.title}" imported (${importedSong.notes.length} notes)!`);
       if (activeTab !== 'create') {
         setActiveTab('local');
       }
     } else {
-      alert('Nessuna nota musicale rilevata nel file MIDI.');
+      alert('No musical notes found in the MIDI file.');
     }
   };
 
@@ -279,7 +282,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
         const structure = inspectMidiTracks(arrayBuffer, file.name);
 
         if (structure.tracks.length === 0 || structure.totalNotes === 0) {
-          alert('Nessuna traccia o nota musicale rilevata nel file MIDI.');
+          alert('No tracks or musical notes detected in this MIDI file.');
           e.target.value = '';
           return;
         }
@@ -294,7 +297,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
           applyImportedMidiSong(importedSong);
         }
       } catch (err: any) {
-        alert(`Errore importazione file MIDI: ${err.message || 'File non valido'}`);
+        alert(`Error importing MIDI file: ${err.message || 'Invalid file'}`);
       }
       e.target.value = '';
     }
@@ -311,8 +314,8 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
       const songId = `composed_${Date.now()}`;
       const newSheetSong: SheetSong = {
         id: songId,
-        title: newTitle.trim() || `Spartito Creato (${creationNotes.length} note)`,
-        description: `Spartito composto/registrato in VirtuKeys`,
+        title: newTitle.trim() || `Composed Sheet (${creationNotes.length} notes)`,
+        description: `Sheet composed/recorded in VirtuKeys`,
         key: 'C Major (C)',
         bpm: newBpm || 100,
         timeSignature: '4/4',
@@ -575,10 +578,10 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800">
               <div>
                 <div className="text-xs font-bold text-slate-300">
-                  Gestione File Locali (Supporto JSON & MIDI)
+                  Local File Manager (JSON &amp; MIDI Support)
                 </div>
                 <div className="text-[10px] text-slate-500">
-                  Importa brani da file o esporta i tuoi spartiti salvati
+                  Import songs from files or export your saved sheet music
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -588,7 +591,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                   className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-300 text-xs font-bold rounded-xl border border-slate-800 flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  <span>Importa JSON</span>
+                  <span>Import JSON</span>
                 </button>
 
                 <button
@@ -597,7 +600,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                   className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-300 text-xs font-bold rounded-xl border border-slate-800 flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  <span>Importa MIDI</span>
+                  <span>Import MIDI</span>
                 </button>
               </div>
             </div>
@@ -608,23 +611,23 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                 <Globe className="w-4 h-4" />
               </div>
               <p className="leading-relaxed">
-                <strong className="text-white">Cosa significa "Pubblicato"?</strong> I tuoi file MIDI/JSON e le registrazioni al pianoforte sono <strong className="text-slate-200">privati</strong> e salvati solo su questo dispositivo. Se premi l'icona del mondo <span className="text-amber-400 font-bold">🌐 Pubblica</span>, puoi decidere di condividerli nella Community con gli altri musicisti!
+                <strong className="text-white">What does &quot;Published&quot; mean?</strong> Your MIDI/JSON files and piano recordings are <strong className="text-slate-200">private</strong> and stored locally on this device. Tap the globe icon <span className="text-amber-400 font-bold">🌐 Publish</span> anytime to share them with the Community!
               </p>
             </div>
 
             {localSongs.length === 0 ? (
               <div className="text-center py-12 space-y-3 bg-slate-950/50 rounded-3xl border border-slate-800">
                 <HardDrive className="w-10 h-10 text-slate-600 mx-auto" />
-                <div className="text-slate-300 font-bold text-sm">Nessun spartito salvato localmente</div>
+                <div className="text-slate-300 font-bold text-sm">No local songs saved yet</div>
                 <p className="text-slate-500 text-xs max-w-sm mx-auto">
-                  Registra un'esecuzione sui tasti del pianoforte, crea un brano nel compositore spartiti o importa un file MIDI!
+                  Record a performance on the piano keys, compose in the sheet editor, or import a MIDI file!
                 </p>
                 <div className="pt-2">
                   <button
                     onClick={() => setActiveTab('create')}
                     className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold rounded-xl cursor-pointer transition-all"
                   >
-                    + Vai a Componi / Registra
+                    + Go to Compose / Record
                   </button>
                 </div>
               </div>
@@ -642,17 +645,17 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                           {song.isPublished ? (
                             <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <Globe className="w-2.5 h-2.5" />
-                              <span>In Community</span>
+                              <span>Published</span>
                             </span>
                           ) : (
                             <span className="text-[9px] font-bold bg-slate-900 text-slate-400 border border-slate-800 px-2 py-0.5 rounded-full">
-                              Privato (Locale)
+                              Private (Local)
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="text-xs text-slate-400">
-                        {song.notes?.length || 0} Note • {song.bpm} BPM
+                        {song.notes?.length || 0} Notes • {song.bpm} BPM
                       </div>
                     </div>
 
@@ -661,14 +664,14 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                         <button
                           onClick={() => handleExportJson(song)}
                           className="p-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl transition-colors cursor-pointer"
-                          title="Esporta JSON"
+                          title="Export JSON"
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleExportMidi(song)}
                           className="p-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl transition-colors cursor-pointer"
-                          title="Esporta MIDI (.mid)"
+                          title="Export MIDI (.mid)"
                         >
                           <Music className="w-3.5 h-3.5" />
                         </button>
@@ -676,14 +679,14 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                           <button
                             onClick={() => handlePublishExistingLocal(song)}
                             className="p-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-xl transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
-                            title="Pubblica nella Community (Condividi con tutti i musicisti)"
+                            title="Publish to Community"
                           >
                             <Globe className="w-3.5 h-3.5" />
                           </button>
                         ) : (
                           <div
                             className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl"
-                            title="Questo spartito è già pubblicato nella Community"
+                            title="Already published to Community"
                           >
                             <Check className="w-3.5 h-3.5" />
                           </div>
@@ -691,7 +694,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                         <button
                           onClick={() => handleDeleteLocal(song.id, song.title)}
                           className="p-2 bg-slate-900 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-xl transition-colors cursor-pointer"
-                          title="Elimina"
+                          title="Delete"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -705,7 +708,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                         className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/20 cursor-pointer active:scale-95"
                       >
                         <Play className="w-3.5 h-3.5 fill-current" />
-                        <span>Suona</span>
+                        <span>Play</span>
                       </button>
                     </div>
                   </div>
@@ -728,12 +731,12 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                       <Sparkles className="w-5 h-5 text-indigo-400" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-black text-white">Compositore Spartiti</h4>
-                      <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">Studio Interattivo</span>
+                      <h4 className="text-sm font-black text-white">Sheet Music Composer</h4>
+                      <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">Interactive Studio</span>
                     </div>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Scrivi note sul pentagramma, pause, battute e accordi in chiave di violino e di basso con riproduzione audio real-time.
+                    Write notes on the staff, rests, measures, and chords in treble and bass clef with real-time audio playback.
                   </p>
                 </div>
                 <button
@@ -744,8 +747,8 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                   <FileMusic className="w-4 h-4" />
                   <span>
                     {creationNotes.length > 0
-                      ? `Apri Compositore con ${creationNotes.length} Note`
-                      : 'Apri Compositore Spartiti'}
+                      ? `Open Composer with ${creationNotes.length} Notes`
+                      : 'Open Sheet Composer'}
                   </span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
@@ -759,12 +762,12 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                       <Mic className="w-5 h-5 text-red-400 animate-pulse" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-black text-white">Registra al Pianoforte</h4>
-                      <span className="text-[10px] font-bold text-red-300 uppercase tracking-wider">Cattura Live</span>
+                      <h4 className="text-sm font-black text-white">Record on Piano</h4>
+                      <span className="text-[10px] font-bold text-red-300 uppercase tracking-wider">Live Capture</span>
                     </div>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Avvia la registrazione e suona direttamente sulla tastiera del pianoforte o con una tastiera MIDI USB/Bluetooth.
+                    Start recording and play directly on the on-screen keyboard or via a USB/Bluetooth MIDI controller.
                   </p>
                 </div>
                 <button
@@ -779,7 +782,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                   className="w-full py-2.5 px-4 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-600/20 cursor-pointer"
                 >
                   <Disc className="w-4 h-4" />
-                  <span>Avvia Registrazione al Pianoforte</span>
+                  <span>Start Piano Recording</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -790,10 +793,10 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
               <div>
                 <div className="text-xs font-bold text-white flex items-center gap-1.5">
                   <Upload className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Importa File Musicale nel Compositore</span>
+                  <span>Import Music File into Composer</span>
                 </div>
                 <div className="text-[10px] text-slate-400">
-                  Carica un file MIDI (.mid) o JSON per visualizzare e modificare le note sul pentagramma
+                  Load a MIDI (.mid) or JSON file to view and edit its notes on the staff
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -803,7 +806,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                   className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md text-xs active:scale-95 transition-all"
                 >
                   <Music className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>Importa MIDI (.mid)</span>
+                  <span>Import MIDI (.mid)</span>
                 </button>
                 <button
                   type="button"
@@ -811,7 +814,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                   className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 cursor-pointer shadow-sm text-xs active:scale-95 transition-all"
                 >
                   <Upload className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Importa JSON</span>
+                  <span>Import JSON</span>
                 </button>
               </div>
             </div>
@@ -821,38 +824,60 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
                 <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>Salvataggio e Pubblicazione Spartito</span>
+                  <span>Save &amp; Publish Sheet Music</span>
                 </h3>
 
                 {creationNotes.length > 0 && (
                   <span className="text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full">
-                    {creationNotes.length} Note pronte
+                    {creationNotes.length} Notes ready
                   </span>
                 )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-300 block">Titolo Brano</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-300 block">Song Title</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsTitleEditorPinned(true)}
+                      className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md text-[10px] text-amber-300 font-bold cursor-pointer"
+                      title="Edit title at the top (above on-screen keyboard)"
+                    >
+                      ✏️ Edit
+                    </button>
+                  </div>
                   <input
                     type="text"
-                    placeholder="es. Notturno in Do Minore"
+                    placeholder="e.g. Nocturne in C Minor"
                     value={newTitle}
+                    onFocus={(e) => {
+                      const isCompactOrTouch =
+                        typeof window !== 'undefined' &&
+                        (window.innerHeight < 700 ||
+                          'ontouchstart' in window ||
+                          navigator.maxTouchPoints > 0);
+                      if (isCompactOrTouch) {
+                        setIsTitleEditorPinned(true);
+                      } else {
+                        e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }
+                    }}
                     onChange={(e) => setNewTitle(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 text-white text-xs p-3 rounded-xl outline-none focus:border-amber-500 transition-colors"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300 block">Difficoltà</label>
+                  <label className="text-xs font-bold text-slate-300 block">Difficulty</label>
                   <select
                     value={newDifficulty}
                     onChange={(e: any) => setNewDifficulty(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 text-white text-xs p-3 rounded-xl outline-none focus:border-amber-500 cursor-pointer"
                   >
-                    <option value="facile">Facile</option>
-                    <option value="medio">Medio</option>
-                    <option value="difficile">Difficile</option>
+                    <option value="facile">Easy</option>
+                    <option value="medio">Medium</option>
+                    <option value="difficile">Hard</option>
                   </select>
                 </div>
               </div>
@@ -862,7 +887,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="text-xs font-bold text-slate-300 flex items-center gap-2">
                     <Music className="w-4 h-4 text-amber-400" />
-                    <span>Dati Spartito: {creationNotes.length} note registrate / caricate</span>
+                    <span>Sheet Data: {creationNotes.length} notes recorded / loaded</span>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -880,7 +905,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                         className="text-xs font-bold text-amber-300 hover:text-amber-200 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         <Play className="w-3 h-3 fill-current" />
-                        <span>Ascolta Anteprima (16 note)</span>
+                        <span>Listen Preview (16 notes)</span>
                       </button>
                     )}
 
@@ -898,19 +923,19 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                           { note: 'C5', time: 3.5, duration: 1.0 },
                         ];
                         setCreationNotes(scaleNotes);
-                        setNewTitle('Scala di Do Maggiore');
+                        setNewTitle('C Major Scale');
                       }}
                       className="text-xs font-bold text-amber-400 hover:text-amber-300 underline cursor-pointer"
                     >
-                      + Prova Scala di Do Magg
+                      + Load C Major Scale
                     </button>
                   </div>
                 </div>
 
                 <p className="text-[11px] text-slate-400">
                   {creationNotes.length > 0
-                    ? 'Le note sono pronte per essere salvate nella tua libreria o condivise pubblicamente con tutta la community di VirtuKeys.'
-                    : 'Non hai ancora note nel buffer. Clicca sui pulsanti in alto per comporre sullo spartito o registrare al pianoforte, oppure carica la scala di prova.'}
+                    ? 'Notes are ready to save in your local library or publish to the VirtuKeys Community.'
+                    : 'No notes in the buffer yet. Tap the buttons above to compose, record live, or load the sample scale.'}
                 </p>
               </div>
 
@@ -926,7 +951,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                     }}
                     className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-bold rounded-xl transition-all cursor-pointer"
                   >
-                    Cancella Buffer
+                    Clear Buffer
                   </button>
                 )}
 
@@ -935,7 +960,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                   onClick={() => handleSaveNewSong(false)}
                   className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer active:scale-95"
                 >
-                  Salva nei Miei Spartiti
+                  Save to My Songs
                 </button>
 
                 <button
@@ -944,7 +969,7 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
                   className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all cursor-pointer active:scale-95"
                 >
                   <Globe className="w-4 h-4" />
-                  <span>Pubblica per la Community</span>
+                  <span>Publish to Community</span>
                 </button>
               </div>
             </div>
@@ -982,6 +1007,55 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
           }}
           onConfirm={handleConfirmMidiSelection}
         />
+      )}
+
+      {/* TOP-PINNED TITLE EDITOR FOR MOBILE / ANDROID SOFT KEYBOARD (Always stays at top y=8px above keyboard) */}
+      {isTitleEditorPinned && (
+        <div
+          className="fixed inset-0 z-[150] bg-slate-950/80 backdrop-blur-xs flex items-start justify-center p-2 pt-2"
+          onClick={() => setIsTitleEditorPinned(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl bg-slate-900 border-2 border-amber-400 rounded-2xl p-2.5 shadow-2xl flex flex-col gap-2"
+          >
+            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-300 px-1">
+              <span>✏️ Edit Song Title</span>
+              <span className="text-slate-400 font-normal">Always visible above keyboard</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={(el) => {
+                  pinnedTitleInputRef.current = el;
+                  if (el && !didFocusPinnedRef.current) {
+                    didFocusPinnedRef.current = true;
+                    el.focus();
+                  } else if (!el) {
+                    didFocusPinnedRef.current = false;
+                  }
+                }}
+                type="text"
+                autoFocus
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setIsTitleEditorPinned(false);
+                  }
+                }}
+                placeholder="Enter song title..."
+                className="flex-1 bg-slate-950 text-white font-black text-sm sm:text-base px-3 py-2 rounded-xl border border-amber-500/70 focus:border-amber-400 outline-none select-text"
+              />
+              <button
+                type="button"
+                onClick={() => setIsTitleEditorPinned(false)}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow cursor-pointer shrink-0"
+              >
+                ✓ Done
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

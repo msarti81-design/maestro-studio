@@ -174,7 +174,7 @@ export const RecordingsView: React.FC<RecordingsViewProps> = ({
   const handleConfirmPublish = (song: InteractiveSong) => {
     publishSong(song);
     loadAllRecordings();
-    showToast(`🌐 "${song.title}" pubblicata nella Community con successo!`);
+    showToast(`🌐 "${song.title}" successfully published to Community!`);
   };
 
   // Filtered List
@@ -450,7 +450,7 @@ export const RecordingsView: React.FC<RecordingsViewProps> = ({
                           title="Publish to public community library with disclaimer"
                         >
                           <Globe className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-[10px]">Pubblica</span>
+                          <span className="text-[10px]">Publish</span>
                         </button>
                       ) : (
                         <button

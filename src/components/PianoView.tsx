@@ -290,16 +290,16 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   const handleRunGlissandoTest = async () => {
     setIsTestingGlissando(true);
-    setGlissandoTestReport('Riproduzione 36 note in sequenza (35ms)...');
+    setGlissandoTestReport('Playing 36 sequential notes (35ms)...');
     try {
       const res = await audioEngine.testSequentialGlissando(35, 36);
       if (res.ok) {
-        setGlissandoTestReport(`✅ Test Superato: ${res.notesPlayed}/36 note perfette, audio nitido senza gracchiare! (Stato: ${res.finalState})`);
+        setGlissandoTestReport(`✅ Test Passed: ${res.notesPlayed}/36 crystal-clear notes with zero crackling! (State: ${res.finalState})`);
       } else {
-        setGlissandoTestReport(`⚠️ Note: ${res.notesPlayed}, Errori: ${res.errors}, Stato: ${res.finalState}`);
+        setGlissandoTestReport(`⚠️ Notes: ${res.notesPlayed}, Errors: ${res.errors}, State: ${res.finalState}`);
       }
     } catch (err: any) {
-      setGlissandoTestReport(`Errore test: ${err?.message || 'sconosciuto'}`);
+      setGlissandoTestReport(`Test error: ${err?.message || 'unknown'}`);
     } finally {
       setIsTestingGlissando(false);
     }
@@ -781,7 +781,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     compCanvas.height = isVertical ? 1280 : 720;
     const ctx = compCanvas.getContext('2d');
     if (!ctx) {
-      showToast('Impossibile inizializzare il registratore video.');
+      showToast('Unable to initialize the video recorder.');
       return;
     }
 
@@ -902,7 +902,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         ctx.fillText('🎹 VirtuKeys Studio', W / 2, wfTop + wfHeight / 2 - 16);
         ctx.fillStyle = '#94a3b8';
         ctx.font = isVertical ? '600 22px Inter, system-ui, sans-serif' : '600 16px Inter, system-ui, sans-serif';
-        ctx.fillText(isVertical ? 'Zoom Note Centrali • Proporzioni HD' : 'Tastiera Completa • Audio Puro HD', W / 2, wfTop + wfHeight / 2 + 20);
+        ctx.fillText(isVertical ? 'Central Keys Zoom • HD Ratio' : 'Full Keyboard • Pure HD Audio', W / 2, wfTop + wfHeight / 2 + 20);
       }
 
       // Red plush felt & gold rail separator
@@ -1088,8 +1088,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
       setReelRecordSeconds(0);
       showToast(
         isVertical
-          ? '🎬 Registrazione Video Verticale 9:16 (Zoom Note Centrali) avviata!'
-          : '🖥️ Registrazione Video Orizzontale 16:9 con intro "Rotate Phone" avviata!'
+          ? '🎬 Vertical 9:16 Video Recording (Center Zoom) started!'
+          : '🖥️ Horizontal 16:9 Video Recording ("Rotate Phone" intro) started!'
       );
 
       if (reelTimerRef.current) {
@@ -1101,7 +1101,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     } catch (err) {
       console.error('Failed to start MediaRecorder:', err);
       stopReelVideoRecording();
-      showToast('Errore nell’avvio della registrazione video.');
+      showToast('Error starting video recording.');
     }
   }, [
     isReelRecording,
@@ -1165,7 +1165,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
     text: string;
     type: 'neutral' | 'correct' | 'higher' | 'lower';
   }>({
-    text: 'Ascolta la nota misteriosa e premila sulla tastiera!',
+    text: 'Listen to the mystery note and play it on the keyboard!',
     type: 'neutral',
   });
 
@@ -1216,8 +1216,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
       setEarFeedback({
         text:
           count === 1
-            ? '👂 Ascolta la nota misteriosa e suonala sulla tastiera!'
-            : '👂 Ascolta la sequenza di 3 note e replicala nell’ordine giusto!',
+            ? '👂 Listen to the mystery note and play it on the keyboard!'
+            : '👂 Listen to the 3-note sequence and replay it in order!',
         type: 'neutral',
       });
 
@@ -1493,7 +1493,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       hadOtherUserRef.current = true;
     } else if (hadOtherUserRef.current && otherMembers.length === 0 && !peerDisconnectedState) {
       setPeerDisconnectedState(true);
-      showToast("⚠️ L'altro utente si è disconnesso dalla stanza!");
+      showToast('⚠️ The other user disconnected from the room!');
     }
   }, [roomMembers, socialSession, username, peerDisconnectedState, showToast]);
 
@@ -1583,7 +1583,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         const song = createMasterclassWaterfallSong(receivedPhrase, `Teacher Phrase (${receivedPhrase.length} notes)`);
         setActiveSong(song);
         setShowWaterfall(true);
-        showToast(`🎼 The Teacher sent you a phrase in ${vMode === 'sheet' ? 'Spartito (Pentagramma)' : 'Cascata'} (${mode})!`);
+        showToast(`🎼 The Teacher sent you a phrase in ${vMode === 'sheet' ? 'Sheet Music (Staff)' : 'Waterfall'} (${mode})!`);
       } else {
         showToast(`🎼 Teacher ${msg.sender || ''} sent you a phrase of ${receivedPhrase.length} notes!`);
       }
@@ -2261,10 +2261,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
       syncRemoteAudioTracks(pc);
       sendRoomEvent('piano:voice_status', { isActive: true, isMuted: false });
-      showToast('🎙️ Vivavoce Attivo! Entrambi potete parlare e ascoltarvi contemporaneamente');
+      showToast('🎙️ Speakerphone Active! Both of you can speak and listen live');
     } catch (err: any) {
       console.warn('getUserMedia error:', err);
-      showToast('⚠️ Permesso microfono negato o non disponibile');
+      showToast('⚠️ Microphone permission denied or unavailable');
     }
   }, [getOrCreatePeerConnection, getActiveAudioTransceiver, syncRemoteAudioTracks, sendRoomEvent, showToast]);
 
@@ -2279,7 +2279,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
           isActive: isVoiceActive,
           isMuted: newMuted,
         });
-        showToast(newMuted ? '🔇 Microfono silenziato (Muto)' : '🎙️ Microfono attivo');
+        showToast(newMuted ? '🔇 Microphone muted' : '🎙️ Microphone active');
       }
     }
   }, [isVoiceActive, sendRoomEvent, showToast]);
@@ -2319,10 +2319,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }).catch(() => {});
 
     if (openWaterfall) {
-      const modeLabel = displayMode === 'sheet' ? 'Spartito (Pentagramma)' : displayMode === 'learn' ? 'Impara' : 'Arcade';
-      showToast(`🎼 Frase inviata all'allievo in modalità ${modeLabel}!`);
+      const modeLabel = displayMode === 'sheet' ? 'Sheet Music (Staff)' : displayMode === 'learn' ? 'Learn' : 'Arcade';
+      showToast(`🎼 Phrase sent to student in ${modeLabel} mode!`);
     } else {
-      showToast(`Frase di ${recordedMasterclassNotes.length} note inviata all'allievo!`);
+      showToast(`${recordedMasterclassNotes.length}-note phrase sent to student!`);
     }
   };
 
@@ -2472,7 +2472,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
           const isDone = nextIdx >= targetPhrase.length;
           if (isDone) {
-            showToast('🎉 Perfetto! Hai replicato tutte le note con successo!');
+            showToast('🎉 Perfect! You replayed all notes accurately!');
           }
 
           const progressPayload = {
@@ -2505,13 +2505,13 @@ export const PianoView: React.FC<PianoViewProps> = ({
       }
     }
 
-    // Palestra Scale: Interactive step-by-step practice matching
+    // Scales Gym: Interactive step-by-step practice matching
     if (activeScaleExercise && scaleMode === 'practice') {
       const expectedNote = activeScaleExercise.notes[scaleActiveIdx];
       if (note === expectedNote) {
         const next = scaleActiveIdx + 1;
         if (next >= activeScaleExercise.notes.length) {
-          showToast(`🎉 Bravissimo! Hai completato ${activeScaleExercise.name}!`);
+          showToast(`🎉 Great job! You completed ${activeScaleExercise.name}!`);
           if (isScaleLoop) {
             setScaleActiveIdx(0);
           } else {
@@ -2523,7 +2523,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       }
     }
 
-    // 👂 Orecchio Assoluto (Ear Training Mini-Game) interactive check
+    // Ear Training Mini-Game interactive check
     if (isEarTrainingOpenRef.current && earTargetNotesRef.current.length > 0) {
       const targets = earTargetNotesRef.current;
       const curIdx = earMatchedIdxRef.current;
@@ -2546,7 +2546,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
               return nextSt;
             });
             setEarFeedback({
-              text: `✅ ESATTO! Era ${targets.join(' → ')}! (+${pts} pt) — Nuova nota in arrivo...`,
+              text: `✅ EXACT! It was ${targets.join(' → ')}! (+${pts} pts) — Next note incoming...`,
               type: 'correct',
             });
             earTargetNotesRef.current = [];
@@ -2559,7 +2559,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             setEarMatchedIdx(nextIdx);
             earMatchedIdxRef.current = nextIdx;
             setEarFeedback({
-              text: `✨ Nota ${nextIdx}/${targets.length} presa (${expected})! Ora indovina la nota #${nextIdx + 1}...`,
+              text: `✨ Note ${nextIdx}/${targets.length} matched (${expected})! Now guess note #${nextIdx + 1}...`,
               type: 'correct',
             });
           }
@@ -2570,12 +2570,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
           if (playedKeyIdx !== -1 && expectedKeyIdx !== -1) {
             if (playedKeyIdx < expectedKeyIdx) {
               setEarFeedback({
-                text: `⬆️ Hai premuto ${note}: la nota misteriosa è PIÙ ACUTA (vai più a destra 👉)`,
+                text: `⬆️ You played ${note}: the mystery note is HIGHER (go right 👉)`,
                 type: 'higher',
               });
             } else {
               setEarFeedback({
-                text: `⬇️ Hai premuto ${note}: la nota misteriosa è PIÙ GRAVE (vai più a sinistra 👈)`,
+                text: `⬇️ You played ${note}: the mystery note is LOWER (go left 👈)`,
                 type: 'lower',
               });
             }
@@ -3064,11 +3064,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
         });
         setIsMicListening(ok);
         if (!ok) {
-          alert("Permesso microfono non concesso o non supportato dal browser. Assicurati di aver consentito l'accesso al microfono nelle impostazioni del sito/browser.");
+          alert("Microphone permission denied or unsupported by browser. Please allow microphone access in your browser/site settings.");
         }
       } catch (err: any) {
         setIsMicListening(false);
-        alert(`Errore microfono: ${err?.message || "Impossibile accedere al microfono."}`);
+        alert(`Microphone error: ${err?.message || "Unable to access microphone."}`);
       }
     }
   };
@@ -3114,7 +3114,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
       recordedNotesRef.current = [];
       setRecordStartTime(Date.now());
       setIsRecording(true);
-      showToast('🔴 Registrazione avviata! Suona liberamente sul pianoforte.');
+      showToast('🔴 Recording started! Play freely on the piano.');
     }
   };
 
@@ -3242,24 +3242,24 @@ export const PianoView: React.FC<PianoViewProps> = ({
               <button
                 onClick={onBackToHome}
                 className="px-2 py-0.5 text-slate-200 hover:text-white bg-slate-800/90 hover:bg-slate-700 border border-amber-500/30 rounded-md flex items-center gap-1 transition-colors cursor-pointer shrink-0"
-                title="Torna al Menu Principale / Guida"
+                title="Back to Main Menu / Guide"
               >
                 <Home className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span className="font-bold">Menu</span>
               </button>
             )}
 
-            {/* Spartiti / Library */}
+            {/* Sheets / Library */}
             <button
               onClick={() => setIsLibraryOpen(true)}
               className="px-1.5 sm:px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-md flex items-center gap-1 shadow-sm transition-all active:scale-95 cursor-pointer"
-              title="Apri libreria spartiti"
+              title="Open song & sheet library"
             >
               <BookOpen className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">Spartiti</span>
+              <span className="hidden xs:inline">Library</span>
             </button>
 
-            {/* Palestra Scale Button */}
+            {/* Scales Gym Button */}
             {onOpenScalesModal && (
               <button
                 onClick={onOpenScalesModal}
@@ -3268,10 +3268,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     ? 'bg-amber-500 text-slate-950 font-black shadow ring-1 ring-amber-300'
                     : 'bg-slate-800/80 hover:bg-slate-750 text-amber-300 border border-amber-500/30'
                 }`}
-                title="Palestra di Scale & Diteggiatura"
+                title="Scales & Fingering Gym"
               >
                 <Layers className="w-3 h-3 text-amber-400" />
-                <span className="hidden xs:inline">Scale</span>
+                <span className="hidden xs:inline">Scales</span>
               </button>
             )}
 
@@ -3279,10 +3279,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
             <button
               onClick={() => setIsChordDetectorOpen(true)}
               className="px-1.5 sm:px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded-md flex items-center gap-1 font-bold text-[10px] transition-all cursor-pointer"
-              title="Analizzatore di Accordi in Tempo Reale"
+              title="Real-Time Chord Detector"
             >
               <Music className="w-3 h-3 text-amber-400" />
-              <span className="hidden xs:inline">Accordi</span>
+              <span className="hidden xs:inline">Chords</span>
             </button>
 
             {/* Toggle Falling Notes (ON / OFF) */}
@@ -3299,10 +3299,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 shadow-sm'
                   : 'bg-slate-800/90 hover:bg-slate-750 text-slate-300 border border-slate-700'
               }`}
-              title={showWaterfall ? 'Note a cascata ATTIVE. Clicca per disattivare (solo pianoforte)' : 'Attiva note a cascata (Waterfall)'}
+              title={showWaterfall ? 'Falling Notes ACTIVE. Click to hide (Piano only)' : 'Show Falling Notes (Waterfall)'}
             >
               <Sparkles className={`w-3 h-3 ${showWaterfall ? 'text-cyan-400' : 'text-slate-400'}`} />
-              <span>Note {showWaterfall ? 'ON' : 'OFF'}</span>
+              <span>Notes {showWaterfall ? 'ON' : 'OFF'}</span>
             </button>
           </div>
 
@@ -3322,7 +3322,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             )}
           </div>
 
-          {/* Right: Pedale, Rec & Options 3-dots */}
+          {/* Right: Sustain, Rec & Options 3-dots */}
           <div className="flex items-center gap-1 shrink-0 flex-nowrap">
             {/* Record button */}
             <button
@@ -3330,7 +3330,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
               className={`px-1.5 sm:px-2 py-0.5 font-bold rounded-md flex items-center gap-1 transition-colors cursor-pointer ${
                 isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-800 hover:bg-slate-750 text-slate-300'
               }`}
-              title={isRecording ? 'Termina registrazione' : 'Registra'}
+              title={isRecording ? 'Stop recording' : 'Record performance'}
             >
               <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-white' : 'bg-red-500'}`} />
               <span className="hidden sm:inline">{isRecording ? 'Stop' : 'Rec'}</span>
@@ -3342,7 +3342,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <button
                   onClick={stopReelVideoRecording}
                   className="px-1.5 sm:px-2 py-0.5 font-extrabold rounded-md border flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap bg-rose-600 border-rose-400 text-white animate-pulse shadow-lg shadow-rose-600/40"
-                  title="Ferma registrazione video e visualizza anteprima"
+                  title="Stop video recording and open preview"
                 >
                   <span>⏹️</span>
                   <span>{`Stop ${Math.floor(reelRecordSeconds / 60)}:${String(reelRecordSeconds % 60).padStart(2, '0')}`}</span>
@@ -3351,7 +3351,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <button
                   onClick={() => setIsVideoMenuOpen((prev) => !prev)}
                   className="px-1.5 sm:px-2 py-0.5 font-extrabold rounded-md border flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap bg-gradient-to-r from-fuchsia-600/90 to-amber-500/90 hover:from-fuchsia-500 hover:to-amber-400 border-amber-300/50 text-white shadow-sm"
-                  title="Scegli formato video: Verticale 9:16 per Reels/TikTok o Orizzontale 16:9 con intro 'Rotate Phone'"
+                  title="Choose video format: Vertical 9:16 for Reels/TikTok or Horizontal 16:9 with 'Rotate Phone' intro"
                 >
                   <span>🎬</span>
                   <span>Video</span>
@@ -3400,7 +3400,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   onThemeChange(order[nextIdx]);
                 }}
                 className="px-1.5 sm:px-2 py-0.5 font-bold rounded-md border bg-slate-800/90 hover:bg-slate-700 border-amber-500/30 text-amber-300 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                title="Cambia stile e design della tastiera"
+                title="Change keyboard style and design"
               >
                 <span>
                   {studioTheme === 'mahogany'
@@ -3496,7 +3496,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             <button
               onClick={onBackToHome}
               className="px-2 py-0.5 text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md flex items-center gap-1 transition-colors cursor-pointer shrink-0 font-bold whitespace-nowrap"
-              title="Torna al Menu Principale"
+              title="Back to Main Menu"
             >
               <Home className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span>Menu</span>
@@ -3504,9 +3504,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
             <div className="flex items-center bg-slate-950 border border-slate-800 rounded-md p-0.5 text-[9px] sm:text-[10px] font-bold shrink-0 flex-nowrap">
               {([
-                { id: 'base', label: '🌱 Base' },
-                { id: 'expert', label: '🔥 Esperto' },
-                { id: 'maestro', label: '🏆 3 Note' },
+                { id: 'base', label: '🌱 Basic' },
+                { id: 'expert', label: '🔥 Expert' },
+                { id: 'maestro', label: '🏆 3 Notes' },
               ] as const).map((lvl) => (
                 <button
                   key={lvl.id}
@@ -3538,7 +3538,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
               {earFeedback.text}
               {earHintShown && earTargetNotes[earMatchedIdx] && (
                 <span className="ml-1.5 text-fuchsia-300 font-black">
-                  (Indizio: {earTargetNotes[earMatchedIdx].slice(0, -1)} • ottava {earTargetNotes[earMatchedIdx].slice(-1)})
+                  (Hint: {earTargetNotes[earMatchedIdx].slice(0, -1)} • octave {earTargetNotes[earMatchedIdx].slice(-1)})
                 </span>
               )}
             </div>
@@ -3549,26 +3549,26 @@ export const PianoView: React.FC<PianoViewProps> = ({
             <button
               onClick={() => playEarMysterySequence(earTargetNotes)}
               className="px-2.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-md text-[10px] sm:text-xs flex items-center gap-1 shadow cursor-pointer whitespace-nowrap shrink-0"
-              title="Ascolta la nota o sequenza misteriosa"
+              title="Listen to the mystery note or sequence"
             >
               <Volume2 className="w-3.5 h-3.5 shrink-0" />
-              <span>Ascolta</span>
+              <span>Listen</span>
             </button>
 
             <button
               onClick={() => setEarHintShown(true)}
               className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-fuchsia-300 border border-fuchsia-500/40 rounded-md text-[10px] font-bold cursor-pointer whitespace-nowrap shrink-0"
-              title="Mostra un piccolo indizio sulla nota misteriosa"
+              title="Show a hint for the mystery note"
             >
-              💡 Indizio
+              💡 Hint
             </button>
 
             <button
               onClick={() => startNewEarRound()}
               className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-[10px] font-bold cursor-pointer whitespace-nowrap shrink-0"
-              title="Cambia nota misteriosa"
+              title="Skip to next mystery note"
             >
-              Salta
+              Skip
             </button>
 
             <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-mono whitespace-nowrap shrink-0">
@@ -3579,7 +3579,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
         </div>
       )}
 
-      {/* PALESTRA DELLE SCALE & MANO TRASPARENTE HUD BAR */}
+      {/* SCALES GYM & TRANSPARENT HAND HUD BAR */}
       {activeScaleExercise && (
         <div className="bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-950 border-b-2 border-amber-500/60 px-2 sm:px-3 py-1.5 flex items-center justify-between gap-2 shrink-0 z-20 text-[10px] sm:text-xs shadow-xl flex-wrap sm:flex-nowrap">
           {/* Left: Exercise Name & Live Note/Finger Badge */}
@@ -3597,15 +3597,15 @@ export const PianoView: React.FC<PianoViewProps> = ({
               </div>
               <div className="flex items-center gap-2 text-[10px] text-slate-300 mt-0.5">
                 <span className="bg-slate-800 px-1.5 py-0.5 rounded font-mono font-bold text-amber-400">
-                  🎵 Nota: {activeScaleExercise.notes[scaleActiveIdx]}
+                  🎵 Note: {activeScaleExercise.notes[scaleActiveIdx]}
                 </span>
                 <span className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded font-bold">
-                  🖐️ Dito {activeScaleExercise.fingering[scaleActiveIdx % activeScaleExercise.fingering.length]} (
-                  {FINGER_NAMES[activeScaleExercise.fingering[scaleActiveIdx % activeScaleExercise.fingering.length]]?.name || 'Dito'}
+                  🖐️ Finger {activeScaleExercise.fingering[scaleActiveIdx % activeScaleExercise.fingering.length]} (
+                  {FINGER_NAMES[activeScaleExercise.fingering[scaleActiveIdx % activeScaleExercise.fingering.length]]?.name || 'Finger'}
                   )
                 </span>
                 <span className="hidden md:inline text-slate-400 text-[9px]">
-                  Passo {scaleActiveIdx + 1} / {activeScaleExercise.notes.length}
+                  Step {scaleActiveIdx + 1} / {activeScaleExercise.notes.length}
                 </span>
               </div>
             </div>
@@ -3625,9 +3625,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     ? 'bg-amber-500 text-slate-950 font-black shadow'
                     : 'text-slate-400 hover:text-white'
                 }`}
-                title="Mano Trasparente suona automaticamente la scala"
+                title="Transparent Hand automatically plays the scale"
               >
-                🤖 Dimostrazione
+                🤖 Demo
               </button>
               <button
                 onClick={() => {
@@ -3890,9 +3890,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     onClick={() => handleSendTeacherPhrase(true, 'sheet')}
                     disabled={recordedMasterclassNotes.length === 0}
                     className="px-2.5 py-1 bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-500 hover:brightness-110 disabled:opacity-40 text-slate-950 font-black rounded-lg shadow-lg flex items-center gap-1 text-[10px] cursor-pointer whitespace-nowrap animate-pulse"
-                    title="Invia all'allievo come pentagramma scorrevole a tempo (Spartito)"
+                    title="Send to student as synced scrolling staff (Sheet Music)"
                   >
-                    <span>🎼 INVIA SPARTITO</span>
+                    <span>🎼 SEND SHEET</span>
                   </button>
 
                   {recordedMasterclassNotes.length > 0 && (
@@ -3961,10 +3961,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
                         <button
                           onClick={startVoiceCall}
                           className="px-2 py-0.5 bg-gradient-to-r from-cyan-400 to-teal-400 text-slate-950 font-black rounded text-[10px] flex items-center gap-1 shadow-lg animate-pulse cursor-pointer whitespace-nowrap"
-                          title="Clicca per attivare il microfono e parlare con l'Allievo"
+                          title="Click to enable mic and talk with Student"
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping" />
-                          <span>🎙️ Allievo sta parlando! Rispondi</span>
+                          <span>🎙️ Student is speaking! Reply</span>
                         </button>
                       ) : (
                         <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded text-[9px] font-bold flex items-center gap-1 whitespace-nowrap animate-pulse">
@@ -4058,10 +4058,10 @@ export const PianoView: React.FC<PianoViewProps> = ({
                         <button
                           onClick={startVoiceCall}
                           className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black rounded text-[10px] flex items-center gap-1 shadow-lg animate-pulse cursor-pointer whitespace-nowrap"
-                          title="Clicca per attivare il microfono e parlare con il Maestro"
+                          title="Click to enable mic and talk with Teacher"
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping" />
-                          <span>🎙️ Maestro sta parlando! Rispondi</span>
+                          <span>🎙️ Teacher is speaking! Reply</span>
                         </button>
                       ) : (
                         <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[9px] font-bold flex items-center gap-1 whitespace-nowrap animate-pulse">
@@ -4174,7 +4174,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
           ) : (
             /* When waterfall is hidden, slim quick chords strip above keys */
             <div className="shrink-0 w-full h-7 sm:h-8 flex items-center justify-center bg-slate-950/80 border-b border-slate-900/80 px-2 overflow-x-auto scrollbar-none gap-1.5 z-10">
-              <span className="text-[9px] text-slate-500 uppercase font-bold shrink-0">Accordi:</span>
+              <span className="text-[9px] text-slate-500 uppercase font-bold shrink-0">Chords:</span>
               <div className="flex items-center gap-1 flex-nowrap">
                 {CHORD_PRESETS.map((chord) => (
                   <button
@@ -4189,14 +4189,14 @@ export const PianoView: React.FC<PianoViewProps> = ({
             </div>
           )}
 
-          {/* FIXED 88-KEY MINI-MAP KEYBOARD (Mostra sempre la posizione su tutti gli 88 tasti) */}
+          {/* FIXED 88-KEY MINI-MAP KEYBOARD */}
           <div className="w-full bg-slate-900/95 border-t border-b border-slate-800/80 px-1 sm:px-2 py-0.5 flex items-center justify-between gap-1 sm:gap-2 shrink-0 z-20">
             {/* Quick Shift -1 Octave */}
             <button
               onClick={() => setStartWhiteKeyIdx((prev) => Math.max(0, prev - 7))}
               disabled={clampedStartWhiteIdx === 0}
               className="p-0.5 h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors cursor-pointer"
-              title="Sposta indietro di 1 Ottava"
+              title="Shift down 1 Octave"
             >
               <ChevronLeft className="w-3.5 h-3.5 text-amber-400" />
             </button>
@@ -4219,7 +4219,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
               onClick={() => setStartWhiteKeyIdx((prev) => Math.min(maxStartWhiteIdx, prev + 7))}
               disabled={clampedStartWhiteIdx >= maxStartWhiteIdx}
               className="p-0.5 h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-slate-800 hover:bg-slate-750 text-slate-300 disabled:opacity-25 rounded shrink-0 transition-colors cursor-pointer"
-              title="Sposta avanti di 1 Ottava"
+              title="Shift up 1 Octave"
             >
               <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
             </button>
@@ -4276,19 +4276,19 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
-                      { id: 'midnight', name: '🎹 Concert Ivory', desc: 'Avorio & Ebano Steinway' },
-                      { id: 'mahogany', name: '🪵 Vintage Wood', desc: 'Acero & Palissandro 3D' },
-                      { id: 'marble', name: '🏛️ Carrara Marble', desc: 'Marmo Bianco & Portoro' },
-                      { id: 'gold', name: '👑 Royal Gold & Pearl', desc: 'Madreperla & Oro 24k' },
-                      { id: 'carbon', name: '🏎️ Titanium & Carbon', desc: 'Titanio & Fibra Carbonio' },
-                      { id: 'neon', name: '⚡ Cyber Synth', desc: 'Vetro Fumé & Laser' },
-                      { id: 'rainbow', name: '🌈 Pop Rainbow', desc: 'Arcobaleno Pop & Smile' },
-                      { id: 'animals', name: '🐾 Pet & Paws', desc: 'Mascotte Cartoon & Impronte' },
-                      { id: 'candy', name: '🍭 Sweet Pastel', desc: 'Pastello & Codette Colorate' },
-                      { id: 'emerald', name: '💎 Emerald Jade', desc: 'Giada Imperiale & Malachite' },
-                      { id: 'ruby', name: '🔥 Magma Ruby', desc: 'Quarzo Rosa & Rubino Lavico' },
-                      { id: 'sapphire', name: '❄️ Arctic Sapphire', desc: 'Cristallo Ghiaccio & Zaffiro' },
-                      { id: 'amethyst', name: '🔮 Cosmic Amethyst', desc: 'Opale Aurora & Ametista' },
+                      { id: 'midnight', name: '🎹 Concert Ivory', desc: 'Ivory & Ebony Steinway' },
+                      { id: 'mahogany', name: '🪵 Vintage Wood', desc: 'Maple & Rosewood 3D' },
+                      { id: 'marble', name: '🏛️ Carrara Marble', desc: 'White Marble & Portoro' },
+                      { id: 'gold', name: '👑 Royal Gold & Pearl', desc: 'Mother of Pearl & 24k Gold' },
+                      { id: 'carbon', name: '🏎️ Titanium & Carbon', desc: 'Titanium & Carbon Fiber' },
+                      { id: 'neon', name: '⚡ Cyber Synth', desc: 'Smoked Glass & Laser' },
+                      { id: 'rainbow', name: '🌈 Pop Rainbow', desc: 'Pop Rainbow & Kawaii' },
+                      { id: 'animals', name: '🐾 Pet & Paws', desc: 'Cute Mascots & Paws' },
+                      { id: 'candy', name: '🍭 Sweet Pastel', desc: 'Pastel Candy & Sprinkles' },
+                      { id: 'emerald', name: '💎 Emerald Jade', desc: 'Imperial Jade & Malachite' },
+                      { id: 'ruby', name: '🔥 Magma Ruby', desc: 'Rose Quartz & Lava Ruby' },
+                      { id: 'sapphire', name: '❄️ Arctic Sapphire', desc: 'Ice Crystal & Sapphire' },
+                      { id: 'amethyst', name: '🔮 Cosmic Amethyst', desc: 'Aurora Opal & Amethyst' },
                     ].map((th) => (
                       <button
                         key={th.id}
@@ -4313,8 +4313,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   <div className="flex items-center gap-2">
                     <Eye className="w-4 h-4 text-amber-400" />
                     <div>
-                      <span className="font-bold text-white text-xs">Vista Predefinita all'Avvio del Brano</span>
-                      <span className="text-[10px] text-slate-400 block">Scegli quale vista mostrare automaticamente al via (Cascata o Spartito)</span>
+                      <span className="font-bold text-white text-xs">Default View on Song Start</span>
+                      <span className="text-[10px] text-slate-400 block">Choose which display mode launches automatically (Waterfall or Sheet)</span>
                     </div>
                   </div>
                 </div>
@@ -4329,8 +4329,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     }`}
                   >
                     <span className="block text-sm mb-0.5">🎹</span>
-                    <span className="font-bold text-[11px] block">Cascata (Waterfall)</span>
-                    <span className="text-[9px] text-slate-400 block">Note stile Synthesia arcade</span>
+                    <span className="font-bold text-[11px] block">Waterfall</span>
+                    <span className="text-[9px] text-slate-400 block">Synthesia arcade falling notes</span>
                   </button>
 
                   <button
@@ -4342,8 +4342,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     }`}
                   >
                     <span className="block text-sm mb-0.5">🎼</span>
-                    <span className="font-bold text-[11px] block">Spartito Tradizionale</span>
-                    <span className="text-[9px] text-slate-400 block">Doppio pentagramma scorrevole</span>
+                    <span className="font-bold text-[11px] block">Traditional Sheet Music</span>
+                    <span className="text-[9px] text-slate-400 block">Scrolling grand staff notation</span>
                   </button>
                 </div>
               </div>
@@ -4354,8 +4354,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   <div className="flex items-center gap-2">
                     <Sliders className="w-4 h-4 text-amber-400" />
                     <div>
-                      <span className="font-bold text-white text-xs">Stile Scorrimento dello Spartito</span>
-                      <span className="text-[10px] text-slate-400 block">Scegli la dinamica di movimento della riga rossa e del pentagramma</span>
+                      <span className="font-bold text-white text-xs">Sheet Music Scroll Style</span>
+                      <span className="text-[10px] text-slate-400 block">Choose how the playhead line and music staff move</span>
                     </div>
                   </div>
                 </div>
@@ -4370,8 +4370,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     }`}
                   >
                     <span className="block text-sm mb-0.5">🚩</span>
-                    <span className="font-bold text-[11px] block">Riga Mobile & Cambio Pagina (Default)</span>
-                    <span className="text-[9px] text-slate-400 block">La riga attraversa lo spartito e gira pagina</span>
+                    <span className="font-bold text-[11px] block">Moving Line &amp; Page Turn (Default)</span>
+                    <span className="text-[9px] text-slate-400 block">Line sweeps across and turns page</span>
                   </button>
 
                   <button
@@ -4383,20 +4383,20 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     }`}
                   >
                     <span className="block text-sm mb-0.5">📜</span>
-                    <span className="font-bold text-[11px] block">Riga Fissa & Scorrimento Continuo</span>
-                    <span className="text-[9px] text-slate-400 block">La riga sta ferma e lo spartito scivola sotto</span>
+                    <span className="font-bold text-[11px] block">Fixed Line &amp; Continuous Scroll</span>
+                    <span className="text-[9px] text-slate-400 block">Playhead stays fixed while score glides</span>
                   </button>
                 </div>
               </div>
 
-              {/* TEST AUDIO NOTE IN SEQUENZA (GLISSANDO CRACKLE-FREE TEST) */}
+              {/* TEST SEQUENTIAL AUDIO NOTES (GLISSANDO CRACKLE-FREE TEST) */}
               <div className="bg-gradient-to-r from-amber-500/15 via-slate-800/80 to-slate-800/80 p-3.5 rounded-xl border border-amber-500/30 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Music className="w-4 h-4 text-amber-400 shrink-0" />
                     <div>
-                      <span className="font-bold text-white text-xs">Test Audio Note in Sequenza</span>
-                      <span className="text-[10px] text-slate-400 block">Riproduce 36 note a cascata (35ms) per verificare l'assenza di gracidio o blocchi</span>
+                      <span className="font-bold text-white text-xs">Sequential Audio Latency Test</span>
+                      <span className="text-[10px] text-slate-400 block">Plays 36 rapid waterfall notes (35ms) to verify zero crackling or dropouts</span>
                     </div>
                   </div>
                   <button
@@ -4404,7 +4404,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     disabled={isTestingGlissando}
                     className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-110 active:scale-95 disabled:opacity-50 text-slate-950 font-black text-xs rounded-lg shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-all"
                   >
-                    <span>{isTestingGlissando ? '⏳ In ascolto...' : '▶️ Prova 36 Note'}</span>
+                    <span>{isTestingGlissando ? '⏳ Listening...' : '▶️ Test 36 Notes'}</span>
                   </button>
                 </div>
                 {glissandoTestReport && (
@@ -4979,7 +4979,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-white animate-ping shrink-0" />
               <div className="text-xs font-black uppercase tracking-wider">
-                Registrazione al Pianoforte ({recordedNotesRef.current.length} note)
+                Piano Recording ({recordedNotesRef.current.length} notes)
               </div>
             </div>
             <button
@@ -4987,7 +4987,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
               onClick={toggleRecording}
               className="px-3 py-1.5 bg-white hover:bg-slate-100 text-red-600 font-black text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 shrink-0"
             >
-              ⏹️ Termina e Salva
+              ⏹️ Stop &amp; Save
             </button>
           </div>
         </div>
@@ -5002,11 +5002,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <Swords className="w-4 h-4 text-slate-950" />
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] font-black uppercase tracking-wider opacity-80">Sfida Ricevuta!</div>
+                <div className="text-[10px] font-black uppercase tracking-wider opacity-80">Challenge Received!</div>
                 <div className="font-black text-xs truncate">
-                  {challengeInvitation.challengerName} ti sfida su &quot;{challengeInvitation.songTitle}&quot;
+                  {challengeInvitation.challengerName} challenges you on &quot;{challengeInvitation.songTitle}&quot;
                 </div>
-                <div className="text-[10px] font-bold">Punteggio da battere: {challengeInvitation.targetScore} pt</div>
+                <div className="text-[10px] font-bold">Score to beat: {challengeInvitation.targetScore} pt</div>
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -5014,7 +5014,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 onClick={acceptChallenge}
                 className="px-2.5 py-1 bg-slate-950 hover:bg-slate-900 text-amber-400 font-black text-xs rounded-lg shadow-sm"
               >
-                Accetta
+                Accept
               </button>
               <button
                 onClick={() => setChallengeInvitation(null)}
@@ -5083,17 +5083,17 @@ export const PianoView: React.FC<PianoViewProps> = ({
           <div className="bg-slate-900 border-2 border-amber-500/60 p-6 rounded-3xl max-w-md w-full space-y-4 text-center shadow-2xl animate-in fade-in zoom-in duration-200">
             <div className="text-4xl animate-pulse">⚠️</div>
             <h3 className="text-lg font-black text-white uppercase tracking-wider">
-              Partecipante Disconnesso
+              Participant Disconnected
             </h3>
             <p className="text-xs text-slate-300">
-              L&apos;altro utente ha lasciato la stanza <span className="font-mono font-bold text-amber-400">{socialSession?.roomId}</span> o la connessione è caduta.
+              The other user left room <span className="font-mono font-bold text-amber-400">{socialSession?.roomId}</span> or the connection dropped.
             </p>
             <div className="pt-2 flex flex-col sm:flex-row gap-2">
               <button
                 onClick={handleExitToSocialResults}
                 className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer"
               >
-                🏠 Ritorna alla Scheda Social
+                🏠 Back to Social Tab
               </button>
               <button
                 onClick={() => {
@@ -5102,7 +5102,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 }}
                 className="py-3 px-4 bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
               >
-                Attendi
+                Wait
               </button>
             </div>
           </div>
@@ -5120,7 +5120,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
             <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
               <div className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
                 <span>🎬</span>
-                <span>Scegli Formato Video</span>
+                <span>Choose Video Format</span>
               </div>
               <button
                 onClick={() => setIsVideoMenuOpen(false)}
@@ -5140,11 +5140,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-black text-white flex items-center justify-between">
-                  <span>Verticale 9:16</span>
+                  <span>Vertical 9:16</span>
                   <span className="text-[9px] bg-fuchsia-500/25 text-fuchsia-300 px-1.5 py-0.2 rounded font-mono font-bold">TikTok / Reels</span>
                 </div>
                 <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
-                  Zoom automatico sulle note centrali. Il brano riparte dall&apos;inizio con i tuoi settaggi attuali.
+                  Auto-zoom on center keys. Song restarts from the beginning with your active settings.
                 </p>
               </div>
             </button>
@@ -5159,11 +5159,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-black text-white flex items-center justify-between">
-                  <span>Orizzontale 16:9</span>
+                  <span>Horizontal 16:9</span>
                   <span className="text-[9px] bg-amber-500/25 text-amber-300 px-1.5 py-0.2 rounded font-mono font-bold">Full / YouTube</span>
                 </div>
                 <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
-                  Tastiera completa con intro <strong className="text-amber-300">&quot;ROTATE YOUR PHONE&quot;</strong>. Il brano riparte dall&apos;inizio.
+                  Full keyboard with glowing <strong className="text-amber-300">&quot;ROTATE YOUR PHONE&quot;</strong> intro. Restarts song from 0:00.
                 </p>
               </div>
             </button>
@@ -5172,8 +5172,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
             {savedVideosArchive.length > 0 && (
               <div className="pt-2 border-t border-slate-800 space-y-1.5">
                 <div className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center justify-between">
-                  <span>📂 Ultimi Video Registrati ({savedVideosArchive.length})</span>
-                  <span className="text-[9px] text-slate-400 font-normal">Salvataggio auto</span>
+                  <span>📂 Recent Recorded Videos ({savedVideosArchive.length})</span>
+                  <span className="text-[9px] text-slate-400 font-normal">Auto-saved</span>
                 </div>
                 <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5">
                   {savedVideosArchive.map((item) => (
@@ -5220,7 +5220,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                         }}
                         className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-black shrink-0 cursor-pointer"
                       >
-                        Apri / Scarica
+                        Open / Save
                       </button>
                     </div>
                   ))}
@@ -5240,12 +5240,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <span className="text-xl">🎬</span>
                 <div>
                   <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wide">
-                    Video VirtuKeys Pronto!
+                    VirtuKeys Video Ready!
                   </h3>
                   <p className="text-[11px] text-amber-300 font-semibold">
                     {activeVideoMode === 'vertical_reel'
-                      ? 'Formato Verticale 9:16 HD • Zoom Note Centrali'
-                      : 'Formato Orizzontale 16:9 • Con Intro "Rotate Phone"'}
+                      ? 'Vertical 9:16 HD • Central Keys Zoom'
+                      : 'Horizontal 16:9 • With "Rotate Phone" Intro'}
                   </p>
                 </div>
               </div>
@@ -5256,7 +5256,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   setRecordedVideoBlob(null);
                 }}
                 className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold flex items-center justify-center cursor-pointer"
-                title="Chiudi"
+                title="Close"
               >
                 ✕
               </button>
@@ -5276,7 +5276,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
             {isUploadingVideoChunks && (
               <div className="w-full text-center text-[11px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl py-1 px-3">
-                ⏳ Ottimizzazione link download diretto per Android ({videoUploadPercent}%)...
+                ⏳ Preparing direct download link ({videoUploadPercent}%)...
               </div>
             )}
 
@@ -5292,10 +5292,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
                       : `VirtuKeys_${activeVideoMode === 'vertical_reel' ? 'Reel' : 'Video'}_${Date.now()}.${finalExt}`;
 
                   // If the real HTTPS attachment URL (?dl=1) is already ready, force direct navigation to the attachment URL
-                  // (Content-Disposition: attachment keeps the current page open and triggers Android DownloadManager / Browser downloader!)
                   if (recordedServerDownloadUrl) {
                     e.preventDefault();
-                    showToast(`⬇️ Download avviato in Download: ${filename}`);
+                    showToast(`⬇️ Download started: ${filename}`);
                     window.location.assign(recordedServerDownloadUrl);
                     return;
                   }
@@ -5303,20 +5302,20 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   // If chunked upload is still finishing, wait for it (< 0.5s) and then trigger direct HTTPS attachment download
                   e.preventDefault();
                   if (videoUploadPromiseRef.current) {
-                    showToast(`⏳ Preparazione file ${filename}...`);
+                    showToast(`⏳ Preparing file ${filename}...`);
                     const uploaded = await videoUploadPromiseRef.current;
                     if (uploaded?.downloadUrl) {
-                      showToast(`⬇️ Download avviato in Download: ${filename}`);
+                      showToast(`⬇️ Download started: ${filename}`);
                       window.location.assign(uploaded.downloadUrl);
                       return;
                     }
                   }
 
                   if (recordedVideoBlob) {
-                    showToast(`⏳ Preparazione file ${filename}...`);
+                    showToast(`⏳ Preparing file ${filename}...`);
                     const uploaded = await uploadVideoInChunks(recordedVideoBlob, filename);
                     if (uploaded?.downloadUrl) {
-                      showToast(`⬇️ Download avviato in Download: ${filename}`);
+                      showToast(`⬇️ Download started: ${filename}`);
                       window.location.assign(uploaded.downloadUrl);
                       return;
                     }
@@ -5330,7 +5329,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                    showToast(`✅ Scaricato: ${filename}`);
+                    showToast(`✅ Downloaded: ${filename}`);
                   }
                 }}
                 className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg text-center flex items-center justify-center gap-1.5 cursor-pointer no-underline"
@@ -5338,8 +5337,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 <span>⬇️</span>
                 <span>
                   {isUploadingVideoChunks
-                    ? `Preparazione (${videoUploadPercent}%)...`
-                    : `Scarica Video (.${recordedVideoExt.toUpperCase()})`}
+                    ? `Preparing (${videoUploadPercent}%)...`
+                    : `Download Video (.${recordedVideoExt.toUpperCase()})`}
                 </span>
               </a>
 
@@ -5358,18 +5357,18 @@ export const PianoView: React.FC<PianoViewProps> = ({
                       if (navigator.canShare && navigator.canShare({ files: [file] })) {
                         await navigator.share({
                           title: '🎹 VirtuKeys Piano',
-                          text: 'Guarda questa performance su VirtuKeys! 🎹🔥',
+                          text: 'Check out this performance on VirtuKeys! 🎹🔥',
                           files: [file],
                         });
                       } else {
-                        showToast('Usa il tasto Scarica Video per salvarlo sul dispositivo.');
+                        showToast('Use the Download Video button to save it on your device.');
                       }
                     } catch (e) {}
                   }}
                   className="flex-1 py-2.5 px-4 bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:from-fuchsia-500 hover:to-rose-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <span>📲</span>
-                  <span>Condividi (TikTok / Reels)</span>
+                  <span>Share (TikTok / Reels)</span>
                 </button>
               )}
             </div>
