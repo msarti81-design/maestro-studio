@@ -44,6 +44,7 @@ import {
   getFingerInfo,
   getStandardFingeringRules,
 } from '../utils/pianoFingeringEngine';
+import { useBackHandler } from '../utils/backNavigation';
 
 // Base keys generator for dynamic octave range
 const NOTE_PATTERNS = [
@@ -196,6 +197,12 @@ export const SheetComposerView: React.FC<SheetComposerViewProps> = ({
   const [isTitleEditorPinned, setIsTitleEditorPinned] = useState<boolean>(false);
   const pinnedTitleInputRef = useRef<HTMLInputElement>(null);
   const didFocusPinnedRef = useRef<boolean>(false);
+
+  useBackHandler(isMidiSelectorOpen, () => setIsMidiSelectorOpen(false), 40);
+  useBackHandler(isTitleEditorPinned, () => setIsTitleEditorPinned(false), 40);
+  useBackHandler(isExportModalOpen, () => setIsExportModalOpen(false), 30);
+  useBackHandler(isImportModalOpen, () => setIsImportModalOpen(false), 30);
+  useBackHandler(isFingeringRulesOpen, () => setIsFingeringRulesOpen(false), 30);
 
   // Precompute automatic optimal fingering for current melody using standard piano rules
   const autoMelodyFingering = useMemo(() => {

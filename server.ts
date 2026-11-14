@@ -374,16 +374,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.234",
-      buildDate: "2026-11-14 07:10",
-      commit: "c8a4f20",
+      version: "1.0.236",
+      buildDate: "2026-11-14 08:45",
+      commit: "f2a9c41",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "4 Copyright-Safe Retro 8-Bit Center Stage Animations (Pixel Runner, Retro Coins & Blocks, Space Rocket, Neon Arcade Grid) for Waterfall, Free Play & Video",
-        "Scrollable Center Stage Animation Gallery modal triggered via compact button inside 3-dots Options menu",
-        "Scrollable 14-FX Gallery modal & Top-Pinned Title Editor in Sheet Composer",
-        "Signed release AAB & APK generation synced to v1.0.234 (versionCode 10234)",
+        "24 Note & Kinetic Visual FX including 6 new anticipation visualizers: Combo Reactor, Overload Detonator, Laser Pinball Arena, Gravity Slingshot, Crystal Mosaic & Auto-Morph Twist",
+        "Full-row clickable 3-dots Options Hub cards with scrollable category sub-modals",
+        "Universal step-by-step Android & Web Back navigation across every modal, sub-modal, Waterfall and view without accidental app exit",
+        "Signed release AAB & APK generation synced to v1.0.236 (versionCode 10236)",
       ],
     });
   });

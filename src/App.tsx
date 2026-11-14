@@ -22,6 +22,7 @@ import { getStoredUsername, verifyAndLockUsername, getDeviceId } from './utils/d
 import { getAppApiUrl, isNativePlatform } from './utils/networkHelper';
 import { audioEngine } from './utils/audioEngine';
 import { getThemeClasses, isValidStudioTheme } from './utils/themeHelper';
+import { initGlobalBackNavigation, useBackHandler } from './utils/backNavigation';
 
 import { ActiveSocialSession, SocialSessionResults, SocialRoomMode, ScaleExercise, InteractiveSong } from './types';
 
@@ -146,6 +147,11 @@ export default function App() {
   const [isPlayAssetsModalOpen, setIsPlayAssetsModalOpen] = useState<boolean>(false);
   const [activeScaleExercise, setActiveScaleExercise] = useState<ScaleExercise | null>(null);
   const [selectedSongForPiano, setSelectedSongForPiano] = useState<InteractiveSong | null>(null);
+  const [viewHistory, setViewHistory] = useState<(ViewMode | 'home')[]>(['home']);
+
+  React.useEffect(() => {
+    initGlobalBackNavigation();
+  }, []);
 
   // Auto-verify and lock username on device mount
   React.useEffect(() => {
@@ -218,7 +224,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [currentView, username, studioTheme]);
 
-  const handleSelectView = (view: ViewMode | 'home') => {
+  const navigateToViewRaw = (view: ViewMode | 'home') => {
     setCurrentView(view);
     if (typeof window !== 'undefined') {
       try {
@@ -226,13 +232,49 @@ export default function App() {
       } catch (e) {}
       if (view === 'home') {
         try {
-          history.replaceState(null, '', window.location.pathname);
+          window.history.replaceState({ vkBackLock: true }, '', window.location.pathname);
         } catch (e) {}
       } else {
-        window.location.hash = view;
+        try {
+          window.history.replaceState({ vkBackLock: true }, '', `${window.location.pathname}#${view}`);
+        } catch (e) {}
       }
     }
   };
+
+  const handleSelectView = (view: ViewMode | 'home') => {
+    if (view !== currentView) {
+      setViewHistory((prev) => {
+        if (view === 'home') return ['home'];
+        const trimmed = prev[prev.length - 1] === view ? prev : [...prev, view];
+        return trimmed.slice(-12);
+      });
+    }
+    navigateToViewRaw(view);
+  };
+
+  const handleStepBackView = () => {
+    setViewHistory((prev) => {
+      if (prev.length > 1) {
+        const nextHist = prev.slice(0, -1);
+        const prevView = nextHist[nextHist.length - 1] || 'home';
+        navigateToViewRaw(prevView);
+        return nextHist;
+      }
+      if (currentView !== 'home') {
+        navigateToViewRaw('home');
+      }
+      return ['home'];
+    });
+  };
+
+  // Global Modals & View Stack Back Handlers
+  useBackHandler(isIdentityModalOpen, () => setIsIdentityModalOpen(false), 35);
+  useBackHandler(isMetronomeOpen, () => setIsMetronomeOpen(false), 35);
+  useBackHandler(isScalesModalOpen, () => setIsScalesModalOpen(false), 35);
+  useBackHandler(isVersionModalOpen, () => setIsVersionModalOpen(false), 35);
+  useBackHandler(isPlayAssetsModalOpen, () => setIsPlayAssetsModalOpen(false), 35);
+  useBackHandler(currentView !== 'home', handleStepBackView, 10);
 
   const handleLaunchSocialChallenge = (session: ActiveSocialSession) => {
     setActiveSocialSession(session);

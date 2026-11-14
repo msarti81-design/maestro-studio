@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.234';
-export const APP_BUILD_DATE = '14 Nov 2026 - 07:10';
-export const APP_COMMIT = 'c8a4f20';
+export const APP_VERSION = '1.0.236';
+export const APP_BUILD_DATE = '14 Nov 2026 - 08:45';
+export const APP_COMMIT = 'f2a9c41';
 export const APP_CHANGELOG = [
-  'Added 4 copyright-safe retro 8-bit Center Stage Animations (Pixel Runner, Retro Coins & Blocks, Space Rocket, Neon Arcade Grid) reactive in Waterfall, Free Play & Video recording',
-  'Added compact Center Stage Animation button in 3-dots Options opening a full scrollable Gallery modal for mobile portrait & landscape',
-  'Made the 14-FX Gallery Picker a full scrollable viewport modal & added Top-Pinned Title Editor in Sheet Composer',
-  'Dynamic GitHub Actions APK/AAB release versioning synced to v1.0.234 (versionCode 10234)',
+  'Added 6 curiosity & anticipation kinetic visualizers (24 FX total): Combo Reactor, Overload Detonator (0→100% Blast), Laser Pinball Arena, Gravity Slingshot, Crystal Mosaic, and Auto-Morph Twist',
+  'Full-row tappable category triggers in 3-dots Options hub opening dedicated scrollable sub-modals',
+  'Universal step-by-step Back navigation across Android hardware Back button and browser Popstate (steps back 1 layer cleanly across all modals, Waterfall & views without ever exiting the app)',
+  'Dynamic GitHub Actions APK/AAB release versioning synced to v1.0.236 (versionCode 10236)',
 ];
 
 export interface ServerVersionInfo {

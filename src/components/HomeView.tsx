@@ -23,6 +23,7 @@ import { loadGamificationState } from '../utils/gamification';
 import { APP_VERSION } from '../utils/versionInfo';
 import { TutorialModal } from './TutorialModal';
 import { isNativePlatform } from '../utils/networkHelper';
+import { useBackHandler } from '../utils/backNavigation';
 
 interface HomeViewProps {
   onSelectView: (view: ViewMode) => void;
@@ -41,6 +42,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 }) => {
   const [isPlayingWelcome, setIsPlayingWelcome] = useState<boolean>(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(false);
+  useBackHandler(isTutorialOpen, () => setIsTutorialOpen(false), 30);
   const [isShareCopied, setIsShareCopied] = useState<boolean>(false);
   const [gamification] = useState(() => loadGamificationState());
   const [, setActiveTabPreview] = useState<string | null>(null);

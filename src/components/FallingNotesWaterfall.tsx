@@ -1,11 +1,20 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { InteractiveSong, CenterStageAnimationId } from '../types';
 import { CenterStageAnimator } from '../utils/centerStageAnimations';
+import {
+  WaterfallFxMode,
+  WATERFALL_FX_ITEMS,
+  isKineticFxMode,
+  loadWaterfallFx,
+  saveWaterfallFx,
+  getWaterfallFxMeta,
+} from '../utils/waterfallFx';
 import { audioEngine } from '../utils/audioEngine';
 import { songPlaybackState } from '../utils/songPlaybackState';
 import { recordNoteHitBonus, recordSongCompletedBonus } from '../utils/gamification';
 import { shareChallenge } from '../utils/challengeShare';
 import { noteNameToMidiNumber } from '../utils/midiEngine';
+import { useBackHandler } from '../utils/backNavigation';
 import { Play, Pause, RotateCcw, Award, Zap, X, Share2, Check, Hand, HelpCircle, BookOpen } from 'lucide-react';
 import {
   calculateFingeringForNotes,
@@ -40,6 +49,8 @@ interface FallingNotesWaterfallProps {
   sheetScrollMode?: 'sweeping' | 'continuous';
   restartTrigger?: number;
   centerAnimation?: CenterStageAnimationId;
+  fxMode?: WaterfallFxMode;
+  onFxModeChange?: (mode: WaterfallFxMode) => void;
 }
 
 interface KeyPosition {
@@ -98,6 +109,8 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   sheetScrollMode = 'sweeping',
   restartTrigger = 0,
   centerAnimation = 'none',
+  fxMode: controlledFxMode,
+  onFxModeChange,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -106,22 +119,16 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const centerStageAnimatorRef = useRef<CenterStageAnimator>(new CenterStageAnimator());
 
   const [isMelodyOnly, setIsMelodyOnly] = useState<boolean>(false);
-  type WaterfallFxMode =
-    | 'all'
-    | 'bounce_balls'
-    | 'fireworks'
-    | 'aurora'
-    | 'lightning'
-    | 'fire'
-    | 'vortex'
-    | 'gold_rain'
-    | 'matrix'
-    | 'meteor'
-    | 'crystal'
-    | 'wave'
-    | 'stars'
-    | 'off';
-  const [fxMode, setFxMode] = useState<WaterfallFxMode>('all');
+  const [internalFxMode, setInternalFxMode] = useState<WaterfallFxMode>(() => loadWaterfallFx());
+  const fxMode = controlledFxMode ?? internalFxMode;
+  const applyFxMode = useCallback(
+    (next: WaterfallFxMode) => {
+      setInternalFxMode(next);
+      saveWaterfallFx(next);
+      if (onFxModeChange) onFxModeChange(next);
+    },
+    [onFxModeChange]
+  );
   const fxModeRef = useRef<WaterfallFxMode>(fxMode);
   fxModeRef.current = fxMode;
   const [isFxPickerOpen, setIsFxPickerOpen] = useState<boolean>(false);
@@ -190,6 +197,9 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   const [isCopiedChallenge, setIsCopiedChallenge] = useState<boolean>(false);
   const [isFingeringRulesModalOpen, setIsFingeringRulesModalOpen] = useState<boolean>(false);
   const [loopFeedbackMessage, setLoopFeedbackMessage] = useState<string | null>(null);
+
+  useBackHandler(isFxPickerOpen, () => setIsFxPickerOpen(false), 40);
+  useBackHandler(isFingeringRulesModalOpen, () => setIsFingeringRulesModalOpen(false), 40);
 
   // Count-In State
   const [isCountIn, setIsCountIn] = useState<boolean>(true);
@@ -418,6 +428,27 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
 
   const energyLevelRef = useRef<number>(0);
 
+  const elasticPlucksRef = useRef<
+    {
+      x: number;
+      bandIdx: number;
+      amp: number;
+      life: number;
+      maxLife: number;
+      color: string;
+    }[]
+  >([]);
+
+  const kineticHitsRef = useRef<number>(0);
+  const overloadChargeRef = useRef<number>(0);
+  const overloadLevelRef = useRef<number>(1);
+  const overloadFlashRef = useRef<number>(0);
+  const pinballBumpersHitRef = useRef<number[]>([0, 0, 0, 0, 0, 0]);
+  const mosaicPetalsRef = useRef<
+    { sym: number; dist: number; size: number; color: string; rot: number; birth: number }[]
+  >([]);
+  const lastKineticTimeRef = useRef<number>(0);
+
   const bgStarsRef = useRef<
     { xRatio: number; yRatio: number; size: number; speed: number; alpha: number; color: string; char?: string }[]
   >(
@@ -448,11 +479,66 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
     const black = isBlack ?? keyPos.type === 'black';
     const isLowNote = noteNameToMidiNumber(rawNoteName) < 60;
 
-    // Boost reactive musical energy level
+    // Boost reactive musical energy level & kinetic progression states
     energyLevelRef.current = Math.min(1.0, energyLevelRef.current + 0.42);
+    kineticHitsRef.current += 1;
+    const hitMidi = noteNameToMidiNumber(rawNoteName);
+
+    if (mode === 'elastic_strings' || mode === 'auto_morph') {
+      const plucks = elasticPlucksRef.current;
+      if (plucks.length > 36) plucks.splice(0, 8);
+      const elasticColors = ['#22d3ee', '#f472b6', '#fde047', '#34d399', '#a855f7', '#fb923c', '#38bdf8'];
+      const primaryBand = hitMidi % 7;
+      for (let bOff = -1; bOff <= 1; bOff++) {
+        const bIdx = (primaryBand + bOff + 7) % 7;
+        plucks.push({
+          x: centerX,
+          bandIdx: bIdx,
+          amp: bOff === 0 ? 1.0 : 0.58,
+          life: 0,
+          maxLife: bOff === 0 ? 0.72 : 0.52,
+          color: elasticColors[bIdx],
+        });
+      }
+    }
+
+    if (mode === 'overload_detonator' || mode === 'auto_morph') {
+      overloadChargeRef.current += 8.5;
+      if (overloadChargeRef.current >= 100) {
+        overloadChargeRef.current = 0;
+        overloadLevelRef.current += 1;
+        overloadFlashRef.current = 1.0;
+        shockwavesRef.current.push({
+          x: dimsRef.current.width / 2,
+          y: Math.max(40, dimsRef.current.height * 0.42),
+          width: dimsRef.current.width * 0.6,
+          life: 0,
+          maxLife: 0.9,
+          color: '#f43f5e',
+        });
+      }
+    }
+
+    if (mode === 'pinball_arena' || mode === 'auto_morph') {
+      pinballBumpersHitRef.current[hitMidi % 6] = 1.0;
+    }
+
+    if (mode === 'crystal_mosaic' || mode === 'auto_morph') {
+      const mosaicColors = ['#22d3ee', '#38bdf8', '#c084fc', '#f472b6', '#fde047', '#34d399'];
+      const shards = mosaicPetalsRef.current;
+      if (shards.length >= 64) shards.shift();
+      shards.push({
+        sym: 6 + (hitMidi % 3) * 2,
+        dist: 0.14 + ((kineticHitsRef.current % 10) / 10) * 0.76,
+        size: 6 + (hitMidi % 5) * 2.5,
+        color: mosaicColors[hitMidi % mosaicColors.length],
+        rot: (hitMidi * 0.618) % (Math.PI * 2),
+        birth: performance.now(),
+      });
+    }
 
     const palette =
-      mode === 'bounce_balls'
+      isKineticFxMode(mode)
         ? ['#22d3ee', '#f472b6', '#fde047', '#34d399', '#fb923c', '#a855f7', '#ffffff']
         : mode === 'fire' || mode === 'meteor'
         ? ['#fde047', '#fb923c', '#f97316', '#ef4444', '#ffffff']
@@ -1226,7 +1312,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         ctx.fill();
 
         // --- BACKGROUND FX 1: REACTIVE STARFIELD, MATRIX DIGITAL RAIN OR GOLDEN BOKEH ---
-        if (curFx === 'stars' || curFx === 'matrix' || curFx === 'gold_rain' || curFx === 'bounce_balls' || curFx === 'all') {
+        if (curFx === 'stars' || curFx === 'matrix' || curFx === 'gold_rain' || isKineticFxMode(curFx) || curFx === 'all') {
           ctx.save();
           const stars = bgStarsRef.current;
           const speedBoost = 1 + energy * 3.5;
@@ -1594,8 +1680,8 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           }
         };
 
-        if (curFx === 'bounce_balls') {
-          // --- SPECTACULAR BOUNCING RHYTHM BALLS MODE (NO FALLING BARS) ---
+        if (isKineticFxMode(curFx)) {
+          // --- SPECTACULAR KINETIC PHYSICS MODES (NO FALLING BARS) ---
           const BALL_COLORS = [
             { light: '#a5f3fc', mid: '#06b6d4', dark: '#0e7490', glow: '#22d3ee' }, // C
             { light: '#bfdbfe', mid: '#3b82f6', dark: '#1e3a8a', glow: '#60a5fa' }, // C#
@@ -1663,7 +1749,6 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             isPersistent: boolean
           ) => {
             if (!trNotes || trNotes.length === 0) return null;
-            // Binary search for last note <= t
             let lo = 0;
             let hi = trNotes.length - 1;
             let idx = -1;
@@ -1772,7 +1857,6 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
               return null;
             }
 
-            // Persistent hero ball trajectory
             if (gap <= 1.35) {
               const u = dt / gap;
               const x = x1 + (x2 - x1) * u;
@@ -1835,93 +1919,876 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             }
           };
 
-          // 2. Render each active Bouncing Ball Track with ribbon comet trail + dotted preview arc + 3D glossy orb
           const curTracks = ballTracksRef.current;
-          for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
-            const trNotes = curTracks[trIdx];
-            const isPersistent = trIdx < 2;
-            const cur = evalBallAt(trNotes, visualTime, isPersistent);
-            if (!cur) continue;
 
-            const clr = BALL_COLORS[cur.noteObj.midi % 12];
+          // Auto-reset progressive counters on song restart/seek-back
+          if (visualTime < lastKineticTimeRef.current - 0.5) {
+            kineticHitsRef.current = 0;
+            overloadChargeRef.current = 0;
+            overloadLevelRef.current = 1;
+            mosaicPetalsRef.current = [];
+          }
+          lastKineticTimeRef.current = visualTime;
 
-            // Dotted guide arc toward next key for persistent balls
-            if (isPersistent && cur.nextObj && cur.nextObj.time - visualTime <= 1.15) {
-              const targetKp = keyPosMap.get(cur.nextObj.note);
-              if (targetKp) {
+          // Resolve active kinetic sub-style (including Auto-Morph Plot Twist rotation)
+          let kineticStyle: WaterfallFxMode = curFx;
+          if (curFx === 'auto_morph') {
+            const MORPH_SEQ: WaterfallFxMode[] = [
+              'elastic_strings',
+              'pinball_arena',
+              'gravity_slingshot',
+              'overload_detonator',
+              'combo_reactor',
+              'crystal_mosaic',
+              'ribbon_dancers',
+              'bounce_balls',
+              'pendulum_orbits',
+              'domino_shockwave',
+            ];
+            const morphDur = 9.0;
+            const morphIdx = Math.floor(Math.max(0, visualTime) / morphDur);
+            const morphProgress = (Math.max(0, visualTime) % morphDur) / morphDur;
+            kineticStyle = MORPH_SEQ[morphIdx % MORPH_SEQ.length];
+            const nextMorph = MORPH_SEQ[(morphIdx + 1) % MORPH_SEQ.length];
+            const curMeta = getWaterfallFxMeta(kineticStyle);
+            const nextMeta = getWaterfallFxMeta(nextMorph);
+
+            // Plot-Twist HUD Banner at top of canvas
+            ctx.save();
+            const badgeW = Math.min(width - 20, 270);
+            const badgeX = (width - badgeW) / 2;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+            ctx.strokeStyle = 'rgba(34, 211, 238, 0.65)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.roundRect(badgeX, 6, badgeW, 22, 11);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = morphProgress > 0.74 ? '#fde047' : '#e2e8f0';
+            ctx.font = 'bold 10px ui-sans-serif, system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const badgeText =
+              morphProgress > 0.74
+                ? `🎲 PLOT TWIST! NEXT → ${nextMeta.shortLabel}`
+                : `🎲 AUTO-MORPH: ${curMeta.shortLabel}`;
+            ctx.fillText(badgeText, width / 2, 17);
+            // Tiny countdown bar
+            ctx.fillStyle = morphProgress > 0.74 ? '#facc15' : '#22d3ee';
+            ctx.fillRect(badgeX + 10, 25, Math.max(4, (badgeW - 20) * (1 - morphProgress)), 2);
+            ctx.restore();
+          }
+
+          if (kineticStyle === 'elastic_strings') {
+            // --- MULTICOLOR NEON ELASTIC BANDS & PLUCKED STRINGS ---
+            const BAND_COLORS = [
+              { core: '#a5f3fc', glow: '#22d3ee' },
+              { core: '#fbcfe8', glow: '#f472b6' },
+              { core: '#fef08a', glow: '#facc15' },
+              { core: '#a7f3d0', glow: '#34d399' },
+              { core: '#e9d5ff', glow: '#a855f7' },
+              { core: '#fed7aa', glow: '#fb923c' },
+              { core: '#bae6fd', glow: '#38bdf8' },
+            ];
+
+            // Decay existing elastic plucks cleanly
+            const plucks = elasticPlucksRef.current;
+            for (let pIdx = plucks.length - 1; pIdx >= 0; pIdx--) {
+              plucks[pIdx].life += deltaSec;
+              if (plucks[pIdx].life >= plucks[pIdx].maxLife) {
+                plucks.splice(pIdx, 1);
+              }
+            }
+
+            // Collect live track positions so vertical bungee elastics snap between tracks and horizontal cords
+            const activeOrbPoints: { x: number; y: number; color: string; r: number }[] = [];
+            for (let trIdx = 0; trIdx < curTracks.length; trIdx++) {
+              const cur = evalBallAt(curTracks[trIdx], visualTime, trIdx < 2);
+              if (!cur) continue;
+              const clr = BALL_COLORS[cur.noteObj.midi % 12];
+              activeOrbPoints.push({ x: cur.x, y: cur.y, color: clr.glow, r: cur.r });
+            }
+
+            // Draw 7 vibrant stretched multicolor elastic cords horizontally across stage
+            const numBands = 7;
+            const topPad = Math.max(18, hitLineY * 0.14);
+            const spanY = Math.max(40, hitLineY - topPad - 22);
+            for (let b = 0; b < numBands; b++) {
+              const baseY = topPad + (b / Math.max(1, numBands - 1)) * spanY;
+              const bandClr = BAND_COLORS[b % BAND_COLORS.length];
+
+              // Side tension anchor pegs
+              ctx.fillStyle = bandClr.glow;
+              ctx.beginPath();
+              ctx.arc(5, baseY, 3.5, 0, Math.PI * 2);
+              ctx.arc(width - 5, baseY, 3.5, 0, Math.PI * 2);
+              ctx.fill();
+
+              // Outer chromatic aura pass + bright inner elastic core
+              for (let pass = 0; pass < 2; pass++) {
                 ctx.save();
-                ctx.setLineDash([3, 5]);
-                ctx.strokeStyle = clr.glow;
-                ctx.globalAlpha = 0.22 * cur.alpha;
-                ctx.lineWidth = 1.4;
                 ctx.beginPath();
-                ctx.moveTo(cur.x, cur.y);
-                const nx = targetKp.x + targetKp.width / 2;
-                ctx.quadraticCurveTo((cur.x + nx) / 2, Math.max(8, cur.y - 24), nx, hitLineY - 3);
+                const stepX = Math.max(8, Math.floor(width / 56));
+                for (let x = 0; x <= width; x += stepX) {
+                  let disp = Math.sin(x * 0.015 + now * 0.004 + b) * (1.2 + energy * 2.5);
+
+                  // Plucked elastic displacement waves from hits on this cord
+                  for (let p = 0; p < plucks.length; p++) {
+                    const pl = plucks[p];
+                    if (pl.bandIdx !== b) continue;
+                    const progress = pl.life / pl.maxLife;
+                    const dist = Math.abs(x - pl.x);
+                    const spread = Math.max(60, width * 0.34);
+                    if (dist < spread) {
+                      const env = Math.cos((dist / spread) * (Math.PI / 2));
+                      const vib = Math.sin(pl.life * (52 + b * 5)) * Math.exp(-progress * 3.8);
+                      disp += env * vib * 26 * pl.amp;
+                    }
+                  }
+
+                  // Real-time bend from flying notes touching this horizontal elastic band
+                  for (let a = 0; a < activeOrbPoints.length; a++) {
+                    const orb = activeOrbPoints[a];
+                    const dy = Math.abs(orb.y - baseY);
+                    const dx = Math.abs(x - orb.x);
+                    if (dy < 28 && dx < 75) {
+                      const pull = (1 - dy / 28) * Math.cos((dx / 75) * (Math.PI / 2));
+                      disp += pull * 13 * Math.sin(now * 0.035 + a);
+                    }
+                  }
+
+                  const py = Math.max(6, Math.min(hitLineY - 4, baseY + disp));
+                  if (x === 0) ctx.moveTo(x, py);
+                  else ctx.lineTo(x, py);
+                }
+                ctx.strokeStyle = pass === 0 ? bandClr.glow : bandClr.core;
+                ctx.globalAlpha = pass === 0 ? 0.38 : 0.92;
+                ctx.lineWidth = pass === 0 ? 6.5 : 2.1;
                 ctx.stroke();
                 ctx.restore();
               }
             }
 
-            // Smooth analytical glowing ribbon trail behind the ball (8 samples back in time)
-            ctx.save();
-            for (let k = 8; k >= 1; k--) {
-              const trailEval = evalBallAt(trNotes, visualTime - k * 0.022, isPersistent);
-              if (!trailEval) continue;
-              const tFrac = 1 - k / 9;
-              ctx.globalAlpha = cur.alpha * tFrac * 0.42;
-              ctx.fillStyle = clr.glow;
+            // Draw elastic bungee slings connecting each active orb to the key below & vibrant pluck beads
+            for (let a = 0; a < activeOrbPoints.length; a++) {
+              const orb = activeOrbPoints[a];
+              ctx.save();
+              // Elastic bungee thread snapped to hitLineY
+              ctx.strokeStyle = orb.color;
+              ctx.lineWidth = 2.4;
+              ctx.globalAlpha = 0.85;
               ctx.beginPath();
-              ctx.arc(trailEval.x, trailEval.y, Math.max(1.5, cur.r * tFrac * 0.82), 0, Math.PI * 2);
+              ctx.moveTo(orb.x, 0);
+              ctx.quadraticCurveTo(
+                orb.x + Math.sin(now * 0.03 + a) * 14,
+                orb.y * 0.5,
+                orb.x,
+                orb.y
+              );
+              ctx.lineTo(orb.x, hitLineY - 2);
+              ctx.stroke();
+
+              // Luminous elastic knot orb
+              const knotGrad = ctx.createRadialGradient(orb.x, orb.y, 1, orb.x, orb.y, orb.r * 1.45);
+              knotGrad.addColorStop(0, '#ffffff');
+              knotGrad.addColorStop(0.45, orb.color);
+              knotGrad.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = knotGrad;
+              ctx.beginPath();
+              ctx.arc(orb.x, orb.y, orb.r * 1.45, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          } else if (kineticStyle === 'combo_reactor') {
+            // --- 1. COMBO EVOLVING REACTOR (Levels up visually as combo climbs!) ---
+            const hits = kineticHitsRef.current;
+            const lvl = hits >= 100 ? 5 : hits >= 50 ? 4 : hits >= 25 ? 3 : hits >= 10 ? 2 : 1;
+            const lvlNames = ['LVL 1 • SPARK', 'LVL 2 • SURGE', 'LVL 3 • PLASMA', 'LVL 4 • SUPERNOVA', 'MAX ULTRA!!'];
+            const lvlColors = ['#38bdf8', '#22d3ee', '#a855f7', '#f472b6', '#facc15'];
+            const cx = width / 2;
+            const cy = hitLineY * 0.44;
+            const coreR = Math.min(width, hitLineY) * (0.09 + lvl * 0.025) * (1 + energy * 0.25);
+
+            ctx.save();
+            // Outer aura rings unlock at LVL 2+
+            for (let rIdx = 1; rIdx <= lvl; rIdx++) {
+              ctx.save();
+              ctx.translate(cx, cy);
+              ctx.rotate(now * 0.0012 * (rIdx % 2 === 0 ? 1 : -1) * rIdx);
+              ctx.strokeStyle = lvlColors[(rIdx - 1) % lvlColors.length];
+              ctx.globalAlpha = 0.28 + energy * 0.35;
+              ctx.lineWidth = 1.6 + lvl * 0.35;
+              ctx.setLineDash([8 + rIdx * 4, 6]);
+              ctx.beginPath();
+              ctx.arc(0, 0, coreR * (1.2 + rIdx * 0.45), 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.restore();
+            }
+
+            // Plasma Laser Wings unlock at LVL 3+
+            if (lvl >= 3) {
+              for (let w = 0; w < 2; w++) {
+                const dir = w === 0 ? -1 : 1;
+                ctx.save();
+                ctx.strokeStyle = lvl >= 5 ? '#fde047' : '#e879f9';
+                ctx.globalAlpha = 0.45 + energy * 0.4;
+                ctx.lineWidth = 2.2;
+                for (let b = -2; b <= 2; b++) {
+                  const wingX = cx + dir * Math.min(width * 0.44, coreR * (3.2 + lvl * 0.45));
+                  const wingY = cy + b * (14 + lvl * 3) + Math.sin(now * 0.008 + b) * 6;
+                  ctx.beginPath();
+                  ctx.moveTo(cx, cy);
+                  ctx.quadraticCurveTo(cx + dir * coreR * 1.8, cy + b * 6, wingX, wingY);
+                  ctx.stroke();
+                }
+                ctx.restore();
+              }
+            }
+
+            // Central Reactor Core
+            const rGrad = ctx.createRadialGradient(cx, cy, 2, cx, cy, coreR * 1.8);
+            rGrad.addColorStop(0, '#ffffff');
+            rGrad.addColorStop(0.35, lvlColors[lvl - 1]);
+            rGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = rGrad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, coreR * 1.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Level badge
+            if (curFx === 'combo_reactor') {
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+              ctx.beginPath();
+              ctx.roundRect(width / 2 - 96, 6, 192, 20, 10);
+              ctx.fill();
+              ctx.fillStyle = lvlColors[lvl - 1];
+              ctx.font = 'bold 10px ui-sans-serif, system-ui, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(`⚡ ${hits} HITS • ${lvlNames[lvl - 1]}`, width / 2, 16);
+            }
+            ctx.restore();
+
+            // Render active diving note orbs & plasma bridges from reactor at LVL 4+
+            for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
+              const cur = evalBallAt(curTracks[trIdx], visualTime, trIdx < 2);
+              if (!cur) continue;
+              const clr = BALL_COLORS[cur.noteObj.midi % 12];
+              if (lvl >= 4) {
+                ctx.save();
+                ctx.strokeStyle = clr.glow;
+                ctx.globalAlpha = 0.25 * cur.alpha;
+                ctx.lineWidth = 1.4;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cur.x, cur.y);
+                ctx.stroke();
+                ctx.restore();
+              }
+              const og = ctx.createRadialGradient(cur.x, cur.y, 1, cur.x, cur.y, cur.r * 1.45);
+              og.addColorStop(0, '#ffffff');
+              og.addColorStop(0.45, clr.mid);
+              og.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = og;
+              ctx.beginPath();
+              ctx.arc(cur.x, cur.y, cur.r * 1.45, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          } else if (kineticStyle === 'overload_detonator') {
+            // --- 2. OVERLOAD DETONATOR (Charges 0% -> 100% until giant blast!) ---
+            overloadFlashRef.current = Math.max(0, overloadFlashRef.current - deltaSec * 1.4);
+            const pct = Math.min(100, Math.max(0, overloadChargeRef.current));
+            const cx = width / 2 + (pct >= 72 ? (Math.random() - 0.5) * 4.5 : 0);
+            const cy = hitLineY * 0.44 + (pct >= 72 ? (Math.random() - 0.5) * 4.5 : 0);
+            const baseR = Math.max(22, Math.min(width, hitLineY) * 0.16);
+            const hotColor = pct < 45 ? '#22d3ee' : pct < 80 ? '#facc15' : '#f43f5e';
+
+            // Full-stage shockwave flash when 100% triggered
+            if (overloadFlashRef.current > 0) {
+              const fl = overloadFlashRef.current;
+              const blastR = (1 - fl) * Math.max(width, hitLineY) * 0.85;
+              ctx.save();
+              ctx.strokeStyle = '#fde047';
+              ctx.globalAlpha = fl * 0.85;
+              ctx.lineWidth = 6 * fl + 2;
+              ctx.beginPath();
+              ctx.arc(cx, cy, blastR, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.strokeStyle = '#f43f5e';
+              ctx.beginPath();
+              ctx.arc(cx, cy, blastR * 0.72, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.restore();
+            }
+
+            ctx.save();
+            // Outer gauge ring track
+            ctx.strokeStyle = 'rgba(51, 65, 85, 0.75)';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Active charge arc 0..100%
+            ctx.strokeStyle = hotColor;
+            ctx.lineWidth = 6.5;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.arc(cx, cy, baseR, -Math.PI / 2, -Math.PI / 2 + (pct / 100) * Math.PI * 2);
+            ctx.stroke();
+
+            // Glowing inner bomb core
+            const bGrad = ctx.createRadialGradient(cx, cy, 2, cx, cy, baseR * 0.9);
+            bGrad.addColorStop(0, '#ffffff');
+            bGrad.addColorStop(0.55, hotColor);
+            bGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = bGrad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, baseR * (0.45 + (pct / 100) * 0.45), 0, Math.PI * 2);
+            ctx.fill();
+
+            // Charge readout inside ring
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 11px ui-monospace, SFMono-Regular, monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${Math.round(pct)}%`, cx, cy);
+            ctx.fillStyle = '#fde047';
+            ctx.font = 'bold 8px ui-sans-serif, system-ui, sans-serif';
+            ctx.fillText(`BOOM #${overloadLevelRef.current}`, cx, cy + baseR + 11);
+            ctx.restore();
+
+            // Active orbs feeding charge beams + dropping onto keys
+            for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
+              const cur = evalBallAt(curTracks[trIdx], visualTime, trIdx < 2);
+              if (!cur) continue;
+              const clr = BALL_COLORS[cur.noteObj.midi % 12];
+              ctx.save();
+              ctx.strokeStyle = hotColor;
+              ctx.globalAlpha = 0.25;
+              ctx.lineWidth = 1.2;
+              ctx.beginPath();
+              ctx.moveTo(cx, cy);
+              ctx.lineTo(cur.x, cur.y);
+              ctx.stroke();
+              ctx.fillStyle = clr.light;
+              ctx.beginPath();
+              ctx.arc(cur.x, cur.y, cur.r * 0.9, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          } else if (kineticStyle === 'pinball_arena') {
+            // --- 3. LASER PINBALL ARENA (Orbs ricochet between glowing bumpers before landing on key!) ---
+            const bumpers = [
+              { x: width * 0.16, y: hitLineY * 0.28, color: '#22d3ee' },
+              { x: width * 0.34, y: hitLineY * 0.48, color: '#f472b6' },
+              { x: width * 0.5, y: hitLineY * 0.22, color: '#fde047' },
+              { x: width * 0.66, y: hitLineY * 0.48, color: '#34d399' },
+              { x: width * 0.84, y: hitLineY * 0.28, color: '#a855f7' },
+              { x: width * 0.5, y: hitLineY * 0.62, color: '#fb923c' },
+            ];
+
+            for (let b = 0; b < bumpers.length; b++) {
+              pinballBumpersHitRef.current[b] = Math.max(0, pinballBumpersHitRef.current[b] - deltaSec * 3.2);
+              const bmp = bumpers[b];
+              const pulse = pinballBumpersHitRef.current[b];
+              const br = 9 + pulse * 7;
+
+              ctx.save();
+              ctx.strokeStyle = bmp.color;
+              ctx.fillStyle = pulse > 0.2 ? bmp.color : 'rgba(15, 23, 42, 0.85)';
+              ctx.lineWidth = 2.2;
+              ctx.beginPath();
+              ctx.arc(bmp.x, bmp.y, br, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.stroke();
+
+              // Outer bumper shock ring
+              ctx.globalAlpha = 0.35 + pulse * 0.55;
+              ctx.beginPath();
+              ctx.arc(bmp.x, bmp.y, br + 4 + pulse * 6, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.restore();
+            }
+
+            // Ricochet orbs along polyline (start -> bumper -> target key)
+            for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
+              const cur = evalBallAt(curTracks[trIdx], visualTime, trIdx < 2);
+              if (!cur) continue;
+              const clr = BALL_COLORS[cur.noteObj.midi % 12];
+              const targetKp = cur.nextObj ? keyPosMap.get(cur.nextObj.note) : null;
+              const targetX = targetKp ? targetKp.x + targetKp.width / 2 : cur.x;
+              const b1 = bumpers[cur.noteObj.midi % bumpers.length];
+              const u = Math.max(0, Math.min(1, cur.u));
+              // Segmented pinball position: first half zips toward bumper, second half snaps to key target at hitLineY
+              let px = cur.x;
+              let py = cur.y;
+              if (cur.nextObj) {
+                const startKp = keyPosMap.get(cur.noteObj.note);
+                const sx = startKp ? startKp.x + startKp.width / 2 : cur.x;
+                if (u < 0.5) {
+                  const t1 = u * 2;
+                  px = sx + (b1.x - sx) * t1;
+                  py = hitLineY - 6 + (b1.y - (hitLineY - 6)) * t1;
+                } else {
+                  const t2 = (u - 0.5) * 2;
+                  px = b1.x + (targetX - b1.x) * t2;
+                  py = b1.y + (hitLineY - 5 - b1.y) * t2;
+                }
+                if (u > 0.45 && u < 0.55) {
+                  pinballBumpersHitRef.current[cur.noteObj.midi % bumpers.length] = Math.max(
+                    pinballBumpersHitRef.current[cur.noteObj.midi % bumpers.length],
+                    0.9
+                  );
+                }
+              }
+
+              ctx.save();
+              ctx.strokeStyle = clr.glow;
+              ctx.globalAlpha = 0.35;
+              ctx.lineWidth = 1.6;
+              ctx.beginPath();
+              ctx.moveTo(b1.x, b1.y);
+              ctx.lineTo(px, py);
+              ctx.stroke();
+
+              const pGrad = ctx.createRadialGradient(px, py, 1, px, py, cur.r * 1.4);
+              pGrad.addColorStop(0, '#ffffff');
+              pGrad.addColorStop(0.5, clr.mid);
+              pGrad.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = pGrad;
+              ctx.beginPath();
+              ctx.arc(px, py, cur.r * 1.4, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          } else if (kineticStyle === 'gravity_slingshot') {
+            // --- 4. GRAVITY SLINGSHOT (Central black hole pulls comets into spiral orbits!) ---
+            const cx = width / 2;
+            const cy = hitLineY * 0.42;
+            const coreR = Math.min(width, hitLineY) * 0.13;
+
+            // Spinning gravitational accretion rings
+            ctx.save();
+            for (let ring = 0; ring < 3; ring++) {
+              ctx.save();
+              ctx.translate(cx, cy);
+              ctx.rotate(now * 0.002 * (ring % 2 === 0 ? 1 : -1.3));
+              ctx.strokeStyle = ring === 0 ? '#a855f7' : ring === 1 ? '#22d3ee' : '#f472b6';
+              ctx.globalAlpha = 0.4 + energy * 0.35;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.ellipse(0, 0, coreR * (1.7 + ring * 0.65), coreR * (0.7 + ring * 0.25), 0, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.restore();
+            }
+            const bhGrad = ctx.createRadialGradient(cx, cy, coreR * 0.3, cx, cy, coreR * 1.35);
+            bhGrad.addColorStop(0, '#020617');
+            bhGrad.addColorStop(0.65, '#3b0764');
+            bhGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = bhGrad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, coreR * 1.35, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
+              const cur = evalBallAt(curTracks[trIdx], visualTime, trIdx < 2);
+              if (!cur) continue;
+              const clr = BALL_COLORS[cur.noteObj.midi % 12];
+              const u = Math.max(0, Math.min(1, cur.u));
+              const orbBlend = Math.sin(u * Math.PI);
+              const spinAng = u * Math.PI * 2.5 + (cur.noteObj.midi % 12) * 0.52;
+              const orbitR = coreR * (1.2 + (1 - u) * 1.6);
+              const gx = cur.x * (1 - orbBlend * 0.72) + (cx + Math.cos(spinAng) * orbitR) * (orbBlend * 0.72);
+              const gy = cur.y * (1 - orbBlend * 0.72) + (cy + Math.sin(spinAng) * orbitR * 0.55) * (orbBlend * 0.72);
+
+              ctx.save();
+              ctx.strokeStyle = clr.glow;
+              ctx.globalAlpha = 0.28;
+              ctx.lineWidth = 1.6;
+              ctx.beginPath();
+              ctx.moveTo(cx, cy);
+              ctx.lineTo(gx, gy);
+              ctx.stroke();
+
+              const cg = ctx.createRadialGradient(gx, gy, 1, gx, gy, cur.r * 1.45);
+              cg.addColorStop(0, '#ffffff');
+              cg.addColorStop(0.45, clr.mid);
+              cg.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = cg;
+              ctx.beginPath();
+              ctx.arc(gx, gy, cur.r * 1.45, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          } else if (kineticStyle === 'crystal_mosaic') {
+            // --- 5. CRYSTAL MOSAIC BUILDER (Note-by-note evolving symmetric mandala!) ---
+            const cx = width / 2;
+            const cy = hitLineY * 0.45;
+            const maxRad = Math.min(width * 0.42, hitLineY * 0.43);
+            const shards = mosaicPetalsRef.current;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(now * 0.00045);
+
+            for (let sIdx = 0; sIdx < shards.length; sIdx++) {
+              const sh = shards[sIdx];
+              const rDist = sh.dist * maxRad;
+              for (let k = 0; k < sh.sym; k++) {
+                const ang = (k / sh.sym) * Math.PI * 2 + sh.rot;
+                const px = Math.cos(ang) * rDist;
+                const py = Math.sin(ang) * rDist;
+                ctx.save();
+                ctx.translate(px, py);
+                ctx.rotate(ang);
+                ctx.fillStyle = sh.color;
+                ctx.strokeStyle = '#ffffff';
+                ctx.globalAlpha = 0.62;
+                ctx.lineWidth = 0.9;
+                ctx.beginPath();
+                ctx.moveTo(sh.size, 0);
+                ctx.lineTo(0, sh.size * 0.45);
+                ctx.lineTo(-sh.size * 0.55, 0);
+                ctx.lineTo(0, -sh.size * 0.45);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+              }
+            }
+            ctx.restore();
+
+            // Active falling crystal prism shards onto keys
+            for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
+              const cur = evalBallAt(curTracks[trIdx], visualTime, trIdx < 2);
+              if (!cur) continue;
+              const clr = BALL_COLORS[cur.noteObj.midi % 12];
+              ctx.save();
+              ctx.translate(cur.x, cur.y);
+              ctx.rotate(now * 0.006 + trIdx);
+              ctx.fillStyle = clr.light;
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1.4;
+              const cr = cur.r;
+              ctx.beginPath();
+              ctx.moveTo(0, -cr * 1.2);
+              ctx.lineTo(cr * 0.8, 0);
+              ctx.lineTo(0, cr * 1.2);
+              ctx.lineTo(-cr * 0.8, 0);
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+              ctx.restore();
+            }
+          } else if (kineticStyle === 'ribbon_dancers') {
+            // --- FLOWING SILK AURORA RIBBONS ---
+            for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
+              const trNotes = curTracks[trIdx];
+              const isPersistent = trIdx < 2;
+              const cur = evalBallAt(trNotes, visualTime, isPersistent);
+              if (!cur) continue;
+              const clr = BALL_COLORS[cur.noteObj.midi % 12];
+
+              // Sample smooth curved trail points backwards in time
+              const pts: { x: number; y: number }[] = [{ x: cur.x, y: cur.y }];
+              for (let k = 1; k <= 24; k++) {
+                const sample = evalBallAt(trNotes, visualTime - k * 0.017, isPersistent);
+                if (!sample) break;
+                pts.push({ x: sample.x, y: sample.y });
+              }
+
+              if (pts.length >= 2) {
+                // Multi-pass glowing silk ribbon stroke
+                for (let pass = 0; pass < 3; pass++) {
+                  ctx.save();
+                  ctx.lineCap = 'round';
+                  ctx.lineJoin = 'round';
+                  ctx.beginPath();
+                  ctx.moveTo(pts[0].x, pts[0].y);
+                  for (let p = 1; p < pts.length - 1; p++) {
+                    const mx = (pts[p].x + pts[p + 1].x) / 2;
+                    const my = (pts[p].y + pts[p + 1].y) / 2;
+                    ctx.quadraticCurveTo(pts[p].x, pts[p].y, mx, my);
+                  }
+                  const tail = pts[pts.length - 1];
+                  ctx.lineTo(tail.x, tail.y);
+
+                  const rGrad = ctx.createLinearGradient(pts[0].x, pts[0].y, tail.x, tail.y);
+                  if (pass === 0) {
+                    rGrad.addColorStop(0, clr.glow);
+                    rGrad.addColorStop(0.5, '#e879f9');
+                    rGrad.addColorStop(1, 'rgba(34,211,238,0)');
+                    ctx.strokeStyle = rGrad;
+                    ctx.globalAlpha = 0.35;
+                    ctx.lineWidth = Math.max(8, cur.r * 1.9);
+                  } else if (pass === 1) {
+                    rGrad.addColorStop(0, clr.light);
+                    rGrad.addColorStop(0.6, clr.mid);
+                    rGrad.addColorStop(1, 'rgba(168,85,247,0)');
+                    ctx.strokeStyle = rGrad;
+                    ctx.globalAlpha = 0.85;
+                    ctx.lineWidth = Math.max(4, cur.r * 0.95);
+                  } else {
+                    rGrad.addColorStop(0, '#ffffff');
+                    rGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                    ctx.strokeStyle = rGrad;
+                    ctx.globalAlpha = 0.95;
+                    ctx.lineWidth = Math.max(1.8, cur.r * 0.35);
+                  }
+                  ctx.stroke();
+                  ctx.restore();
+                }
+              }
+
+              // Sparkling diamond ribbon tip
+              ctx.save();
+              ctx.translate(cur.x, cur.y);
+              ctx.rotate(now * 0.008);
+              ctx.fillStyle = '#ffffff';
+              const s = cur.r * 0.9;
+              ctx.beginPath();
+              ctx.moveTo(0, -s);
+              ctx.lineTo(s * 0.7, 0);
+              ctx.lineTo(0, s);
+              ctx.lineTo(-s * 0.7, 0);
+              ctx.closePath();
+              ctx.fill();
+              ctx.restore();
+            }
+          } else if (kineticStyle === 'pendulum_orbits') {
+            // --- HARMONIC PENDULUM WAVE & ORBITAL LASERS ---
+            const numPend = 16;
+            const span = Math.min(width - 24, 520);
+            const startX = (width - span) / 2;
+            const barY = 4;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(startX, barY);
+            ctx.lineTo(startX + span, barY);
+            ctx.stroke();
+
+            for (let p = 0; p < numPend; p++) {
+              const px = startX + (p / (numPend - 1)) * span;
+              const freq = 0.0018 * (1 + p * 0.075) * (1 + energy * 0.35);
+              const lenP = (hitLineY * 0.42) + (p % 4) * 11;
+              const angle = Math.sin(now * freq) * (0.42 + energy * 0.18);
+              const bx = px + Math.sin(angle) * lenP;
+              const by = barY + Math.cos(angle) * lenP;
+              const hueClr = BALL_COLORS[p % 12];
+
+              ctx.strokeStyle = hueClr.glow;
+              ctx.globalAlpha = 0.28 + energy * 0.28;
+              ctx.lineWidth = 1.2;
+              ctx.beginPath();
+              ctx.moveTo(px, barY);
+              ctx.lineTo(bx, by);
+              ctx.stroke();
+
+              ctx.globalAlpha = 0.78;
+              ctx.fillStyle = hueClr.light;
+              ctx.beginPath();
+              ctx.arc(bx, by, 3.6 + energy * 1.5, 0, Math.PI * 2);
               ctx.fill();
             }
             ctx.restore();
 
-            // Draw the 3D Glossy Neon Sphere with Squash & Stretch
-            ctx.save();
-            ctx.globalAlpha = cur.alpha;
-            ctx.translate(cur.x, cur.y);
-            ctx.scale(cur.sx, cur.sy);
+            // Active note orbital pendulums tethered from ceiling center to moving note orbs
+            for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
+              const cur = evalBallAt(curTracks[trIdx], visualTime, trIdx < 2);
+              if (!cur) continue;
+              const clr = BALL_COLORS[cur.noteObj.midi % 12];
+              const anchorX = width / 2 + (cur.x - width / 2) * 0.35;
 
-            // Outer ambient halo
-            const haloGrad = ctx.createRadialGradient(0, 0, cur.r * 0.3, 0, 0, cur.r * 2.1);
-            haloGrad.addColorStop(0, clr.glow);
-            haloGrad.addColorStop(0.45, clr.mid + '66');
-            haloGrad.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = haloGrad;
-            ctx.beginPath();
-            ctx.arc(0, 0, cur.r * 2.1, 0, Math.PI * 2);
-            ctx.fill();
+              ctx.save();
+              ctx.strokeStyle = clr.glow;
+              ctx.globalAlpha = 0.55 * cur.alpha;
+              ctx.lineWidth = 1.8;
+              ctx.beginPath();
+              ctx.moveTo(anchorX, 0);
+              ctx.lineTo(cur.x, cur.y);
+              ctx.stroke();
 
-            // 3D sphere body gradient
-            const orbGrad = ctx.createRadialGradient(-cur.r * 0.32, -cur.r * 0.35, cur.r * 0.1, 0, 0, cur.r);
-            orbGrad.addColorStop(0, '#ffffff');
-            orbGrad.addColorStop(0.28, clr.light);
-            orbGrad.addColorStop(0.68, clr.mid);
-            orbGrad.addColorStop(1, clr.dark);
-            ctx.fillStyle = orbGrad;
-            ctx.beginPath();
-            ctx.arc(0, 0, cur.r, 0, Math.PI * 2);
-            ctx.fill();
+              // Spinning double orbital rings around note orb
+              ctx.translate(cur.x, cur.y);
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1.4;
+              ctx.beginPath();
+              ctx.ellipse(0, 0, cur.r * 1.65, cur.r * 0.65, now * 0.007 + trIdx, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.strokeStyle = clr.glow;
+              ctx.beginPath();
+              ctx.ellipse(0, 0, cur.r * 1.65, cur.r * 0.65, -now * 0.007 - trIdx, 0, Math.PI * 2);
+              ctx.stroke();
 
-            // Crisp bright rim outline
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-            ctx.lineWidth = 1.25;
-            ctx.stroke();
+              ctx.fillStyle = clr.light;
+              ctx.beginPath();
+              ctx.arc(0, 0, cur.r * 0.85, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          } else if (kineticStyle === 'domino_shockwave') {
+            // --- CHAIN-REACTION DOMINO TILES & PLASMA LEAPS ---
+            // Draw upcoming domino tiles leaning along the hitLine
+            for (let i = 0; i < len; i++) {
+              const n = notes[i];
+              const dt = n.time - visualTime;
+              if (dt < -0.25 || dt > 1.4) continue;
+              const kp = keyPosMap.get(n.note);
+              if (!kp) continue;
+              const kx = kp.x + kp.width / 2;
+              const clr = BALL_COLORS[noteNameToMidiNumber(n.note) % 12];
+              const tilt = dt <= 0 ? Math.min(1.25, Math.abs(dt) * 4.8) : 0;
+              const tileW = Math.max(5, Math.min(13, kp.width * 0.65));
+              const tileH = Math.max(16, Math.min(34, hitLineY * 0.24));
 
-            // Note / Finger label inside main spheres if large enough
-            if (cur.r >= 8.5) {
-              ctx.fillStyle = '#0f172a';
-              ctx.font = `900 ${Math.max(7, Math.round(cur.r * 0.85))}px sans-serif`;
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              const txt = playModeRef.current === 'fingering'
-                ? String(songFingeringRef.current[cur.noteObj.origIdx] || 1)
-                : cur.noteObj.note.replace(/\d+$/, '');
-              ctx.fillText(txt, 0, 0.5);
+              ctx.save();
+              ctx.translate(kx, hitLineY - 2);
+              ctx.rotate(tilt);
+              ctx.globalAlpha = dt < 0 ? Math.max(0, 1 + dt * 3.5) : Math.min(0.95, 1.3 - dt * 0.7);
+              ctx.fillStyle = clr.mid;
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1.2;
+              ctx.fillRect(-tileW / 2, -tileH, tileW, tileH);
+              ctx.strokeRect(-tileW / 2, -tileH, tileW, tileH);
+              // Domino pip glow
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.arc(0, -tileH * 0.68, Math.max(1.5, tileW * 0.2), 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
             }
 
-            ctx.restore();
+            // Shooting plasma arcade pucks leaping between notes
+            for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
+              const trNotes = curTracks[trIdx];
+              const isPersistent = trIdx < 2;
+              const cur = evalBallAt(trNotes, visualTime, isPersistent);
+              if (!cur) continue;
+              const clr = BALL_COLORS[cur.noteObj.midi % 12];
+
+              // Segmented neon laser trail
+              ctx.save();
+              ctx.strokeStyle = clr.glow;
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              ctx.moveTo(cur.x, cur.y);
+              for (let k = 1; k <= 7; k++) {
+                const prev = evalBallAt(trNotes, visualTime - k * 0.025, isPersistent);
+                if (!prev) break;
+                ctx.lineTo(prev.x, prev.y);
+              }
+              ctx.stroke();
+
+              // Spinning octagonal arcade puck
+              ctx.translate(cur.x, cur.y);
+              ctx.rotate(now * 0.012);
+              const pr = cur.r * 1.05;
+              ctx.fillStyle = clr.mid;
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1.8;
+              ctx.beginPath();
+              for (let v = 0; v < 6; v++) {
+                const ang = (Math.PI / 3) * v;
+                if (v === 0) ctx.moveTo(Math.cos(ang) * pr, Math.sin(ang) * pr);
+                else ctx.lineTo(Math.cos(ang) * pr, Math.sin(ang) * pr);
+              }
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+              ctx.restore();
+            }
+          } else {
+            // --- ORIGINAL BOUNCE BALLS: 2. Render each active Bouncing Ball Track with ribbon comet trail + dotted preview arc + 3D glossy orb ---
+            for (let trIdx = curTracks.length - 1; trIdx >= 0; trIdx--) {
+              const trNotes = curTracks[trIdx];
+              const isPersistent = trIdx < 2;
+              const cur = evalBallAt(trNotes, visualTime, isPersistent);
+              if (!cur) continue;
+
+              const clr = BALL_COLORS[cur.noteObj.midi % 12];
+
+              // Dotted guide arc toward next key for persistent balls
+              if (isPersistent && cur.nextObj && cur.nextObj.time - visualTime <= 1.15) {
+                const targetKp = keyPosMap.get(cur.nextObj.note);
+                if (targetKp) {
+                  ctx.save();
+                  ctx.setLineDash([3, 5]);
+                  ctx.strokeStyle = clr.glow;
+                  ctx.globalAlpha = 0.22 * cur.alpha;
+                  ctx.lineWidth = 1.4;
+                  ctx.beginPath();
+                  ctx.moveTo(cur.x, cur.y);
+                  const nx = targetKp.x + targetKp.width / 2;
+                  ctx.quadraticCurveTo((cur.x + nx) / 2, Math.max(8, cur.y - 24), nx, hitLineY - 3);
+                  ctx.stroke();
+                  ctx.restore();
+                }
+              }
+
+              // Smooth analytical glowing ribbon trail behind the ball (8 samples back in time)
+              ctx.save();
+              for (let k = 8; k >= 1; k--) {
+                const trailEval = evalBallAt(trNotes, visualTime - k * 0.022, isPersistent);
+                if (!trailEval) continue;
+                const tFrac = 1 - k / 9;
+                ctx.globalAlpha = cur.alpha * tFrac * 0.42;
+                ctx.fillStyle = clr.glow;
+                ctx.beginPath();
+                ctx.arc(trailEval.x, trailEval.y, Math.max(1.5, cur.r * tFrac * 0.82), 0, Math.PI * 2);
+                ctx.fill();
+              }
+              ctx.restore();
+
+              // Draw the 3D Glossy Neon Sphere with Squash & Stretch
+              ctx.save();
+              ctx.globalAlpha = cur.alpha;
+              ctx.translate(cur.x, cur.y);
+              ctx.scale(cur.sx, cur.sy);
+
+              // Outer ambient halo
+              const haloGrad = ctx.createRadialGradient(0, 0, cur.r * 0.3, 0, 0, cur.r * 2.1);
+              haloGrad.addColorStop(0, clr.glow);
+              haloGrad.addColorStop(0.45, clr.mid + '66');
+              haloGrad.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = haloGrad;
+              ctx.beginPath();
+              ctx.arc(0, 0, cur.r * 2.1, 0, Math.PI * 2);
+              ctx.fill();
+
+              // 3D sphere body gradient
+              const orbGrad = ctx.createRadialGradient(-cur.r * 0.32, -cur.r * 0.35, cur.r * 0.1, 0, 0, cur.r);
+              orbGrad.addColorStop(0, '#ffffff');
+              orbGrad.addColorStop(0.28, clr.light);
+              orbGrad.addColorStop(0.68, clr.mid);
+              orbGrad.addColorStop(1, clr.dark);
+              ctx.fillStyle = orbGrad;
+              ctx.beginPath();
+              ctx.arc(0, 0, cur.r, 0, Math.PI * 2);
+              ctx.fill();
+
+              // Crisp bright rim outline
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+              ctx.lineWidth = 1.25;
+              ctx.stroke();
+
+              // Note / Finger label inside main spheres if large enough
+              if (cur.r >= 8.5) {
+                ctx.fillStyle = '#0f172a';
+                ctx.font = `900 ${Math.max(7, Math.round(cur.r * 0.85))}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const txt = playModeRef.current === 'fingering'
+                  ? String(songFingeringRef.current[cur.noteObj.origIdx] || 1)
+                  : cur.noteObj.note.replace(/\d+$/, '');
+                ctx.fillText(txt, 0, 0.5);
+              }
+
+              ctx.restore();
+            }
           }
         } else {
           // Pass 1: Render White Key Notes
@@ -2426,37 +3293,9 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 ? 'bg-gradient-to-r from-amber-500/25 via-fuchsia-500/25 to-cyan-500/25 border-amber-400/70 text-amber-300 shadow-sm'
                 : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white'
             }`}
-            title="Choose from 14 Visual Effects for your performance & videos!"
+            title={`Choose from ${WATERFALL_FX_ITEMS.length} Visual Effects for your performance & videos!`}
           >
-            <span>
-              {fxMode === 'all'
-                ? '👑 Ultra Mix'
-                : fxMode === 'bounce_balls'
-                ? '🏀 Bounce'
-                : fxMode === 'fireworks'
-                ? '🎆 Fireworks'
-                : fxMode === 'aurora'
-                ? '🌈 Laser'
-                : fxMode === 'lightning'
-                ? '⚡ Lightning'
-                : fxMode === 'fire'
-                ? '🔥 Lava'
-                : fxMode === 'vortex'
-                ? '🌀 Portal'
-                : fxMode === 'gold_rain'
-                ? '🎵 Gold Notes'
-                : fxMode === 'matrix'
-                ? '🟢 Matrix'
-                : fxMode === 'meteor'
-                ? '☄️ Meteors'
-                : fxMode === 'crystal'
-                ? '💎 Crystals'
-                : fxMode === 'wave'
-                ? '🌊 Waves'
-                : fxMode === 'stars'
-                ? '🌌 Stars'
-                : '🚫 FX Off'}
-            </span>
+            <span>{getWaterfallFxMeta(fxMode).shortLabel}</span>
             <span className="text-[8px] opacity-80">▾</span>
           </button>
 
@@ -2818,7 +3657,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
         </div>
       )}
 
-      {/* FLOATING 14-FX GALLERY PICKER MODAL (Scrollable viewport modal so nothing gets clipped on mobile) */}
+      {/* FLOATING 18-FX GALLERY PICKER MODAL (Scrollable viewport modal so nothing gets clipped on mobile) */}
       {isFxPickerOpen && (
         <div
           className="fixed inset-0 z-[130] bg-slate-950/75 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4"
@@ -2830,7 +3669,7 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
           >
             <div className="flex items-center justify-between px-3 py-2 bg-slate-950/90 border-b border-slate-800 shrink-0">
               <span className="text-[11px] sm:text-xs font-black text-amber-300 uppercase tracking-wider">
-                ✨ Note Key FX (14 Modes • Scroll to view all)
+                ✨ Note Key &amp; Kinetic FX ({WATERFALL_FX_ITEMS.length} Modes • Scroll to view all)
               </span>
               <button
                 onClick={() => setIsFxPickerOpen(false)}
@@ -2839,27 +3678,12 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                 ✕
               </button>
             </div>
-            <div className="p-2.5 sm:p-3 overflow-y-auto touch-pan-y overscroll-contain grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-1.5 sm:gap-2">
-              {([
-                { id: 'all', label: '👑 Ultra Mix', desc: 'All together!' },
-                { id: 'bounce_balls', label: '🏀 Bounce Balls', desc: 'Rhythmic spheres' },
-                { id: 'fireworks', label: '🎆 Fireworks', desc: '360° bursts' },
-                { id: 'aurora', label: '🌈 Aurora Laser', desc: 'Vertical beams' },
-                { id: 'lightning', label: '⚡ Tesla Sparks', desc: 'Electric arcs' },
-                { id: 'fire', label: '🔥 Lava Blaze', desc: 'Flames & embers' },
-                { id: 'vortex', label: '🌀 3D Portal', desc: 'Galaxy & waves' },
-                { id: 'gold_rain', label: '🎵 24K Gold Notes', desc: 'Symbols ♪ ♫ 𝄞' },
-                { id: 'matrix', label: '🟢 Cyber Matrix', desc: 'Digital rain' },
-                { id: 'meteor', label: '☄️ Meteors', desc: 'Shooting stars' },
-                { id: 'crystal', label: '💎 Crystals', desc: 'Diamond prisms' },
-                { id: 'wave', label: '🌊 Audio Waves', desc: 'Equalizer bars' },
-                { id: 'stars', label: '🌌 Galaxy', desc: 'Starry sky' },
-                { id: 'off', label: '🚫 None', desc: 'Clean notes only' },
-              ] as const).map((item) => (
+            <div className="p-2.5 sm:p-3 overflow-y-auto touch-pan-y overscroll-contain grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 sm:gap-2">
+              {WATERFALL_FX_ITEMS.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => {
-                    setFxMode(item.id);
+                    applyFxMode(item.id);
                     fxModeRef.current = item.id;
                     if (item.id === 'off') {
                       sparksRef.current = [];
@@ -2868,6 +3692,11 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                       fireworksRef.current = [];
                       laserBeamsRef.current = [];
                       meteorsRef.current = [];
+                      elasticPlucksRef.current = [];
+                      kineticHitsRef.current = 0;
+                      overloadChargeRef.current = 0;
+                      overloadLevelRef.current = 1;
+                      mosaicPetalsRef.current = [];
                     }
                     setIsFxPickerOpen(false);
                     setLoopFeedbackMessage(`✨ Active FX: ${item.label} (${item.desc})`);
@@ -2876,11 +3705,20 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
                   className={`px-2.5 py-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-0.5 ${
                     fxMode === item.id
                       ? 'bg-amber-500/25 border-amber-400 text-amber-200 font-black shadow-md'
+                      : item.category === 'kinetic'
+                      ? 'bg-cyan-950/35 border-cyan-500/40 text-cyan-100 hover:bg-cyan-900/40'
                       : 'bg-slate-800/80 border-slate-700/80 text-slate-200 hover:bg-slate-800'
                   }`}
                 >
-                  <span className="text-[11px] font-extrabold truncate">{item.label}</span>
-                  <span className="text-[9px] text-slate-400 truncate">{item.desc}</span>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[11px] font-extrabold truncate">{item.label}</span>
+                    {item.category === 'kinetic' && (
+                      <span className="text-[8px] font-black uppercase px-1 py-0.2 rounded bg-cyan-500/25 text-cyan-300 shrink-0">
+                        Kinetic
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[9px] text-slate-400 line-clamp-2">{item.desc}</span>
                 </button>
               ))}
             </div>

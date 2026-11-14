@@ -582,6 +582,19 @@
       "totalPings": 1,
       "totalSessions": 1,
       "theme": "midnight"
+    },
+    "dev_1794659570105_p88jat8": {
+      "deviceId": "dev_1794659570105_p88jat8",
+      "username": "Pianista_384",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-14T12:32:54.035Z",
+      "lastSeen": "2026-11-14T12:52:56.726Z",
+      "lastView": "piano",
+      "totalPings": 8,
+      "totalSessions": 2,
+      "screen": "985x444",
+      "theme": "midnight",
+      "lastSong": "Super Mario Bros"
     }
   },
   "daily": {
@@ -634,9 +647,10 @@
     "2026-11-14": {
       "devices": [
         "dev_1792226201606_1h3tezw",
-        "dev_1794638426108_vsn1rij"
+        "dev_1794638426108_vsn1rij",
+        "dev_1794659570105_p88jat8"
       ],
-      "pings": 11
+      "pings": 19
     }
   },
   "songs": {
@@ -653,6 +667,7 @@
     "Il Mattino (Morning Mood - Peer Gynt)": 1,
     "Electric Piano": 2,
     "Baby Shark": 11,
-    "Baby Shark Dance #babyshark MIDI DB Free MIDI FILES.midi files Made By @PinkFong.midi files": 3
+    "Baby Shark Dance #babyshark MIDI DB Free MIDI FILES.midi files Made By @PinkFong.midi files": 3,
+    "Super Mario Bros": 1
   }
 }

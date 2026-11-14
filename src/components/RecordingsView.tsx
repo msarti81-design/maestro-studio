@@ -34,6 +34,7 @@ import {
   Flag,
 } from 'lucide-react';
 import { PublishDisclaimerModal, ReportSongModal } from './CommunitySafetyModals';
+import { useBackHandler } from '../utils/backNavigation';
 
 interface RecordingsViewProps {
   onSelectSongToPlay: (song: InteractiveSong) => void;
@@ -59,6 +60,9 @@ export const RecordingsView: React.FC<RecordingsViewProps> = ({
   // Disclaimer & Report Modals State
   const [songToPublish, setSongToPublish] = useState<InteractiveSong | null>(null);
   const [songToReport, setSongToReport] = useState<InteractiveSong | null>(null);
+
+  useBackHandler(Boolean(songToPublish), () => setSongToPublish(null), 35);
+  useBackHandler(Boolean(songToReport), () => setSongToReport(null), 35);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);

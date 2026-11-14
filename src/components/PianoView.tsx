@@ -9,6 +9,15 @@ import {
   saveCenterAnimation,
 } from '../utils/centerStageAnimations';
 import {
+  WaterfallFxMode,
+  WATERFALL_FX_ITEMS,
+  STUDIO_THEME_OPTIONS,
+  loadWaterfallFx,
+  saveWaterfallFx,
+  getWaterfallFxMeta,
+} from '../utils/waterfallFx';
+import { useBackHandler } from '../utils/backNavigation';
+import {
   Home,
   Maximize,
   Minimize,
@@ -369,8 +378,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
   }, [selectedSongToPlay]);
 
-  // Options Modal & Center Stage Animation Gallery Modal
+  // Options Modal, Scrollable Sub-Modals & Center Stage Animation Gallery Modal
   const [isOptionsModalOpen, setIsOptionsModalOpen] = useState<boolean>(false);
+  type OptionsSubModalType = 'themes' | 'fx' | 'view' | 'keys' | 'sound' | 'tools' | 'share' | null;
+  const [activeOptionsSubModal, setActiveOptionsSubModal] = useState<OptionsSubModalType>(null);
+  const [waterfallFxMode, setWaterfallFxMode] = useState<WaterfallFxMode>(() => loadWaterfallFx());
   const [centerAnimation, setCenterAnimation] = useState<CenterStageAnimationId>(() => loadCenterAnimation());
   const [isCenterAnimModalOpen, setIsCenterAnimModalOpen] = useState<boolean>(false);
   const centerAnimationRef = useRef<CenterStageAnimationId>(centerAnimation);
@@ -519,6 +531,16 @@ export const PianoView: React.FC<PianoViewProps> = ({
       saveCenterAnimation(id);
       const meta = getCenterAnimationMeta(id);
       showToast(id === 'none' ? '🚫 Center Stage Animation disabled' : `${meta.icon} Center Stage: ${meta.name}`);
+    },
+    [showToast]
+  );
+
+  const handleWaterfallFxChange = useCallback(
+    (mode: WaterfallFxMode) => {
+      setWaterfallFxMode(mode);
+      saveWaterfallFx(mode);
+      const meta = getWaterfallFxMeta(mode);
+      showToast(mode === 'off' ? '🚫 Note Visual FX disabled' : `✨ Note FX: ${meta.label}`);
     },
     [showToast]
   );
@@ -1175,6 +1197,33 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   // --- REAL-TIME CHORD DETECTOR STATE ---
   const [isChordDetectorOpen, setIsChordDetectorOpen] = useState<boolean>(false);
+
+  // Step-by-step Back Navigation Handlers (Android Hardware Back + Browser Popstate)
+  useBackHandler(activeOptionsSubModal !== null, () => {
+    setActiveOptionsSubModal(null);
+    setIsOptionsModalOpen(true);
+  }, 40);
+  useBackHandler(isCenterAnimModalOpen, () => {
+    setIsCenterAnimModalOpen(false);
+    setIsOptionsModalOpen(true);
+  }, 40);
+  useBackHandler(isOptionsModalOpen, () => setIsOptionsModalOpen(false), 30);
+  useBackHandler(isLibraryOpen, () => setIsLibraryOpen(false), 30);
+  useBackHandler(isChordDetectorOpen, () => setIsChordDetectorOpen(false), 30);
+  useBackHandler(isMetronomeModalOpen, () => setIsMetronomeModalOpen(false), 30);
+  useBackHandler(isProfileModalOpen, () => setIsProfileModalOpen(false), 30);
+  useBackHandler(isVideoMenuOpen, () => setIsVideoMenuOpen(false), 30);
+  useBackHandler(Boolean(recordedVideoUrl), () => {
+    if (recordedVideoUrl) {
+      URL.revokeObjectURL(recordedVideoUrl);
+    }
+    setRecordedVideoUrl(null);
+    setRecordedVideoBlob(null);
+  }, 30);
+  useBackHandler(showWaterfall, () => {
+    setShowWaterfall(false);
+    setSongGuidance(null);
+  }, 20);
   const [activeChordNotes, setActiveChordNotes] = useState<string[]>([]);
   const [chordHistory, setChordHistory] = useState<{ chord: IdentifiedChord; time: string }[]>([]);
 
@@ -4252,6 +4301,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 sheetScrollMode={sheetScrollMode}
                 restartTrigger={waterfallRestartTrigger}
                 centerAnimation={centerAnimation}
+                fxMode={waterfallFxMode}
+                onFxModeChange={handleWaterfallFxChange}
                 isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
                 onActiveGuidanceChange={setSongGuidance}
                 onMasterclassFinished={() => {
@@ -4389,66 +4440,100 @@ export const PianoView: React.FC<PianoViewProps> = ({
         className="w-full flex-1 min-h-0 select-none touch-none relative"
       />
 
-      {/* OPTIONS MODAL */}
+      {/* COMPACT OPTIONS & CUSTOMIZATION HUB MODAL */}
       {isOptionsModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-850 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-amber-400" />
-                <h3 className="font-bold text-white text-sm">Options & Customization</h3>
+        <div
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-2 sm:p-4"
+          onClick={() => setIsOptionsModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90dvh]"
+          >
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-950/90 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <Sliders className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="font-bold text-white text-sm truncate">Options &amp; Customization</h3>
+                  <p className="text-[10px] text-slate-400 truncate">Tap any category to open its full scrollable panel</p>
+                </div>
               </div>
               <button
                 onClick={() => setIsOptionsModalOpen(false)}
-                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors"
+                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-4 space-y-5 overflow-y-auto max-h-[75vh] touch-pan-y text-xs">
-              {/* Studio Theme Selector */}
+            <div className="p-3 sm:p-4 space-y-2 overflow-y-auto touch-pan-y overscroll-contain text-xs">
+              {/* 1. Studio Keyboard Style */}
               {onThemeChange && (
-                <div>
-                  <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2 flex items-center gap-1.5">
-                    <Palette className="w-3.5 h-3.5 text-amber-400" />
-                    1. Studio Keyboard Style &amp; Aesthetics (Zero Latency)
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {[
-                      { id: 'midnight', name: '🎹 Concert Ivory', desc: 'Ivory & Ebony Steinway' },
-                      { id: 'mahogany', name: '🪵 Vintage Wood', desc: 'Maple & Rosewood 3D' },
-                      { id: 'marble', name: '🏛️ Carrara Marble', desc: 'White Marble & Portoro' },
-                      { id: 'gold', name: '👑 Royal Gold & Pearl', desc: 'Mother of Pearl & 24k Gold' },
-                      { id: 'carbon', name: '🏎️ Titanium & Carbon', desc: 'Titanium & Carbon Fiber' },
-                      { id: 'neon', name: '⚡ Cyber Synth', desc: 'Smoked Glass & Laser' },
-                      { id: 'rainbow', name: '🌈 Pop Rainbow', desc: 'Pop Rainbow & Kawaii' },
-                      { id: 'animals', name: '🐾 Pet & Paws', desc: 'Cute Mascots & Paws' },
-                      { id: 'candy', name: '🍭 Sweet Pastel', desc: 'Pastel Candy & Sprinkles' },
-                      { id: 'emerald', name: '💎 Emerald Jade', desc: 'Imperial Jade & Malachite' },
-                      { id: 'ruby', name: '🔥 Magma Ruby', desc: 'Rose Quartz & Lava Ruby' },
-                      { id: 'sapphire', name: '❄️ Arctic Sapphire', desc: 'Ice Crystal & Sapphire' },
-                      { id: 'amethyst', name: '🔮 Cosmic Amethyst', desc: 'Aurora Opal & Amethyst' },
-                    ].map((th) => (
-                      <button
-                        key={th.id}
-                        onClick={() => onThemeChange(th.id as StudioTheme)}
-                        className={`p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between cursor-pointer ${
-                          studioTheme === th.id
-                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
-                            : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
-                        }`}
-                      >
-                        <span className="font-bold text-[11px]">{th.name}</span>
-                        <span className="text-[9px] text-slate-400">{th.desc}</span>
-                      </button>
-                    ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOptionsModalOpen(false);
+                    setActiveOptionsSubModal('themes');
+                  }}
+                  className="w-full text-left bg-gradient-to-r from-amber-500/15 via-slate-800/85 to-slate-800/85 hover:brightness-110 active:scale-[0.99] p-2.5 sm:p-3 rounded-xl border border-amber-500/35 flex items-center justify-between gap-2.5 cursor-pointer transition-all"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-slate-900/90 border border-amber-400/40 flex items-center justify-center text-base shrink-0">
+                      🎨
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-white text-xs flex items-center gap-1.5 flex-wrap">
+                        <span>Studio Keyboard Style</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">
+                          {STUDIO_THEME_OPTIONS.find((t) => t.id === studioTheme)?.name || studioTheme}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 block truncate">
+                        13 acoustic, crystal, cyber &amp; pop keyboard finishes
+                      </span>
+                    </div>
                   </div>
-                </div>
+                  <ChevronRight className="w-4 h-4 text-amber-400 shrink-0" />
+                </button>
               )}
 
-              {/* COMPACT TRIGGER FOR CENTER STAGE ANIMATION GALLERY MODAL */}
-              <div className="bg-gradient-to-r from-cyan-500/15 via-slate-800/85 to-amber-500/15 p-3 rounded-xl border border-cyan-500/35 flex items-center justify-between gap-2.5">
+              {/* 2. Note & Kinetic Visual FX (Includes Neon Elastics & All 24 FX) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOptionsModalOpen(false);
+                  setActiveOptionsSubModal('fx');
+                }}
+                className="w-full text-left bg-gradient-to-r from-fuchsia-500/15 via-slate-800/85 to-cyan-500/15 hover:brightness-110 active:scale-[0.99] p-2.5 sm:p-3 rounded-xl border border-fuchsia-500/35 flex items-center justify-between gap-2.5 cursor-pointer transition-all"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900/90 border border-fuchsia-400/40 flex items-center justify-center text-base shrink-0">
+                    {getWaterfallFxMeta(waterfallFxMode).icon}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-white text-xs flex items-center gap-1.5 flex-wrap">
+                      <span>Note &amp; Kinetic Visual FX</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 font-mono">
+                        {getWaterfallFxMeta(waterfallFxMode).shortLabel}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">
+                      Neon Elastics, Combo Reactor, Pinball, Overload &amp; {WATERFALL_FX_ITEMS.length} FX
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-fuchsia-300 shrink-0" />
+              </button>
+
+              {/* 3. Center Stage 8-Bit Animation */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOptionsModalOpen(false);
+                  setIsCenterAnimModalOpen(true);
+                }}
+                className="w-full text-left bg-gradient-to-r from-cyan-500/15 via-slate-800/85 to-amber-500/15 hover:brightness-110 active:scale-[0.99] p-2.5 sm:p-3 rounded-xl border border-cyan-500/35 flex items-center justify-between gap-2.5 cursor-pointer transition-all"
+              >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-slate-900/90 border border-cyan-400/40 flex items-center justify-center text-base shrink-0">
                     {getCenterAnimationMeta(centerAnimation).icon}
@@ -4456,7 +4541,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   <div className="min-w-0">
                     <div className="font-bold text-white text-xs flex items-center gap-1.5 flex-wrap">
                       <span>Center Stage Animation</span>
-                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono">
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono">
                         {getCenterAnimationMeta(centerAnimation).name}
                       </span>
                     </div>
@@ -4465,587 +4550,890 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setIsOptionsModalOpen(false);
-                    setIsCenterAnimModalOpen(true);
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-amber-400 hover:brightness-110 text-slate-950 font-black text-[11px] shrink-0 cursor-pointer shadow"
-                >
-                  Choose →
-                </button>
-              </div>
+                <ChevronRight className="w-4 h-4 text-cyan-300 shrink-0" />
+              </button>
 
-              {/* DEFAULT VIEW MODE ON SONG START */}
-              <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-amber-400" />
-                    <div>
-                      <span className="font-bold text-white text-xs">Default View on Song Start</span>
-                      <span className="text-[10px] text-slate-400 block">Choose which display mode launches automatically (Waterfall or Sheet)</span>
-                    </div>
+              {/* 4. View & Sheet Scroll Style */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOptionsModalOpen(false);
+                  setActiveOptionsSubModal('view');
+                }}
+                className="w-full text-left bg-slate-800/80 hover:bg-slate-800 active:scale-[0.99] p-2.5 sm:p-3 rounded-xl border border-slate-700/80 flex items-center justify-between gap-2.5 cursor-pointer transition-all"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900/90 border border-slate-600 flex items-center justify-center text-base shrink-0">
+                    🎼
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    onClick={() => handleDefaultViewModeChange('waterfall')}
-                    className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
-                      defaultViewMode === 'waterfall'
-                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
-                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
-                    }`}
-                  >
-                    <span className="block text-sm mb-0.5">🎹</span>
-                    <span className="font-bold text-[11px] block">Waterfall</span>
-                    <span className="text-[9px] text-slate-400 block">Synthesia arcade falling notes</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleDefaultViewModeChange('sheet')}
-                    className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
-                      defaultViewMode === 'sheet'
-                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
-                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
-                    }`}
-                  >
-                    <span className="block text-sm mb-0.5">🎼</span>
-                    <span className="font-bold text-[11px] block">Traditional Sheet Music</span>
-                    <span className="text-[9px] text-slate-400 block">Scrolling grand staff notation</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* SHEET SCROLL MODE SELECTOR */}
-              <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-amber-400" />
-                    <div>
-                      <span className="font-bold text-white text-xs">Sheet Music Scroll Style</span>
-                      <span className="text-[10px] text-slate-400 block">Choose how the playhead line and music staff move</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    onClick={() => handleSheetScrollModeChange('sweeping')}
-                    className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
-                      sheetScrollMode === 'sweeping'
-                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
-                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
-                    }`}
-                  >
-                    <span className="block text-sm mb-0.5">🚩</span>
-                    <span className="font-bold text-[11px] block">Moving Line &amp; Page Turn (Default)</span>
-                    <span className="text-[9px] text-slate-400 block">Line sweeps across and turns page</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleSheetScrollModeChange('continuous')}
-                    className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
-                      sheetScrollMode === 'continuous'
-                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
-                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
-                    }`}
-                  >
-                    <span className="block text-sm mb-0.5">📜</span>
-                    <span className="font-bold text-[11px] block">Fixed Line &amp; Continuous Scroll</span>
-                    <span className="text-[9px] text-slate-400 block">Playhead stays fixed while score glides</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* TEST SEQUENTIAL AUDIO NOTES (GLISSANDO CRACKLE-FREE TEST) */}
-              <div className="bg-gradient-to-r from-amber-500/15 via-slate-800/80 to-slate-800/80 p-3.5 rounded-xl border border-amber-500/30 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Music className="w-4 h-4 text-amber-400 shrink-0" />
-                    <div>
-                      <span className="font-bold text-white text-xs">Sequential Audio Latency Test</span>
-                      <span className="text-[10px] text-slate-400 block">Plays 36 rapid waterfall notes (35ms) to verify zero crackling or dropouts</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleRunGlissandoTest}
-                    disabled={isTestingGlissando}
-                    className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-110 active:scale-95 disabled:opacity-50 text-slate-950 font-black text-xs rounded-lg shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-all"
-                  >
-                    <span>{isTestingGlissando ? '⏳ Listening...' : '▶️ Test 36 Notes'}</span>
-                  </button>
-                </div>
-                {glissandoTestReport && (
-                  <div className="p-2 bg-slate-900/90 rounded-lg border border-slate-700/80 text-[11px] font-mono text-emerald-400">
-                    {glissandoTestReport}
-                  </div>
-                )}
-              </div>
-
-              {/* 1. METRONOME & TEMPO */}
-              <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Timer className="w-4 h-4 text-amber-400" />
-                    <div>
-                      <span className="font-bold text-white text-xs">Piano Metronome</span>
-                      <span className="text-[10px] text-slate-400 block">Acoustic click at steady tempo</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setIsPianoMetronomeActive(!isPianoMetronomeActive)}
-                    className={`px-3 py-1 rounded-lg font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
-                      isPianoMetronomeActive
-                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 animate-pulse'
-                        : 'bg-slate-700/80 hover:bg-slate-700 text-slate-300'
-                    }`}
-                  >
-                    <div className={`w-2 h-2 rounded-full ${isPianoMetronomeActive ? 'bg-slate-950' : 'bg-slate-400'}`} />
-                    <span>{isPianoMetronomeActive ? 'ACTIVE' : 'OFF'}</span>
-                  </button>
-                </div>
-
-                {/* BPM Slider & Stepper */}
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    onClick={() => setPianoBpm((prev) => Math.max(40, prev - 5))}
-                    className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-200 font-bold text-xs cursor-pointer"
-                    title="-5 BPM"
-                  >
-                    -5
-                  </button>
-                  <button
-                    onClick={() => setPianoBpm((prev) => Math.max(40, prev - 1))}
-                    className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-200 font-bold text-xs cursor-pointer"
-                    title="-1 BPM"
-                  >
-                    -1
-                  </button>
-                  <div className="flex-1 flex flex-col items-center">
-                    <span className="font-mono font-black text-amber-400 text-base leading-none">
-                      {pianoBpm} <span className="text-[10px] font-sans text-slate-400 font-bold">BPM</span>
-                    </span>
-                    <input
-                      type="range"
-                      min="40"
-                      max="240"
-                      value={pianoBpm}
-                      onChange={(e) => setPianoBpm(parseInt(e.target.value))}
-                      className="w-full accent-amber-500 bg-slate-700 h-1.5 rounded cursor-pointer mt-1"
-                    />
-                  </div>
-                  <button
-                    onClick={() => setPianoBpm((prev) => Math.min(240, prev + 1))}
-                    className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-200 font-bold text-xs cursor-pointer"
-                    title="+1 BPM"
-                  >
-                    +1
-                  </button>
-                  <button
-                    onClick={() => setPianoBpm((prev) => Math.min(240, prev + 5))}
-                    className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-200 font-bold text-xs cursor-pointer"
-                    title="+5 BPM"
-                  >
-                    +5
-                  </button>
-                </div>
-
-                {/* Quick BPM Presets */}
-                <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                  <span className="text-[9px] text-slate-500 font-bold mr-1">Preset:</span>
-                  {[
-                    { label: '60 Largo', bpm: 60 },
-                    { label: '80 Andante', bpm: 80 },
-                    { label: '108 Moderato', bpm: 108 },
-                    { label: '120 Allegro', bpm: 120 },
-                    { label: '144 Vivace', bpm: 144 },
-                    { label: '168 Presto', bpm: 168 },
-                  ].map((p) => (
-                    <button
-                      key={p.bpm}
-                      onClick={() => setPianoBpm(p.bpm)}
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
-                        pianoBpm === p.bpm
-                          ? 'bg-amber-400 text-slate-950 font-bold'
-                          : 'bg-slate-750 hover:bg-slate-700 text-slate-300 hover:text-white'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="pt-1.5 border-t border-slate-700/60 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400">Advanced rhythm tools</span>
-                  <button
-                    onClick={() => {
-                      setIsOptionsModalOpen(false);
-                      setIsMetronomeModalOpen(true);
-                    }}
-                    className="px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded text-[10px] font-bold transition-colors cursor-pointer"
-                  >
-                    Open Full Rhythm Console →
-                  </button>
-                </div>
-              </div>
-
-              {/* 2. REAL PIANO MICROPHONE (PITCH DETECTION) */}
-              <div className="space-y-2">
-                <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Mic className={`w-4 h-4 ${isMicListening ? 'text-emerald-400' : 'text-slate-400'}`} />
-                    <div>
-                      <span className="font-bold text-white text-xs">Real Piano Microphone</span>
-                      <span className="text-[10px] text-slate-400 block">Play on your acoustic piano and the app detects notes</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={toggleMicrophonePitch}
-                    className={`px-3 py-1 rounded-lg font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
-                      isMicListening
-                        ? 'bg-emerald-400 text-slate-950 shadow-md ring-1 ring-emerald-300 animate-pulse'
-                        : 'bg-slate-750 hover:bg-slate-700 text-slate-300 border border-slate-700'
-                    }`}
-                  >
-                    <div className={`w-2 h-2 rounded-full ${isMicListening ? 'bg-slate-950' : 'bg-slate-400'}`} />
-                    <span>{isMicListening ? 'ACTIVE' : 'OFF'}</span>
-                  </button>
-                </div>
-
-                {/* Keyboard Detection Mode */}
-                <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/60">
-                  <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-1.5">
-                    Keyboard Detection Mode
-                  </label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {(['economy', 'balanced', 'pro'] as const).map((mode) => {
-                      const labels = {
-                        economy: 'Economy / Entry-Level',
-                        balanced: 'Balanced',
-                        pro: 'Professional',
-                      };
-                      const isActive = micSensitivity === mode;
-                      return (
-                        <button
-                          key={mode}
-                          onClick={() => {
-                            setMicSensitivity(mode);
-                            pitchDetector.setSensitivityMode(mode);
-                          }}
-                          className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center ${
-                            isActive
-                              ? 'bg-amber-500 text-slate-950 shadow ring-1 ring-amber-400 font-black'
-                              : 'bg-slate-700/60 hover:bg-slate-700 text-slate-300'
-                          }`}
-                        >
-                          {labels[mode]}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <span className="text-[9px] text-slate-400 mt-1.5 block leading-relaxed">
-                    Use "Economy" for entry-level or non-perfect keyboards (no strict filter). Use "Professional" for high-end digital or acoustic pianos.
-                  </span>
-                </div>
-              </div>
-
-              {/* 3. Master Volume */}
-              <div>
-                <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
-                  3. Master Volume ({volume}%)
-                </label>
-                <div className="flex items-center gap-3 bg-slate-800/60 p-3 rounded-xl border border-slate-800">
-                  <Volume2 className="w-4 h-4 text-amber-400 shrink-0" />
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={volume}
-                    onChange={handleVolumeChange}
-                    className="flex-1 accent-amber-500 bg-slate-700 h-2 rounded cursor-pointer"
-                  />
-                  <span className="font-mono font-bold text-amber-400 w-10 text-right">{volume}%</span>
-                </div>
-              </div>
-
-              {/* Key Layout & Size */}
-              <div>
-                <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
-                  4. Key Layout &amp; Size
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {[
-                    { id: 'compact', label: 'Compact', keys: '14 White Keys', desc: 'Wide and spacious keys' },
-                    { id: 'balanced', label: 'Balanced', keys: '21 White Keys', desc: 'Standard 2-handed play' },
-                    { id: 'extended', label: 'Extended', keys: '28 White Keys', desc: 'Wide pitch range' },
-                  ].map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setKeyboardLayout(item.id as KeyboardLayoutType)}
-                      className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between ${
-                        keyboardLayout === item.id
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-md'
-                          : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between font-bold">
-                        <span>{item.label}</span>
-                        {keyboardLayout === item.id && <Check className="w-3.5 h-3.5 text-amber-400" />}
-                      </div>
-                      <div className="text-[10px] font-semibold text-amber-400/90 mt-1">{item.keys}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">{item.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Instrument Timbre */}
-              <div>
-                <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
-                  5. Instrument Timbre
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[
-                    { id: 'piano', label: 'Grand Piano' },
-                    { id: 'guitar', label: 'Acoustic Guitar' },
-                    { id: 'strings', label: 'Orchestral Strings' },
-                    { id: 'bass', label: 'Electric Bass' },
-                  ].map((inst) => (
-                    <button
-                      key={inst.id}
-                      onClick={() => setInstrument(inst.id as InstrumentType)}
-                      className={`p-2.5 rounded-xl border text-center transition-all ${
-                        instrument === inst.id
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold'
-                          : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
-                      }`}
-                    >
-                      {inst.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Acoustic Profile & Hi-Fi Reverb */}
-              <div>
-                <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
-                  6. Acoustic Profile &amp; Hi-Fi Reverb
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                  {[
-                    { id: 'concert', label: 'Grand Concert', desc: 'Royal hall (Steinway D), deep and majestic' },
-                    { id: 'studio', label: 'Intimate Studio', desc: 'Close mic, warm, dry and defined' },
-                    { id: 'bright', label: 'Live Stage', desc: 'Bright and sharp, strong presence' },
-                    { id: 'warm', label: 'Warm Felt', desc: 'Soft vintage felt piano acoustics' },
-                    { id: 'cathedral', label: 'Cathedral', desc: 'Ethereal 4.5s spatial cathedral hall' },
-                  ].map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => handleSoundProfileChange(p.id as SoundProfile)}
-                      className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
-                        soundProfile === p.id
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-md'
-                          : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between text-xs font-bold">
-                        <span>{p.label}</span>
-                        {soundProfile === p.id && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-                      </div>
-                      <div className="text-[9px] text-slate-400 mt-1 leading-snug">{p.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Octave Transposition */}
-              <div>
-                <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
-                  7. Octave Transposition
-                </label>
-                <div className="flex items-center gap-3 bg-slate-800/60 p-3 rounded-xl border border-slate-800">
-                  <span className="text-slate-300">Shift Octave:</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setOctaveShift((prev) => Math.max(-2, prev - 1))}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-white font-bold"
-                    >
-                      -1
-                    </button>
-                    <span className="font-mono font-bold text-amber-400 px-2">
-                      {octaveShift > 0 ? `+${octaveShift}` : octaveShift}
-                    </span>
-                    <button
-                      onClick={() => setOctaveShift((prev) => Math.min(2, prev + 1))}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-white font-bold"
-                    >
-                      +1
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Note Notation Format */}
-              <div>
-                <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
-                  8. Note Notation (Key Labels)
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {[
-                    { id: 'latin', label: 'Latin / Solfege', example: 'DO, RE, MI, FA, SOL...', desc: 'Classical solfege' },
-                    { id: 'letter', label: 'English Letters', example: 'C, D, E, F, G, A, B', desc: 'International standard' },
-                    { id: 'german', label: 'German System', example: 'C, D, E, F, G, A, H', desc: 'B -> H, A# -> B' },
-                    { id: 'numeric', label: 'Numeric / Degrees', example: '1, 2, 3, 4, 5, 6, 7', desc: 'Scale degrees' },
-                    { id: 'none', label: 'None (Blank Keys)', example: '—', desc: 'For advanced players' },
-                  ].map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNotationChange(item.id as NoteNotationFormat)}
-                      className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
-                        noteNotation === item.id
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-md'
-                          : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold">{item.label}</span>
-                        {noteNotation === item.id && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-                      </div>
-                      <div className="text-[10px] font-mono font-bold text-amber-400/90 mt-1">{item.example}</div>
-                      <div className="text-[9px] text-slate-400 mt-0.5">{item.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Horizontal View Always Active */}
-              <div className="pt-2 border-t border-slate-800">
-                <div className="p-3 bg-slate-800/50 rounded-xl flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-white flex items-center gap-1.5">
-                      <span>Horizontal View Always Active</span>
-                      <span className="bg-emerald-500/20 text-emerald-400 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">
-                        ACTIVE
+                  <div className="min-w-0">
+                    <div className="font-bold text-white text-xs flex items-center gap-1.5 flex-wrap">
+                      <span>View &amp; Sheet Scroll Style</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-700 text-amber-300 font-mono">
+                        {defaultViewMode === 'waterfall' ? 'Waterfall' : 'Sheet'} • {sheetScrollMode === 'sweeping' ? 'Sweeping' : 'Continuous'}
                       </span>
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">
-                      The keyboard is always displayed full-screen horizontally for two-handed play.
-                    </div>
-                  </div>
-                  {isPortrait && (
-                    <button
-                      onClick={() => setRotationAngle((prev) => (prev === 90 ? 270 : 90))}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-750 text-amber-400 border border-slate-700 rounded-lg text-[11px] font-bold flex items-center gap-1 shrink-0"
-                    >
-                      <RotateCw className="w-3 h-3" />
-                      <span>Flip 180°</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* 9. Rate Your App & Share VirtuKeys */}
-              <div className="pt-3 border-t border-slate-800 space-y-2.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 block">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>9. Rate Your App & Share VirtuKeys</span>
-                </label>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {/* Rate App Card */}
-                  <a
-                    href="https://play.google.com/store/apps/details?id=it.freeserv.virtukeys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-3 rounded-xl bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-slate-900 border border-amber-500/40 hover:border-amber-400 transition-all flex flex-col justify-between group"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-amber-300 group-hover:text-amber-200">
-                          ⭐ Rate Your App
-                        </span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          Google Play
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-300 mt-1 leading-relaxed">
-                        Enjoying VirtuKeys? Leave a 5-star review on the Google Play Store to support new features!
-                      </p>
-                    </div>
-                    <div className="mt-2 pt-1.5 border-t border-amber-500/20 text-[10px] font-bold text-amber-400 flex items-center justify-between">
-                      <span>Rate on Play Store</span>
-                      <span>★★★★★</span>
-                    </div>
-                  </a>
-
-                  {/* Share App Card */}
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500/15 via-slate-900 to-slate-900 border border-cyan-500/35 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-cyan-300 flex items-center gap-1">
-                          <Share2 className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Share App</span>
-                        </span>
-                        <span className="text-[9px] font-mono text-cyan-300/80">freeserv.it/Song</span>
-                      </div>
-                      <p className="text-[10px] text-slate-300 mt-1 leading-relaxed">
-                        Invite friends & fellow musicians to play together on VirtuKeys Studio:
-                      </p>
-                    </div>
-                    <div className="mt-2 flex items-center gap-1.5">
-                      <button
-                        onClick={async () => {
-                          const shareMsg =
-                            '🎹 Play piano with me on VirtuKeys Studio! 88-key grand piano, falling notes with 13 visual FX, live jam band & multiplayer masterclass: https://freeserv.it/Song — App: https://play.google.com/store/apps/details?id=it.freeserv.virtukeys';
-                          if (navigator.share) {
-                            try {
-                              await navigator.share({
-                                title: 'VirtuKeys Studio',
-                                text: shareMsg,
-                                url: 'https://freeserv.it/Song',
-                              });
-                              return;
-                            } catch {
-                              // fallback
-                            }
-                          }
-                          try {
-                            await navigator.clipboard.writeText(shareMsg);
-                            setIsAppShareCopied(true);
-                            setTimeout(() => setIsAppShareCopied(false), 2500);
-                          } catch {
-                            // ignore
-                          }
-                        }}
-                        className="flex-1 py-1.5 px-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer"
-                      >
-                        {isAppShareCopied ? <Check className="w-3 h-3" /> : <Share2 className="w-3 h-3" />}
-                        <span>{isAppShareCopied ? 'Copied!' : 'Share Now'}</span>
-                      </button>
-                      <a
-                        href={`https://wa.me/?text=${encodeURIComponent(
-                          '🎹 Play piano with me on VirtuKeys Studio! https://freeserv.it/Song — Google Play: https://play.google.com/store/apps/details?id=it.freeserv.virtukeys'
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all"
-                      >
-                        <MessageCircle className="w-3 h-3" />
-                        <span>WhatsApp</span>
-                      </a>
-                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">
+                      Default song start view &amp; sheet music playhead movement
+                    </span>
                   </div>
                 </div>
-              </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* 5. Keys Size, Octave & Labels */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOptionsModalOpen(false);
+                  setActiveOptionsSubModal('keys');
+                }}
+                className="w-full text-left bg-slate-800/80 hover:bg-slate-800 active:scale-[0.99] p-2.5 sm:p-3 rounded-xl border border-slate-700/80 flex items-center justify-between gap-2.5 cursor-pointer transition-all"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900/90 border border-slate-600 flex items-center justify-center text-base shrink-0">
+                    ⌨️
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-white text-xs flex items-center gap-1.5 flex-wrap">
+                      <span>Keys Size, Octave &amp; Labels</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-700 text-amber-300 font-mono">
+                        {keyboardLayout === 'compact' ? '14 Keys' : keyboardLayout === 'balanced' ? '21 Keys' : '28 Keys'} • Oct {octaveShift > 0 ? `+${octaveShift}` : octaveShift} • {noteNotation.toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">
+                      White key count, octave shift &amp; solfege/letter labels
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* 6. Sound, Instrument, Reverb & Volume */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOptionsModalOpen(false);
+                  setActiveOptionsSubModal('sound');
+                }}
+                className="w-full text-left bg-slate-800/80 hover:bg-slate-800 active:scale-[0.99] p-2.5 sm:p-3 rounded-xl border border-slate-700/80 flex items-center justify-between gap-2.5 cursor-pointer transition-all"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900/90 border border-slate-600 flex items-center justify-center text-base shrink-0">
+                    🔊
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-white text-xs flex items-center gap-1.5 flex-wrap">
+                      <span>Sound, Instrument &amp; Reverb</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-700 text-emerald-300 font-mono uppercase">
+                        {instrument} • {soundProfile} • {volume}%
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">
+                      Master volume, instrument timbre &amp; spatial hall acoustics
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* 7. Metronome, Microphone & Audio Test */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOptionsModalOpen(false);
+                  setActiveOptionsSubModal('tools');
+                }}
+                className="w-full text-left bg-slate-800/80 hover:bg-slate-800 active:scale-[0.99] p-2.5 sm:p-3 rounded-xl border border-slate-700/80 flex items-center justify-between gap-2.5 cursor-pointer transition-all"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900/90 border border-slate-600 flex items-center justify-center text-base shrink-0">
+                    ⏱️
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-white text-xs flex items-center gap-1.5 flex-wrap">
+                      <span>Metronome, Mic &amp; Latency Test</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-700 text-amber-300 font-mono">
+                        {pianoBpm} BPM{isPianoMetronomeActive ? ' ON' : ''}{isMicListening ? ' • MIC ON' : ''}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">
+                      BPM tempo click, acoustic pitch detection &amp; 36-note glissando test
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* 8. Display, Rate & Share VirtuKeys */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOptionsModalOpen(false);
+                  setActiveOptionsSubModal('share');
+                }}
+                className="w-full text-left bg-slate-800/80 hover:bg-slate-800 active:scale-[0.99] p-2.5 sm:p-3 rounded-xl border border-slate-700/80 flex items-center justify-between gap-2.5 cursor-pointer transition-all"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900/90 border border-slate-600 flex items-center justify-center text-base shrink-0">
+                    ⭐
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-white text-xs flex items-center gap-1.5 flex-wrap">
+                      <span>Display, Rate &amp; Share App</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+                        HORIZONTAL ACTIVE
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">
+                      Orientation flip 180°, Google Play review &amp; WhatsApp invite
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
             </div>
 
-            <div className="p-3 bg-slate-850 border-t border-slate-800 flex justify-end">
+            <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between shrink-0">
+              <span className="text-[10px] text-slate-400">All settings auto-saved</span>
               <button
                 onClick={() => setIsOptionsModalOpen(false)}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs"
+                className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs cursor-pointer"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DEDICATED SCROLLABLE SUB-MODALS FOR EACH OPTIONS CATEGORY */}
+      {activeOptionsSubModal && (
+        <div
+          className="fixed inset-0 z-[130] bg-slate-950/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4"
+          onClick={() => setActiveOptionsSubModal(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[88dvh] bg-slate-900 border-2 border-amber-500/40 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          >
+            {/* Sub-Modal Header with Back to Options + Close */}
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-950/90 border-b border-slate-800 shrink-0 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={() => {
+                    setActiveOptionsSubModal(null);
+                    setIsOptionsModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                  title="Back to Options"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Back</span>
+                </button>
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wide truncate">
+                    {activeOptionsSubModal === 'themes' && '🎨 Studio Keyboard Style'}
+                    {activeOptionsSubModal === 'fx' && '✨ Note & Kinetic Visual FX'}
+                    {activeOptionsSubModal === 'view' && '🎼 View & Sheet Scroll Style'}
+                    {activeOptionsSubModal === 'keys' && '⌨️ Keys Size, Octave & Labels'}
+                    {activeOptionsSubModal === 'sound' && '🔊 Sound, Instrument & Reverb'}
+                    {activeOptionsSubModal === 'tools' && '⏱️ Metronome, Mic & Latency Test'}
+                    {activeOptionsSubModal === 'share' && '⭐ Display, Rate & Share App'}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 truncate">Scroll inside to view all choices</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveOptionsSubModal(null)}
+                className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center cursor-pointer shrink-0"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Sub-Modal Scrollable Body */}
+            <div className="p-3 sm:p-4 overflow-y-auto touch-pan-y overscroll-contain space-y-4 text-xs">
+              {/* SUB-MODAL 1: STUDIO KEYBOARD STYLE */}
+              {activeOptionsSubModal === 'themes' && onThemeChange && (
+                <div>
+                  <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2 flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Zero-Latency Keyboard Finishes ({STUDIO_THEME_OPTIONS.length} Styles)</span>
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {STUDIO_THEME_OPTIONS.map((th) => (
+                      <button
+                        key={th.id}
+                        onClick={() => onThemeChange(th.id)}
+                        className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between cursor-pointer ${
+                          studioTheme === th.id
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
+                            : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-bold text-[11px]">{th.name}</span>
+                          {studioTheme === th.id && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                        </div>
+                        <span className="text-[9px] text-slate-400 mt-0.5">{th.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-MODAL 2: NOTE & KINETIC VISUAL FX */}
+              {activeOptionsSubModal === 'fx' && (
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-cyan-300">
+                        ⚡ Kinetic Physics Visualizers (Best for Viral Shorts &amp; Reels!)
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {WATERFALL_FX_ITEMS.filter((fx) => fx.category === 'kinetic').map((fx) => {
+                        const isActive = waterfallFxMode === fx.id;
+                        return (
+                          <button
+                            key={fx.id}
+                            onClick={() => handleWaterfallFxChange(fx.id)}
+                            className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer flex items-start gap-2.5 ${
+                              isActive
+                                ? 'bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20 border-cyan-400 text-white shadow-lg'
+                                : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+                            }`}
+                          >
+                            <span className="text-2xl shrink-0">{fx.icon}</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <span className="font-black text-xs text-white truncate">{fx.label}</span>
+                                <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 shrink-0">
+                                  KINETIC
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-300 mt-1 leading-snug">{fx.desc}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-amber-300 mb-2">
+                      🎆 Full Stage &amp; Particle FX
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {WATERFALL_FX_ITEMS.filter((fx) => fx.category !== 'kinetic').map((fx) => {
+                        const isActive = waterfallFxMode === fx.id;
+                        return (
+                          <button
+                            key={fx.id}
+                            onClick={() => handleWaterfallFxChange(fx.id)}
+                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-2 ${
+                              isActive
+                                ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow'
+                                : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
+                            }`}
+                          >
+                            <span className="text-lg shrink-0">{fx.icon}</span>
+                            <div className="min-w-0">
+                              <div className="font-bold text-[11px] text-white truncate">{fx.label}</div>
+                              <div className="text-[9px] text-slate-400 mt-0.5 leading-snug">{fx.desc}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-MODAL 3: VIEW & SHEET SCROLL STYLE */}
+              {activeOptionsSubModal === 'view' && (
+                <div className="space-y-4">
+                  <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-amber-400" />
+                      <div>
+                        <span className="font-bold text-white text-xs">Default View on Song Start</span>
+                        <span className="text-[10px] text-slate-400 block">
+                          Choose which display mode launches automatically (Waterfall or Sheet)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={() => handleDefaultViewModeChange('waterfall')}
+                        className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
+                          defaultViewMode === 'waterfall'
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
+                            : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <span className="block text-sm mb-0.5">🎹</span>
+                        <span className="font-bold text-[11px] block">Waterfall</span>
+                        <span className="text-[9px] text-slate-400 block">Synthesia arcade falling notes</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleDefaultViewModeChange('sheet')}
+                        className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
+                          defaultViewMode === 'sheet'
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
+                            : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <span className="block text-sm mb-0.5">🎼</span>
+                        <span className="font-bold text-[11px] block">Traditional Sheet Music</span>
+                        <span className="text-[9px] text-slate-400 block">Scrolling grand staff notation</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-amber-400" />
+                      <div>
+                        <span className="font-bold text-white text-xs">Sheet Music Scroll Style</span>
+                        <span className="text-[10px] text-slate-400 block">
+                          Choose how the playhead line and music staff move
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={() => handleSheetScrollModeChange('sweeping')}
+                        className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
+                          sheetScrollMode === 'sweeping'
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
+                            : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <span className="block text-sm mb-0.5">🚩</span>
+                        <span className="font-bold text-[11px] block">Moving Line &amp; Page Turn (Default)</span>
+                        <span className="text-[9px] text-slate-400 block">Line sweeps across and turns page</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleSheetScrollModeChange('continuous')}
+                        className={`p-2.5 rounded-xl text-center border transition-all cursor-pointer ${
+                          sheetScrollMode === 'continuous'
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow'
+                            : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <span className="block text-sm mb-0.5">📜</span>
+                        <span className="font-bold text-[11px] block">Fixed Line &amp; Continuous Scroll</span>
+                        <span className="text-[9px] text-slate-400 block">Playhead stays fixed while score glides</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-MODAL 4: KEYS SIZE, OCTAVE & LABELS */}
+              {activeOptionsSubModal === 'keys' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
+                      Key Layout &amp; Size
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {[
+                        { id: 'compact', label: 'Compact', keys: '14 White Keys', desc: 'Wide and spacious keys' },
+                        { id: 'balanced', label: 'Balanced', keys: '21 White Keys', desc: 'Standard 2-handed play' },
+                        { id: 'extended', label: 'Extended', keys: '28 White Keys', desc: 'Wide pitch range' },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => setKeyboardLayout(item.id as KeyboardLayoutType)}
+                          className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between cursor-pointer ${
+                            keyboardLayout === item.id
+                              ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-md'
+                              : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-bold">
+                            <span>{item.label}</span>
+                            {keyboardLayout === item.id && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                          </div>
+                          <div className="text-[10px] font-semibold text-amber-400/90 mt-1">{item.keys}</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">{item.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
+                      Octave Transposition
+                    </label>
+                    <div className="flex items-center justify-between bg-slate-800/60 p-3 rounded-xl border border-slate-800">
+                      <span className="text-slate-300">Shift Octave Range:</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setOctaveShift((prev) => Math.max(-2, prev - 1))}
+                          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-white font-bold cursor-pointer"
+                        >
+                          -1
+                        </button>
+                        <span className="font-mono font-bold text-amber-400 px-2">
+                          {octaveShift > 0 ? `+${octaveShift}` : octaveShift}
+                        </span>
+                        <button
+                          onClick={() => setOctaveShift((prev) => Math.min(2, prev + 1))}
+                          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-white font-bold cursor-pointer"
+                        >
+                          +1
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
+                      Note Notation (Key Labels)
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { id: 'latin', label: 'Latin / Solfege', example: 'DO, RE, MI, FA, SOL...', desc: 'Classical solfege' },
+                        { id: 'letter', label: 'English Letters', example: 'C, D, E, F, G, A, B', desc: 'International standard' },
+                        { id: 'german', label: 'German System', example: 'C, D, E, F, G, A, H', desc: 'B -> H, A# -> B' },
+                        { id: 'numeric', label: 'Numeric / Degrees', example: '1, 2, 3, 4, 5, 6, 7', desc: 'Scale degrees' },
+                        { id: 'none', label: 'None (Blank Keys)', example: '—', desc: 'For advanced players' },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => handleNotationChange(item.id as NoteNotationFormat)}
+                          className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                            noteNotation === item.id
+                              ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-md'
+                              : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold">{item.label}</span>
+                            {noteNotation === item.id && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                          </div>
+                          <div className="text-[10px] font-mono font-bold text-amber-400/90 mt-1">{item.example}</div>
+                          <div className="text-[9px] text-slate-400 mt-0.5">{item.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-MODAL 5: SOUND, INSTRUMENT, REVERB & VOLUME */}
+              {activeOptionsSubModal === 'sound' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
+                      Master Volume ({volume}%)
+                    </label>
+                    <div className="flex items-center gap-3 bg-slate-800/60 p-3 rounded-xl border border-slate-800">
+                      <Volume2 className="w-4 h-4 text-amber-400 shrink-0" />
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={volume}
+                        onChange={handleVolumeChange}
+                        className="flex-1 accent-amber-500 bg-slate-700 h-2 rounded cursor-pointer"
+                      />
+                      <span className="font-mono font-bold text-amber-400 w-10 text-right">{volume}%</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
+                      Instrument Timbre
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { id: 'piano', label: 'Grand Piano' },
+                        { id: 'guitar', label: 'Acoustic Guitar' },
+                        { id: 'strings', label: 'Orchestral Strings' },
+                        { id: 'bass', label: 'Electric Bass' },
+                      ].map((inst) => (
+                        <button
+                          key={inst.id}
+                          onClick={() => setInstrument(inst.id as InstrumentType)}
+                          className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                            instrument === inst.id
+                              ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold'
+                              : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          {inst.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-2">
+                      Acoustic Profile &amp; Hi-Fi Reverb
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { id: 'concert', label: 'Grand Concert', desc: 'Royal hall (Steinway D), deep and majestic' },
+                        { id: 'studio', label: 'Intimate Studio', desc: 'Close mic, warm, dry and defined' },
+                        { id: 'bright', label: 'Live Stage', desc: 'Bright and sharp, strong presence' },
+                        { id: 'warm', label: 'Warm Felt', desc: 'Soft vintage felt piano acoustics' },
+                        { id: 'cathedral', label: 'Cathedral', desc: 'Ethereal 4.5s spatial cathedral hall' },
+                      ].map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => handleSoundProfileChange(p.id as SoundProfile)}
+                          className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                            soundProfile === p.id
+                              ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold shadow-md'
+                              : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-xs font-bold">
+                            <span>{p.label}</span>
+                            {soundProfile === p.id && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                          </div>
+                          <div className="text-[9px] text-slate-400 mt-1 leading-snug">{p.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-MODAL 6: METRONOME, MICROPHONE & LATENCY TEST */}
+              {activeOptionsSubModal === 'tools' && (
+                <div className="space-y-4">
+                  {/* Sequential Audio Latency Test */}
+                  <div className="bg-gradient-to-r from-amber-500/15 via-slate-800/80 to-slate-800/80 p-3.5 rounded-xl border border-amber-500/30 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Music className="w-4 h-4 text-amber-400 shrink-0" />
+                        <div>
+                          <span className="font-bold text-white text-xs">Sequential Audio Latency Test</span>
+                          <span className="text-[10px] text-slate-400 block">
+                            Plays 36 rapid waterfall notes (35ms) to verify zero crackling or dropouts
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleRunGlissandoTest}
+                        disabled={isTestingGlissando}
+                        className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-110 active:scale-95 disabled:opacity-50 text-slate-950 font-black text-xs rounded-lg shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-all"
+                      >
+                        <span>{isTestingGlissando ? '⏳ Listening...' : '▶️ Test 36 Notes'}</span>
+                      </button>
+                    </div>
+                    {glissandoTestReport && (
+                      <div className="p-2 bg-slate-900/90 rounded-lg border border-slate-700/80 text-[11px] font-mono text-emerald-400">
+                        {glissandoTestReport}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Piano Metronome */}
+                  <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Timer className="w-4 h-4 text-amber-400" />
+                        <div>
+                          <span className="font-bold text-white text-xs">Piano Metronome</span>
+                          <span className="text-[10px] text-slate-400 block">Acoustic click at steady tempo</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setIsPianoMetronomeActive(!isPianoMetronomeActive)}
+                        className={`px-3 py-1 rounded-lg font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                          isPianoMetronomeActive
+                            ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 animate-pulse'
+                            : 'bg-slate-700/80 hover:bg-slate-700 text-slate-300'
+                        }`}
+                      >
+                        <div className={`w-2 h-2 rounded-full ${isPianoMetronomeActive ? 'bg-slate-950' : 'bg-slate-400'}`} />
+                        <span>{isPianoMetronomeActive ? 'ACTIVE' : 'OFF'}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => setPianoBpm((prev) => Math.max(40, prev - 5))}
+                        className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-200 font-bold text-xs cursor-pointer"
+                      >
+                        -5
+                      </button>
+                      <button
+                        onClick={() => setPianoBpm((prev) => Math.max(40, prev - 1))}
+                        className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-200 font-bold text-xs cursor-pointer"
+                      >
+                        -1
+                      </button>
+                      <div className="flex-1 flex flex-col items-center">
+                        <span className="font-mono font-black text-amber-400 text-base leading-none">
+                          {pianoBpm} <span className="text-[10px] font-sans text-slate-400 font-bold">BPM</span>
+                        </span>
+                        <input
+                          type="range"
+                          min="40"
+                          max="240"
+                          value={pianoBpm}
+                          onChange={(e) => setPianoBpm(parseInt(e.target.value))}
+                          className="w-full accent-amber-500 bg-slate-700 h-1.5 rounded cursor-pointer mt-1"
+                        />
+                      </div>
+                      <button
+                        onClick={() => setPianoBpm((prev) => Math.min(240, prev + 1))}
+                        className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-200 font-bold text-xs cursor-pointer"
+                      >
+                        +1
+                      </button>
+                      <button
+                        onClick={() => setPianoBpm((prev) => Math.min(240, prev + 5))}
+                        className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-200 font-bold text-xs cursor-pointer"
+                      >
+                        +5
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                      <span className="text-[9px] text-slate-500 font-bold mr-1">Preset:</span>
+                      {[
+                        { label: '60 Largo', bpm: 60 },
+                        { label: '80 Andante', bpm: 80 },
+                        { label: '108 Moderato', bpm: 108 },
+                        { label: '120 Allegro', bpm: 120 },
+                        { label: '144 Vivace', bpm: 144 },
+                        { label: '168 Presto', bpm: 168 },
+                      ].map((p) => (
+                        <button
+                          key={p.bpm}
+                          onClick={() => setPianoBpm(p.bpm)}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
+                            pianoBpm === p.bpm
+                              ? 'bg-amber-400 text-slate-950 font-bold'
+                              : 'bg-slate-750 hover:bg-slate-700 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="pt-1.5 border-t border-slate-700/60 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-400">Advanced rhythm tools</span>
+                      <button
+                        onClick={() => {
+                          setActiveOptionsSubModal(null);
+                          setIsMetronomeModalOpen(true);
+                        }}
+                        className="px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded text-[10px] font-bold transition-colors cursor-pointer"
+                      >
+                        Open Full Rhythm Console →
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Real Piano Microphone */}
+                  <div className="space-y-2">
+                    <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Mic className={`w-4 h-4 ${isMicListening ? 'text-emerald-400' : 'text-slate-400'}`} />
+                        <div>
+                          <span className="font-bold text-white text-xs">Real Piano Microphone</span>
+                          <span className="text-[10px] text-slate-400 block">
+                            Play on your acoustic piano and the app detects notes
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={toggleMicrophonePitch}
+                        className={`px-3 py-1 rounded-lg font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                          isMicListening
+                            ? 'bg-emerald-400 text-slate-950 shadow-md ring-1 ring-emerald-300 animate-pulse'
+                            : 'bg-slate-750 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                        }`}
+                      >
+                        <div className={`w-2 h-2 rounded-full ${isMicListening ? 'bg-slate-950' : 'bg-slate-400'}`} />
+                        <span>{isMicListening ? 'ACTIVE' : 'OFF'}</span>
+                      </button>
+                    </div>
+
+                    <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/60">
+                      <label className="text-slate-400 font-bold uppercase text-[10px] tracking-wider block mb-1.5">
+                        Keyboard Detection Mode
+                      </label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {(['economy', 'balanced', 'pro'] as const).map((mode) => {
+                          const labels = {
+                            economy: 'Economy / Entry-Level',
+                            balanced: 'Balanced',
+                            pro: 'Professional',
+                          };
+                          const isActive = micSensitivity === mode;
+                          return (
+                            <button
+                              key={mode}
+                              onClick={() => {
+                                setMicSensitivity(mode);
+                                pitchDetector.setSensitivityMode(mode);
+                              }}
+                              className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center ${
+                                isActive
+                                  ? 'bg-amber-500 text-slate-950 shadow ring-1 ring-amber-400 font-black'
+                                  : 'bg-slate-700/60 hover:bg-slate-700 text-slate-300'
+                              }`}
+                            >
+                              {labels[mode]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <span className="text-[9px] text-slate-400 mt-1.5 block leading-relaxed">
+                        Use &quot;Economy&quot; for entry-level or non-perfect keyboards (no strict filter). Use &quot;Professional&quot; for high-end digital or acoustic pianos.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-MODAL 7: DISPLAY, RATE & SHARE APP */}
+              {activeOptionsSubModal === 'share' && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/80 flex items-center justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-white flex items-center gap-1.5">
+                        <span>Horizontal View Always Active</span>
+                        <span className="bg-emerald-500/20 text-emerald-400 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">
+                          ACTIVE
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        The keyboard is always displayed full-screen horizontally for two-handed play.
+                      </div>
+                    </div>
+                    {isPortrait && (
+                      <button
+                        onClick={() => setRotationAngle((prev) => (prev === 90 ? 270 : 90))}
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-750 text-amber-400 border border-slate-700 rounded-lg text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+                      >
+                        <RotateCw className="w-3 h-3" />
+                        <span>Flip 180°</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <a
+                      href="https://play.google.com/store/apps/details?id=it.freeserv.virtukeys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-3 rounded-xl bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-slate-900 border border-amber-500/40 hover:border-amber-400 transition-all flex flex-col justify-between group"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-amber-300 group-hover:text-amber-200">
+                            ⭐ Rate Your App
+                          </span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Google Play
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-300 mt-1 leading-relaxed">
+                          Enjoying VirtuKeys? Leave a 5-star review on the Google Play Store to support new features!
+                        </p>
+                      </div>
+                      <div className="mt-2 pt-1.5 border-t border-amber-500/20 text-[10px] font-bold text-amber-400 flex items-center justify-between">
+                        <span>Rate on Play Store</span>
+                        <span>★★★★★</span>
+                      </div>
+                    </a>
+
+                    <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500/15 via-slate-900 to-slate-900 border border-cyan-500/35 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-cyan-300 flex items-center gap-1">
+                            <Share2 className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Share App</span>
+                          </span>
+                          <span className="text-[9px] font-mono text-cyan-300/80">freeserv.it/Song</span>
+                        </div>
+                        <p className="text-[10px] text-slate-300 mt-1 leading-relaxed">
+                          Invite friends &amp; fellow musicians to play together on VirtuKeys Studio:
+                        </p>
+                      </div>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <button
+                          onClick={async () => {
+                            const shareMsg =
+                              '🎹 Play piano with me on VirtuKeys Studio! 88-key grand piano, falling notes with 18 visual FX, live jam band & multiplayer masterclass: https://freeserv.it/Song — App: https://play.google.com/store/apps/details?id=it.freeserv.virtukeys';
+                            if (navigator.share) {
+                              try {
+                                await navigator.share({
+                                  title: 'VirtuKeys Studio',
+                                  text: shareMsg,
+                                  url: 'https://freeserv.it/Song',
+                                });
+                                return;
+                              } catch {
+                                // fallback
+                              }
+                            }
+                            try {
+                              await navigator.clipboard.writeText(shareMsg);
+                              setIsAppShareCopied(true);
+                              setTimeout(() => setIsAppShareCopied(false), 2500);
+                            } catch {
+                              // ignore
+                            }
+                          }}
+                          className="flex-1 py-1.5 px-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer"
+                        >
+                          {isAppShareCopied ? <Check className="w-3 h-3" /> : <Share2 className="w-3 h-3" />}
+                          <span>{isAppShareCopied ? 'Copied!' : 'Share Now'}</span>
+                        </button>
+                        <a
+                          href={`https://wa.me/?text=${encodeURIComponent(
+                            '🎹 Play piano with me on VirtuKeys Studio! https://freeserv.it/Song — Google Play: https://play.google.com/store/apps/details?id=it.freeserv.virtukeys'
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] flex items-center justify-center gap-1 transition-all"
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          <span>WhatsApp</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sub-Modal Footer */}
+            <div className="px-4 py-2.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between shrink-0">
+              <button
+                onClick={() => {
+                  setActiveOptionsSubModal(null);
+                  setIsOptionsModalOpen(true);
+                }}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-lg cursor-pointer text-xs flex items-center gap-1"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>All Options</span>
+              </button>
+              <button
+                onClick={() => setActiveOptionsSubModal(null)}
+                className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg cursor-pointer text-xs"
+              >
+                Done
               </button>
             </div>
           </div>
@@ -5556,8 +5944,19 @@ export const PianoView: React.FC<PianoViewProps> = ({
             className="w-full max-w-2xl max-h-[88dvh] bg-slate-900 border-2 border-cyan-500/50 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-950/90 border-b border-slate-800 shrink-0">
-              <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-950/90 border-b border-slate-800 shrink-0 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={() => {
+                    setIsCenterAnimModalOpen(false);
+                    setIsOptionsModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                  title="Back to Options"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Back</span>
+                </button>
                 <span className="text-xl shrink-0">🕹️</span>
                 <div className="min-w-0">
                   <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wide truncate">

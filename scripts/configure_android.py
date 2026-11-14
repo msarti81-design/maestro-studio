@@ -143,6 +143,7 @@ import android.content.pm.PackageManager;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -156,6 +157,19 @@ public class MainActivity extends BridgeActivity {
         enableStickyImmersiveMode();
         requestAudioAndStoragePermissions();
         setupWebViewDownloadAndAudioHandler();
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (bridge != null && bridge.getWebView() != null) {
+                    bridge.getWebView().post(() ->
+                        bridge.getWebView().evaluateJavascript(
+                            "if (window.__virtukeysHandleBack) { window.__virtukeysHandleBack(); } else { window.dispatchEvent(new CustomEvent('virtukeys:back')); }",
+                            null
+                        )
+                    );
+                }
+            }
+        });
     }
 
     private void requestAudioAndStoragePermissions() {

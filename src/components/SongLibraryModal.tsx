@@ -38,6 +38,7 @@ import {
   FileMusic,
 } from 'lucide-react';
 import { PublishDisclaimerModal, ReportSongModal } from './CommunitySafetyModals';
+import { useBackHandler } from '../utils/backNavigation';
 
 interface SongLibraryModalProps {
   isOpen: boolean;
@@ -117,6 +118,11 @@ export const SongLibraryModal: React.FC<SongLibraryModalProps> = ({
   const [songToPublish, setSongToPublish] = useState<InteractiveSong | null>(null);
   const [pendingPublishDirectly, setPendingPublishDirectly] = useState<boolean>(false);
   const [songToReport, setSongToReport] = useState<InteractiveSong | null>(null);
+
+  useBackHandler(isMidiSelectorOpen, () => setIsMidiSelectorOpen(false), 40);
+  useBackHandler(Boolean(songToPublish), () => setSongToPublish(null), 40);
+  useBackHandler(Boolean(songToReport), () => setSongToReport(null), 40);
+  useBackHandler(isTitleEditorPinned, () => setIsTitleEditorPinned(false), 40);
 
   const handleSaveNewSong = (publishDirectly: boolean) => {
     if (!newTitle.trim()) {
