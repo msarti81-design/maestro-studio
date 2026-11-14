@@ -295,16 +295,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.236",
-      buildDate: "2026-11-14 08:45",
-      commit: "f2a9c41",
+      version: "1.0.237",
+      buildDate: "2026-11-14 09:30",
+      commit: "a8d4e19",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "24 Note & Kinetic Visual FX including 6 new anticipation visualizers: Combo Reactor, Overload Detonator, Laser Pinball Arena, Gravity Slingshot, Crystal Mosaic & Auto-Morph Twist",
-        "Full-row clickable 3-dots Options Hub cards with scrollable category sub-modals",
-        "Universal step-by-step Android & Web Back navigation across every modal, sub-modal, Waterfall and view without accidental app exit",
-        "Signed release AAB & APK generation synced to v1.0.236 (versionCode 10236)"
+        "Overload Detonator 100% blasts trigger earthquake screen shake, flying shrapnel & 4-stage progressive piano destruction into an Abyssal Crater while music keeps playing",
+        "One-tap Repair button in top bar + automatic restore on song/FX reset",
+        "Universal step-by-step Android & Web Back navigation across all views, modals & sub-modals",
+        "Signed release AAB & APK generation synced to v1.0.237 (versionCode 10237)"
       ]
     });
   });

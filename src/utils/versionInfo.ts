@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.236';
-export const APP_BUILD_DATE = '14 Nov 2026 - 08:45';
-export const APP_COMMIT = 'f2a9c41';
+export const APP_VERSION = '1.0.237';
+export const APP_BUILD_DATE = '14 Nov 2026 - 09:30';
+export const APP_COMMIT = 'a8d4e19';
 export const APP_CHANGELOG = [
-  'Added 6 curiosity & anticipation kinetic visualizers (24 FX total): Combo Reactor, Overload Detonator (0→100% Blast), Laser Pinball Arena, Gravity Slingshot, Crystal Mosaic, and Auto-Morph Twist',
-  'Full-row tappable category triggers in 3-dots Options hub opening dedicated scrollable sub-modals',
-  'Universal step-by-step Back navigation across Android hardware Back button and browser Popstate (steps back 1 layer cleanly across all modals, Waterfall & views without ever exiting the app)',
-  'Dynamic GitHub Actions APK/AAB release versioning synced to v1.0.236 (versionCode 10236)',
+  'Overload Detonator 100% blast now triggers a 60fps damped earthquake screen shake & flying key shrapnel',
+  'Progressive 4-stage piano destruction: hairline cracks → deep shatter splits → glowing magma fissures → smoking Abyssal Crater while music keeps playing uninterrupted',
+  'One-tap Repair button in the top bar (plus automatic key restoration on song switch or FX reset)',
+  'Dynamic GitHub Actions APK/AAB release versioning synced to v1.0.237 (versionCode 10237)',
 ];
 
 export interface ServerVersionInfo {

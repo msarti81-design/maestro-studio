@@ -27,6 +27,8 @@ interface CanvasPianoProps {
   activeGuidanceTip?: string | null;
   guidanceHand?: 'right' | 'left';
   studentPressedNotesRef?: React.MutableRefObject<Set<string>>;
+  damageLevel?: number;
+  blastSeq?: number;
 }
 
 interface KeyRect {
@@ -57,6 +59,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
   activeGuidanceTip = null,
   guidanceHand = 'right',
   studentPressedNotesRef,
+  damageLevel = 0,
+  blastSeq = 0,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -93,6 +97,31 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
 
   const guidanceHandRef = useRef<'right' | 'left'>(guidanceHand);
   guidanceHandRef.current = guidanceHand;
+
+  const damageLevelRef = useRef<number>(damageLevel);
+  damageLevelRef.current = damageLevel;
+  const blastSeqRef = useRef<number>(blastSeq);
+  blastSeqRef.current = blastSeq;
+  const lastProcessedBlastSeqRef = useRef<number>(blastSeq);
+  const lastDamageTickRef = useRef<number>(performance.now());
+  const blastFlashRef = useRef<number>(0);
+  const shrapnelRef = useRef<
+    {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      rot: number;
+      vRot: number;
+      w: number;
+      h: number;
+      isBlack: boolean;
+      isEmber?: boolean;
+      color?: string;
+      life: number;
+      maxLife: number;
+    }[]
+  >([]);
 
   // Animated Transparent Hand Position (Smooth gliding interpolation across keys)
   const handPosRef = useRef<{
@@ -2390,9 +2419,58 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       const demoNotes = songPlaybackState.activeDemoNotes;
       const theme = studioThemeRef.current;
       const activeGuidanceNoteVal = activeGuidanceNoteRef.current;
+      const curDamage = Math.max(0, Math.floor(damageLevelRef.current));
+      const curBlastSeq = blastSeqRef.current;
+      const nowPerf = performance.now();
+      const dt = Math.min(0.05, Math.max(0.001, (nowPerf - lastDamageTickRef.current) / 1000));
+      lastDamageTickRef.current = nowPerf;
+
+      // Spawn flying key debris & embers whenever a new bomb blast occurs
+      if (curBlastSeq !== lastProcessedBlastSeqRef.current) {
+        if (curBlastSeq > lastProcessedBlastSeqRef.current && curDamage > 0) {
+          blastFlashRef.current = 1.0;
+          const shardCount = curDamage >= 4 ? 72 : 24 + curDamage * 12;
+          const epicenters = [0.22, 0.5, 0.78];
+          const shards = shrapnelRef.current;
+          for (let s = 0; s < shardCount; s++) {
+            const ex = width * epicenters[s % epicenters.length] + (Math.random() - 0.5) * width * 0.28;
+            const ey = height * (0.28 + Math.random() * 0.48);
+            const isEmber = s % 3 === 0;
+            const angle = -Math.PI * (0.1 + Math.random() * 0.8);
+            const speed = (isEmber ? 140 : 110) + Math.random() * (curDamage >= 4 ? 360 : 240);
+            shards.push({
+              x: ex,
+              y: ey,
+              vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 180,
+              vy: Math.sin(angle) * speed - Math.random() * 110,
+              rot: Math.random() * Math.PI * 2,
+              vRot: (Math.random() - 0.5) * 14,
+              w: isEmber ? 3 + Math.random() * 3.5 : 8 + Math.random() * 16,
+              h: isEmber ? 3 + Math.random() * 3.5 : 4 + Math.random() * 10,
+              isBlack: Math.random() < 0.36,
+              isEmber,
+              color: isEmber ? (Math.random() < 0.5 ? '#fde047' : '#f97316') : undefined,
+              life: 0,
+              maxLife: isEmber ? 0.75 + Math.random() * 0.5 : 0.95 + Math.random() * 0.55,
+            });
+          }
+          if (shards.length > 160) {
+            shards.splice(0, shards.length - 160);
+          }
+        }
+        lastProcessedBlastSeqRef.current = curBlastSeq;
+      }
+
+      if (curDamage === 0 && shrapnelRef.current.length > 0 && curBlastSeq === 0) {
+        shrapnelRef.current = [];
+        blastFlashRef.current = 0;
+      }
+
+      const hasActiveBlastEffects = shrapnelRef.current.length > 0 || blastFlashRef.current > 0;
+      const needsContinuousCraterAnim = curDamage >= 3 || hasActiveBlastEffects;
 
       // Build lightweight frame signature to skip redrawing when completely idle (0% CPU/GPU usage when idle!)
-      let sig = `${theme}:${width}x${height}:`;
+      let sig = `${theme}:${width}x${height}:D${curDamage}:B${curBlastSeq}:`;
       if (pressedNotes.size > 0) {
         pressedNotes.forEach((n) => {
           sig += `P${n},`;
@@ -2410,8 +2488,11 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
       }
       if (activeGuidanceNoteVal) {
         sig += `G${activeGuidanceNoteVal}:${activeGuidanceFingerRef.current}:${guidanceHandRef.current}:${Math.floor(
-          performance.now() / 32
+          nowPerf / 32
         )}`;
+      }
+      if (needsContinuousCraterAnim) {
+        sig += `ANIM:${Math.floor(nowPerf / 16)}`;
       }
 
       if (!staticDirtyRef.current && lastRenderedSigRef.current === sig) {
@@ -2477,51 +2558,405 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
         }
       }
 
-      // 2. Blit cached photorealistic keyboard in a single 0.05ms GPU operation!
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.drawImage(sCanvas, 0, 0);
-      ctx.scale(dpr, dpr);
-
-      // 3. Overdraw ONLY the keys that are currently pressed (typically 0 to 4 keys)
+      // 2. Render either intact/cracked keyboard OR Total Destruction Abyssal Crater (Voragine)
       const hasAnyPressed =
         pressedNotes.size > 0 ||
         (studentPressed && studentPressed.size > 0) ||
         demoNotes.size > 0;
 
-      if (hasAnyPressed) {
-        const redrawnBlackNotes = new Set<string>();
+      ctx.save();
+      if (curDamage >= 4) {
+        // === STAGE 4+: TOTAL DESTRUCTION — ABYSSAL CRATER ("VORAGINE") ===
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const tSec = nowPerf / 1000;
+        const magmaPulse = 0.72 + Math.sin(tSec * 4.2) * 0.28;
 
-        // 3A. Pressed White Keys
+        // 2A. Deep charred piano chassis frame surrounding the chasm
+        const frameGrad = ctx.createLinearGradient(0, 0, 0, height);
+        frameGrad.addColorStop(0, '#09070a');
+        frameGrad.addColorStop(0.5, '#120a0d');
+        frameGrad.addColorStop(1, '#050304');
+        ctx.fillStyle = frameGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // Faint smoky soot aura on top fallboard remnant
+        drawTopFallboardRail(ctx, 0, width, height, theme);
+        ctx.fillStyle = 'rgba(5, 3, 4, 0.72)';
+        ctx.fillRect(0, 0, width, Math.min(20, height * 0.1));
+
+        // 2B. Jagged Abyssal Crater Chasm Polygon
+        const rimPadX = Math.max(8, width * 0.018);
+        const rimTopY = Math.max(10, height * 0.06);
+        const rimBotY = height - Math.max(6, height * 0.04);
+        const buildCraterPath = (insetX: number, insetY: number, jagScale: number) => {
+          const pts: { x: number; y: number }[] = [];
+          const topSteps = 28;
+          for (let i = 0; i <= topSteps; i++) {
+            const u = i / topSteps;
+            const px = rimPadX + insetX + u * (width - (rimPadX + insetX) * 2);
+            const curve = Math.sin(u * Math.PI);
+            const jag = Math.sin(i * 3.7 + 1.1) * 7 * jagScale + Math.cos(i * 6.3) * 4 * jagScale;
+            const py = rimTopY + insetY + (1 - curve) * height * 0.14 + jag;
+            pts.push({ x: px, y: py });
+          }
+          const rightSteps = 6;
+          for (let i = 1; i <= rightSteps; i++) {
+            const v = i / rightSteps;
+            const px = width - rimPadX - insetX - Math.sin(v * Math.PI) * 10 * jagScale + Math.cos(i * 4.1) * 6 * jagScale;
+            const py = rimTopY + insetY + v * (rimBotY - rimTopY - insetY * 2);
+            pts.push({ x: px, y: py });
+          }
+          for (let i = topSteps; i >= 0; i--) {
+            const u = i / topSteps;
+            const px = rimPadX + insetX + u * (width - (rimPadX + insetX) * 2);
+            const curve = Math.sin(u * Math.PI);
+            const jag = Math.cos(i * 4.3 + 0.5) * 7 * jagScale + Math.sin(i * 7.1) * 3.5 * jagScale;
+            const py = rimBotY - insetY - (1 - curve) * height * 0.11 + jag;
+            pts.push({ x: px, y: py });
+          }
+          for (let i = rightSteps - 1; i >= 1; i--) {
+            const v = i / rightSteps;
+            const px = rimPadX + insetX + Math.sin(v * Math.PI) * 10 * jagScale + Math.sin(i * 5.2) * 6 * jagScale;
+            const py = rimTopY + insetY + v * (rimBotY - rimTopY - insetY * 2);
+            pts.push({ x: px, y: py });
+          }
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let p = 1; p < pts.length; p++) {
+            ctx.lineTo(pts[p].x, pts[p].y);
+          }
+          ctx.closePath();
+        };
+
+        // Outer fractured concrete/wood lip
+        buildCraterPath(0, 0, 1.0);
+        ctx.fillStyle = '#181016';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(249, 115, 22, 0.55)';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Mid rocky cliff shelf
+        buildCraterPath(Math.max(10, width * 0.02), Math.max(8, height * 0.06), 0.78);
+        ctx.fillStyle = '#090306';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(234, 88, 12, 0.35)';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+
+        // Pitch-black abyssal void core with glowing magma depths
+        buildCraterPath(Math.max(20, width * 0.045), Math.max(16, height * 0.13), 0.55);
+        const abyssGrad = ctx.createRadialGradient(
+          width * 0.5,
+          height * 0.54,
+          6,
+          width * 0.5,
+          height * 0.54,
+          Math.max(width, height) * 0.52
+        );
+        abyssGrad.addColorStop(0, `rgba(127, 29, 29, ${0.42 * magmaPulse})`);
+        abyssGrad.addColorStop(0.35, '#070104');
+        abyssGrad.addColorStop(0.75, '#020002');
+        abyssGrad.addColorStop(1, '#000000');
+        ctx.fillStyle = abyssGrad;
+        ctx.fill();
+
+        // Clip inside abyss for glowing subterranean magma veins & rising embers
+        ctx.save();
+        ctx.clip();
+
+        // Glowing underground magma river veins
+        for (let v = 0; v < 5; v++) {
+          const yBase = height * (0.28 + v * 0.13);
+          ctx.beginPath();
+          ctx.moveTo(width * 0.06, yBase + Math.sin(v * 2.1) * 10);
+          for (let seg = 1; seg <= 10; seg++) {
+            const sx = width * (0.06 + (seg / 10) * 0.88);
+            const sy = yBase + Math.sin(seg * 1.9 + v * 1.7 + tSec * 0.5) * 14;
+            ctx.lineTo(sx, sy);
+          }
+          ctx.strokeStyle = `rgba(249, 115, 22, ${0.32 * magmaPulse})`;
+          ctx.lineWidth = 4;
+          ctx.stroke();
+          ctx.strokeStyle = `rgba(253, 224, 71, ${0.26 * magmaPulse})`;
+          ctx.lineWidth = 1.3;
+          ctx.stroke();
+        }
+
+        // Ambient rising volcanic embers from the void
+        for (let e = 0; e < 24; e++) {
+          const ex = ((e * 173.3) % 100) * 0.01 * width + Math.sin(tSec * 2.1 + e) * 12;
+          const phase = (tSec * (0.45 + (e % 4) * 0.14) + e * 0.37) % 1;
+          const ey = height * (0.94 - phase * 0.82);
+          const er = 1.2 + (e % 3) * 0.9;
+          ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.85;
+          ctx.fillStyle = e % 2 === 0 ? '#fde047' : '#fb923c';
+          ctx.beginPath();
+          ctx.arc(ex, ey, er, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+
+        // 2C. Broken snapped white & black key stubs clinging to the top lip of the crater!
         for (let i = 0; i < whiteKeys.length; i++) {
           const wk = whiteKeys[i];
-          const isStudent = Boolean(studentPressed && studentPressed.has(wk.note));
-          const isPressed = pressedNotes.has(wk.note) || isStudent || demoNotes.has(wk.note);
-          if (isPressed) {
-            drawSingleWhiteKey(ctx, wk, width, theme, true, isStudent);
+          if ((i * 7 + 3) % 5 === 0) continue; // some completely obliterated
+          const stubH = 8 + ((i * 13) % 14);
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(wk.x + 1, 2);
+          ctx.lineTo(wk.x + wk.width - 1, 2);
+          ctx.lineTo(wk.x + wk.width - 2, stubH + ((i % 2) * 5 - 2));
+          ctx.lineTo(wk.x + wk.width * 0.52, stubH - 5 + (i % 4));
+          ctx.lineTo(wk.x + 2, stubH + 3);
+          ctx.closePath();
+          ctx.fillStyle = i % 3 === 0 ? '#94a3b8' : '#cbd5e1';
+          ctx.fill();
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.restore();
+        }
+        for (let b = 0; b < blackKeys.length; b++) {
+          const bk = blackKeys[b];
+          if ((b * 5 + 1) % 3 === 0) continue;
+          const stubH = 7 + ((b * 11) % 11);
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(bk.x, 2);
+          ctx.lineTo(bk.x + bk.width, 2);
+          ctx.lineTo(bk.x + bk.width - 1, stubH);
+          ctx.lineTo(bk.x + bk.width * 0.45, stubH - 4);
+          ctx.lineTo(bk.x + 1, stubH + 2);
+          ctx.closePath();
+          ctx.fillStyle = '#09090b';
+          ctx.fill();
+          ctx.strokeStyle = '#f97316';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+          ctx.restore();
+        }
 
-            // Re-stamp top fallboard rail over this pressed white key
-            drawTopFallboardRail(ctx, wk.x, wk.width, height, theme);
+        // 2D. MUSIC KEEPS PLAYING OUT OF THE CRATER!
+        // Luminous sonic plasma pillars + shock rings shooting up from the abyss for every active note
+        const drawCraterNotePulse = (kr: KeyRect, isStudent: boolean) => {
+          const cx = kr.x + kr.width / 2;
+          const cy = kr.type === 'black' ? height * 0.42 : height * 0.62;
+          const pulseWave = 0.78 + Math.sin(tSec * 16 + kr.idx) * 0.22;
+          const primaryColor = isStudent
+            ? '#34d399'
+            : kr.type === 'black'
+            ? '#fbbf24'
+            : '#22d3ee';
+          const coreColor = '#ffffff';
 
-            // Mark adjacent black keys that overlap this white key so they stay on top
-            for (let b = 0; b < blackKeys.length; b++) {
-              const bk = blackKeys[b];
-              if (bk.x + bk.width + 6 >= wk.x && bk.x - 6 <= wk.x + wk.width) {
-                redrawnBlackNotes.add(bk.note);
+          // Vertical energy beam erupting out of the abyss
+          const colW = Math.max(8, kr.width * 0.85);
+          const colGrad = ctx.createLinearGradient(cx, height, cx, 0);
+          colGrad.addColorStop(0, 'rgba(0,0,0,0)');
+          colGrad.addColorStop(0.45, primaryColor + '88');
+          colGrad.addColorStop(0.8, primaryColor + 'cc');
+          colGrad.addColorStop(1, '#ffffff');
+          ctx.save();
+          ctx.fillStyle = colGrad;
+          ctx.globalAlpha = 0.7 * pulseWave;
+          ctx.fillRect(cx - colW / 2, 0, colW, cy + 28);
+
+          // Expanding crater sonar rings at impact coordinate
+          const ringR = Math.max(10, kr.width * 0.9) * pulseWave;
+          const orbGrad = ctx.createRadialGradient(cx, cy, 1, cx, cy, ringR * 1.6);
+          orbGrad.addColorStop(0, coreColor);
+          orbGrad.addColorStop(0.35, primaryColor);
+          orbGrad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = orbGrad;
+          ctx.globalAlpha = 0.95;
+          ctx.beginPath();
+          ctx.arc(cx, cy, ringR * 1.6, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = primaryColor;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, ringR * 1.35, ringR * 0.62, 0, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Glowing floating note name over the crater void
+          if (kr.label) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `900 ${Math.max(9, Math.min(13, kr.width * 0.42))}px ui-sans-serif, system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(kr.label, cx, cy);
+          }
+          ctx.restore();
+        };
+
+        if (hasAnyPressed) {
+          for (let i = 0; i < whiteKeys.length; i++) {
+            const wk = whiteKeys[i];
+            const isStudent = Boolean(studentPressed && studentPressed.has(wk.note));
+            if (pressedNotes.has(wk.note) || isStudent || demoNotes.has(wk.note)) {
+              drawCraterNotePulse(wk, isStudent);
+            }
+          }
+          for (let b = 0; b < blackKeys.length; b++) {
+            const bk = blackKeys[b];
+            const isStudent = Boolean(studentPressed && studentPressed.has(bk.note));
+            if (pressedNotes.has(bk.note) || isStudent || demoNotes.has(bk.note)) {
+              drawCraterNotePulse(bk, isStudent);
+            }
+          }
+        }
+      } else {
+        // === STAGE 0..3: INTACT OR PROGRESSIVELY CRACKED KEYBOARD ===
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(sCanvas, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        // 3. Overdraw ONLY the keys that are currently pressed (typically 0 to 4 keys)
+        if (hasAnyPressed) {
+          const redrawnBlackNotes = new Set<string>();
+
+          // 3A. Pressed White Keys
+          for (let i = 0; i < whiteKeys.length; i++) {
+            const wk = whiteKeys[i];
+            const isStudent = Boolean(studentPressed && studentPressed.has(wk.note));
+            const isPressed = pressedNotes.has(wk.note) || isStudent || demoNotes.has(wk.note);
+            if (isPressed) {
+              drawSingleWhiteKey(ctx, wk, width, theme, true, isStudent);
+
+              // Re-stamp top fallboard rail over this pressed white key
+              drawTopFallboardRail(ctx, wk.x, wk.width, height, theme);
+
+              // Mark adjacent black keys that overlap this white key so they stay on top
+              for (let b = 0; b < blackKeys.length; b++) {
+                const bk = blackKeys[b];
+                if (bk.x + bk.width + 6 >= wk.x && bk.x - 6 <= wk.x + wk.width) {
+                  redrawnBlackNotes.add(bk.note);
+                }
               }
+            }
+          }
+
+          // 3B. Pressed Black Keys + any Black Keys adjacent to a pressed White Key
+          for (let b = 0; b < blackKeys.length; b++) {
+            const bk = blackKeys[b];
+            const isStudent = Boolean(studentPressed && studentPressed.has(bk.note));
+            const isPressed = pressedNotes.has(bk.note) || isStudent || demoNotes.has(bk.note);
+            if (isPressed || redrawnBlackNotes.has(bk.note)) {
+              drawSingleBlackKey(ctx, bk, theme, isPressed, isStudent, true);
+              drawTopFallboardRail(ctx, bk.x - 2, bk.width + 6, height, theme);
             }
           }
         }
 
-        // 3B. Pressed Black Keys + any Black Keys adjacent to a pressed White Key
-        for (let b = 0; b < blackKeys.length; b++) {
-          const bk = blackKeys[b];
-          const isStudent = Boolean(studentPressed && studentPressed.has(bk.note));
-          const isPressed = pressedNotes.has(bk.note) || isStudent || demoNotes.has(bk.note);
-          if (isPressed || redrawnBlackNotes.has(bk.note)) {
-            drawSingleBlackKey(ctx, bk, theme, isPressed, isStudent, true);
-            drawTopFallboardRail(ctx, bk.x - 2, bk.width + 6, height, theme);
+        // 3C. Progressive Bomb Crack Fractures & Magma Fissures (Stage 1 -> 2 -> 3)
+        if (curDamage >= 1) {
+          ctx.save();
+          const tSec = nowPerf / 1000;
+          const magmaGlow = 0.65 + Math.sin(tSec * 7.5) * 0.35;
+          const craters = [
+            { cx: width * 0.23, cy: height * 0.44, seed: 1.1 },
+            { cx: width * 0.51, cy: height * 0.52, seed: 2.7 },
+            { cx: width * 0.79, cy: height * 0.41, seed: 4.3 },
+          ];
+
+          const activeCraters = curDamage === 1 ? [craters[1]] : curDamage === 2 ? [craters[0], craters[2]] : craters;
+
+          // Blast soot & scorch patches
+          for (let c = 0; c < activeCraters.length; c++) {
+            const cr = activeCraters[c];
+            const rad = Math.min(width, height) * (0.28 + curDamage * 0.14);
+            const soot = ctx.createRadialGradient(cr.cx, cr.cy, 2, cr.cx, cr.cy, rad);
+            soot.addColorStop(0, `rgba(10, 5, 4, ${0.32 + curDamage * 0.16})`);
+            soot.addColorStop(0.55, `rgba(24, 12, 10, ${0.18 + curDamage * 0.1})`);
+            soot.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = soot;
+            ctx.beginPath();
+            ctx.arc(cr.cx, cr.cy, rad, 0, Math.PI * 2);
+            ctx.fill();
           }
+
+          // Jagged branching fracture cracks across keys
+          const raysPerCrater = curDamage === 1 ? 7 : curDamage === 2 ? 11 : 15;
+          for (let c = 0; c < craters.length; c++) {
+            if (curDamage === 1 && c === 0) continue; // stage 1 starts localized center + right, grows every blast
+            const cr = craters[c];
+            for (let r = 0; r < raysPerCrater; r++) {
+              const baseAngle = (r / raysPerCrater) * Math.PI * 2 + cr.seed;
+              const reach = Math.min(width, height) * (0.28 + ((r * 37) % 10) * 0.045) * (0.65 + curDamage * 0.32);
+              const segs = 5;
+              const pts: { x: number; y: number }[] = [{ x: cr.cx, y: cr.cy }];
+              let px = cr.cx;
+              let py = cr.cy;
+              for (let s = 1; s <= segs; s++) {
+                const stepLen = reach / segs;
+                const jitter = Math.sin(r * 5.3 + s * 3.1 + cr.seed) * 0.55;
+                px += Math.cos(baseAngle + jitter) * stepLen;
+                py += Math.sin(baseAngle + jitter) * stepLen;
+                pts.push({ x: px, y: py });
+              }
+
+              // Stage 3 glowing lava fissures underneath the crack line
+              if (curDamage >= 3) {
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p].x, pts[p].y);
+                ctx.strokeStyle = `rgba(249, 115, 22, ${0.78 * magmaGlow})`;
+                ctx.lineWidth = 4.6;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+
+                ctx.strokeStyle = `rgba(253, 224, 71, ${0.9 * magmaGlow})`;
+                ctx.lineWidth = 1.6;
+                ctx.stroke();
+              }
+
+              // Dark jagged crack void
+              ctx.beginPath();
+              ctx.moveTo(pts[0].x, pts[0].y);
+              for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p].x, pts[p].y);
+              ctx.strokeStyle = '#09090b';
+              ctx.lineWidth = curDamage === 1 ? 1.4 : curDamage === 2 ? 2.3 : 2.8;
+              ctx.lineCap = 'round';
+              ctx.lineJoin = 'round';
+              ctx.stroke();
+
+              // Crisp bevel edge highlight for depth
+              ctx.beginPath();
+              ctx.moveTo(pts[0].x + 0.8, pts[0].y + 0.8);
+              for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p].x + 0.8, pts[p].y + 0.8);
+              ctx.strokeStyle = curDamage >= 3 ? 'rgba(251, 146, 60, 0.45)' : 'rgba(255, 255, 255, 0.25)';
+              ctx.lineWidth = 0.8;
+              ctx.stroke();
+            }
+          }
+
+          // Chipped missing dark chunks along keys in Stage 2 & Stage 3
+          if (curDamage >= 2) {
+            const chipStep = curDamage >= 3 ? 2 : 3;
+            for (let i = 0; i < whiteKeys.length; i += chipStep) {
+              const wk = whiteKeys[i];
+              const chipX = wk.x + wk.width * (0.2 + ((i * 3) % 5) * 0.12);
+              const chipY = height * (0.58 + ((i * 7) % 4) * 0.08);
+              const chipSize = 5 + curDamage * 3.2;
+              ctx.beginPath();
+              ctx.moveTo(chipX, chipY);
+              ctx.lineTo(chipX + chipSize, chipY - chipSize * 0.4);
+              ctx.lineTo(chipX + chipSize * 0.65, chipY + chipSize * 0.85);
+              ctx.closePath();
+              ctx.fillStyle = curDamage >= 3 && i % 2 === 0 ? '#7c2d12' : '#09090b';
+              ctx.fill();
+              if (curDamage >= 3 && i % 2 === 0) {
+                ctx.strokeStyle = `rgba(251, 146, 60, ${0.85 * magmaGlow})`;
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+              }
+            }
+          }
+          ctx.restore();
         }
       }
 
@@ -2734,6 +3169,54 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
           ctx.restore();
           ctx.restore();
         }
+      }
+
+      // 5. FLYING KEY SHRAPNEL & EXPLOSION FLASH OVERLAY
+      if (blastFlashRef.current > 0 || shrapnelRef.current.length > 0) {
+        ctx.save();
+        if (blastFlashRef.current > 0) {
+          const fl = blastFlashRef.current;
+          const flashGrad = ctx.createRadialGradient(width * 0.5, height * 0.45, 8, width * 0.5, height * 0.45, width * 0.65);
+          flashGrad.addColorStop(0, `rgba(255, 255, 255, ${0.85 * fl})`);
+          flashGrad.addColorStop(0.45, `rgba(249, 115, 22, ${0.62 * fl})`);
+          flashGrad.addColorStop(1, 'rgba(244, 63, 94, 0)');
+          ctx.fillStyle = flashGrad;
+          ctx.fillRect(0, 0, width, height);
+          blastFlashRef.current = Math.max(0, blastFlashRef.current - dt * 2.8);
+        }
+
+        const shards = shrapnelRef.current;
+        for (let i = shards.length - 1; i >= 0; i--) {
+          const sh = shards[i];
+          sh.life += dt;
+          if (sh.life >= sh.maxLife) {
+            shards.splice(i, 1);
+            continue;
+          }
+          sh.vy += (sh.isEmber ? 180 : 620) * dt;
+          sh.x += sh.vx * dt;
+          sh.y += sh.vy * dt;
+          sh.rot += sh.vRot * dt;
+          const alpha = Math.max(0, 1 - sh.life / sh.maxLife);
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.translate(sh.x, sh.y);
+          ctx.rotate(sh.rot);
+          if (sh.isEmber) {
+            ctx.fillStyle = sh.color || '#fde047';
+            ctx.beginPath();
+            ctx.arc(0, 0, sh.w, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.fillStyle = sh.isBlack ? '#18181b' : '#f1f5f9';
+            ctx.fillRect(-sh.w / 2, -sh.h / 2, sh.w, sh.h);
+            ctx.strokeStyle = sh.isBlack ? '#fb923c' : '#334155';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(-sh.w / 2, -sh.h / 2, sh.w, sh.h);
+          }
+          ctx.restore();
+        }
+        ctx.restore();
       }
 
       ctx.restore();

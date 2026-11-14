@@ -51,6 +51,7 @@ interface FallingNotesWaterfallProps {
   centerAnimation?: CenterStageAnimationId;
   fxMode?: WaterfallFxMode;
   onFxModeChange?: (mode: WaterfallFxMode) => void;
+  onOverloadDetonate?: (boomCount: number) => void;
 }
 
 interface KeyPosition {
@@ -111,12 +112,15 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   centerAnimation = 'none',
   fxMode: controlledFxMode,
   onFxModeChange,
+  onOverloadDetonate,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const centerAnimationRef = useRef<CenterStageAnimationId>(centerAnimation);
   centerAnimationRef.current = centerAnimation;
   const centerStageAnimatorRef = useRef<CenterStageAnimator>(new CenterStageAnimator());
+  const onOverloadDetonateRef = useRef(onOverloadDetonate);
+  onOverloadDetonateRef.current = onOverloadDetonate;
 
   const [isMelodyOnly, setIsMelodyOnly] = useState<boolean>(false);
   const [internalFxMode, setInternalFxMode] = useState<WaterfallFxMode>(() => loadWaterfallFx());
@@ -503,19 +507,26 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
     }
 
     if (mode === 'overload_detonator' || mode === 'auto_morph') {
-      overloadChargeRef.current += 8.5;
-      if (overloadChargeRef.current >= 100) {
-        overloadChargeRef.current = 0;
-        overloadLevelRef.current += 1;
-        overloadFlashRef.current = 1.0;
-        shockwavesRef.current.push({
-          x: dimsRef.current.width / 2,
-          y: Math.max(40, dimsRef.current.height * 0.42),
-          width: dimsRef.current.width * 0.6,
-          life: 0,
-          maxLife: 0.9,
-          color: '#f43f5e',
-        });
+      const isBombActive =
+        mode === 'overload_detonator' ||
+        Math.floor(Math.max(0, lastKineticTimeRef.current) / 9.0) % 10 === 3;
+      if (isBombActive) {
+        overloadChargeRef.current += 8.5;
+        if (overloadChargeRef.current >= 100) {
+          overloadChargeRef.current = 0;
+          const boomCount = overloadLevelRef.current;
+          overloadLevelRef.current += 1;
+          overloadFlashRef.current = 1.0;
+          shockwavesRef.current.push({
+            x: dimsRef.current.width / 2,
+            y: Math.max(40, dimsRef.current.height * 0.42),
+            width: dimsRef.current.width * 0.6,
+            life: 0,
+            maxLife: 0.9,
+            color: '#f43f5e',
+          });
+          onOverloadDetonateRef.current?.(boomCount);
+        }
       }
     }
 

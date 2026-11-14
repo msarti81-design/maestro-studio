@@ -66,7 +66,7 @@ export const WATERFALL_FX_ITEMS: WaterfallFxMeta[] = [
     icon: '💣',
     label: '💣 Overload Detonator',
     shortLabel: '💣 Overload',
-    desc: 'Core charges 0% → 100% until a massive chromatic shockwave detonates!',
+    desc: 'Charges 0% → 100%, shakes screen & progressively cracks keys into a smoking crater!',
     category: 'kinetic',
   },
   {

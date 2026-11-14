@@ -535,10 +535,69 @@ export const PianoView: React.FC<PianoViewProps> = ({
     [showToast]
   );
 
+  const [keyboardDamageLevel, setKeyboardDamageLevel] = useState<number>(0);
+  const [bombBlastSeq, setBombBlastSeq] = useState<number>(0);
+  const stageContainerRef = useRef<HTMLDivElement | null>(null);
+  const shakeRafRef = useRef<number | null>(null);
+
+  const triggerEarthquakeShake = useCallback((intensityPx: number) => {
+    if (typeof window === 'undefined') return;
+    if (shakeRafRef.current !== null) {
+      cancelAnimationFrame(shakeRafRef.current);
+      shakeRafRef.current = null;
+    }
+    const el = stageContainerRef.current;
+    if (!el) return;
+    const durationMs = 580;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      if (elapsed >= durationMs) {
+        el.style.transform = '';
+        shakeRafRef.current = null;
+        return;
+      }
+      const progress = elapsed / durationMs;
+      const decay = Math.pow(1 - progress, 1.8);
+      const freq = elapsed * 0.085;
+      const dx = Math.sin(freq * 1.7) * intensityPx * decay + (Math.random() - 0.5) * intensityPx * 0.45 * decay;
+      const dy = Math.cos(freq * 2.3) * intensityPx * 0.75 * decay + (Math.random() - 0.5) * intensityPx * 0.4 * decay;
+      const rot = Math.sin(freq * 1.3) * (intensityPx * 0.04) * decay;
+      el.style.transform = `translate3d(${dx.toFixed(1)}px, ${dy.toFixed(1)}px, 0) rotate(${rot.toFixed(2)}deg)`;
+      shakeRafRef.current = requestAnimationFrame(tick);
+    };
+    shakeRafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (shakeRafRef.current !== null) {
+        cancelAnimationFrame(shakeRafRef.current);
+      }
+    };
+  }, []);
+
+  const handleOverloadDetonate = useCallback(
+    (_boomCount: number) => {
+      setBombBlastSeq((s) => s + 1);
+      setKeyboardDamageLevel((prev) => {
+        const next = Math.min(4, prev + 1);
+        const intensity = next >= 4 ? 22 : next === 3 ? 17 : next === 2 ? 13 : 9;
+        triggerEarthquakeShake(intensity);
+        return next;
+      });
+    },
+    [triggerEarthquakeShake]
+  );
+
   const handleWaterfallFxChange = useCallback(
     (mode: WaterfallFxMode) => {
       setWaterfallFxMode(mode);
       saveWaterfallFx(mode);
+      if (mode === 'off') {
+        setKeyboardDamageLevel(0);
+        setBombBlastSeq(0);
+      }
       const meta = getWaterfallFxMeta(mode);
       showToast(mode === 'off' ? '🚫 Note Visual FX disabled' : `✨ Note FX: ${meta.label}`);
     },
@@ -573,6 +632,11 @@ export const PianoView: React.FC<PianoViewProps> = ({
   const [waterfallRestartTrigger, setWaterfallRestartTrigger] = useState<number>(0);
   const reelRecorderRef = useRef<MediaRecorder | null>(null);
   const videoUploadPromiseRef = useRef<Promise<{ streamUrl: string; downloadUrl: string } | null> | null>(null);
+
+  useEffect(() => {
+    setKeyboardDamageLevel(0);
+    setBombBlastSeq(0);
+  }, [activeSong?.id, waterfallRestartTrigger]);
 
   const resolveAbsoluteAppUrl = useCallback((apiPath: string): string => {
     const resolved = getAppApiUrl(apiPath);
@@ -1223,6 +1287,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
   useBackHandler(showWaterfall, () => {
     setShowWaterfall(false);
     setSongGuidance(null);
+    setKeyboardDamageLevel(0);
+    setBombBlastSeq(0);
   }, 20);
   const [activeChordNotes, setActiveChordNotes] = useState<string[]>([]);
   const [chordHistory, setChordHistory] = useState<{ chord: IdentifiedChord; time: string }[]>([]);
@@ -3366,6 +3432,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
 
   return (
     <div
+      ref={stageContainerRef}
       style={containerStyle}
       className="bg-slate-950 flex flex-col h-full w-full overflow-hidden select-none touch-none p-0 m-0"
     >
@@ -3443,6 +3510,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 setShowWaterfall(next);
                 if (!next) {
                   setSongGuidance(null);
+                  setKeyboardDamageLevel(0);
+                  setBombBlastSeq(0);
                 }
               }}
               className={`px-2 py-0.5 font-bold rounded-md flex items-center gap-1 transition-all cursor-pointer ${
@@ -3455,6 +3524,21 @@ export const PianoView: React.FC<PianoViewProps> = ({
               <Sparkles className={`w-3 h-3 ${showWaterfall ? 'text-cyan-400' : 'text-slate-400'}`} />
               <span>Notes {showWaterfall ? 'ON' : 'OFF'}</span>
             </button>
+
+            {keyboardDamageLevel > 0 && (
+              <button
+                onClick={() => {
+                  setKeyboardDamageLevel(0);
+                  setBombBlastSeq(0);
+                  showToast('🔧 Piano keyboard repaired!');
+                }}
+                className="px-1.5 sm:px-2 py-0.5 bg-orange-500/25 hover:bg-orange-500/40 border border-orange-400/60 text-orange-200 font-black rounded-md flex items-center gap-1 transition-all cursor-pointer shrink-0 animate-pulse"
+                title="Repair shattered piano keys"
+              >
+                <span>🔧</span>
+                <span className="hidden sm:inline">Repair</span>
+              </button>
+            )}
           </div>
 
           {/* Center: Song info or Title */}
@@ -4303,6 +4387,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 centerAnimation={centerAnimation}
                 fxMode={waterfallFxMode}
                 onFxModeChange={handleWaterfallFxChange}
+                onOverloadDetonate={handleOverloadDetonate}
                 isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
                 onActiveGuidanceChange={setSongGuidance}
                 onMasterclassFinished={() => {
@@ -4322,6 +4407,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 onClose={() => {
                   setShowWaterfall(false);
                   setSongGuidance(null);
+                  setKeyboardDamageLevel(0);
+                  setBombBlastSeq(0);
                 }}
               />
             </div>
@@ -4437,6 +4524,8 @@ export const PianoView: React.FC<PianoViewProps> = ({
         activeGuidanceTip={activeScaleExercise?.tips ? activeScaleExercise.tips[scaleActiveIdx % activeScaleExercise.tips.length] : (songGuidance?.tip || null)}
         guidanceHand={activeScaleExercise?.hand || songGuidance?.hand || 'right'}
         studentPressedNotesRef={studentPressedNotesRef}
+        damageLevel={keyboardDamageLevel}
+        blastSeq={bombBlastSeq}
         className="w-full flex-1 min-h-0 select-none touch-none relative"
       />
 
