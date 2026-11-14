@@ -31,10 +31,10 @@
       "username": "Pianista_957",
       "platform": "Browser Mobile",
       "firstSeen": "2026-11-11T05:48:17.662Z",
-      "lastSeen": "2026-11-13T22:24:51.854Z",
-      "lastView": "piano",
-      "totalPings": 124,
-      "totalSessions": 81,
+      "lastSeen": "2026-11-14T06:30:44.067Z",
+      "lastView": "home",
+      "totalPings": 125,
+      "totalSessions": 82,
       "screen": "444x985",
       "theme": "marble",
       "lastSong": "Baby Shark"
@@ -606,6 +606,12 @@
         "dev_1794607902372_7owsa9n"
       ],
       "pings": 203
+    },
+    "2026-11-14": {
+      "devices": [
+        "dev_1792226201606_1h3tezw"
+      ],
+      "pings": 1
     }
   },
   "songs": {
