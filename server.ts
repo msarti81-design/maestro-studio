@@ -374,16 +374,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.237",
-      buildDate: "2026-11-14 09:30",
-      commit: "a8d4e19",
+      version: "1.0.238",
+      buildDate: "2026-11-14 09:50",
+      commit: "c4b7f28",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Overload Detonator 100% blasts trigger earthquake screen shake, flying shrapnel & 4-stage progressive piano destruction into an Abyssal Crater while music keeps playing",
+        "Realistic per-key piano destruction: individual white and black keys crack, chip, tilt, snap off and reveal the hollow wooden keybed underneath",
+        "Overload Detonator 100% blasts trigger earthquake screen shake, flying shrapnel & 4-stage progressive destruction into an Abyssal Crater while music keeps playing",
         "One-tap Repair button in top bar + automatic restore on song/FX reset",
-        "Universal step-by-step Android & Web Back navigation across all views, modals & sub-modals",
-        "Signed release AAB & APK generation synced to v1.0.237 (versionCode 10237)",
+        "Signed release AAB & APK generation synced to v1.0.238 (versionCode 10238)",
       ],
     });
   });

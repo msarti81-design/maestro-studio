@@ -2808,8 +2808,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
             }
           }
         }
-      } else {
-        // === STAGE 0..3: INTACT OR PROGRESSIVELY CRACKED KEYBOARD ===
+      } else if (curDamage === 0) {
+        // === STAGE 0: INTACT PHOTOREALISTIC KEYBOARD (0.05ms offscreen blit) ===
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.drawImage(sCanvas, 0, 0);
         ctx.scale(dpr, dpr);
@@ -2825,11 +2825,8 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
             const isPressed = pressedNotes.has(wk.note) || isStudent || demoNotes.has(wk.note);
             if (isPressed) {
               drawSingleWhiteKey(ctx, wk, width, theme, true, isStudent);
-
-              // Re-stamp top fallboard rail over this pressed white key
               drawTopFallboardRail(ctx, wk.x, wk.width, height, theme);
 
-              // Mark adjacent black keys that overlap this white key so they stay on top
               for (let b = 0; b < blackKeys.length; b++) {
                 const bk = blackKeys[b];
                 if (bk.x + bk.width + 6 >= wk.x && bk.x - 6 <= wk.x + wk.width) {
@@ -2850,114 +2847,384 @@ export const CanvasPiano: React.FC<CanvasPianoProps> = ({
             }
           }
         }
+      } else {
+        // === STAGE 1..3: PER-KEY REALISTIC FRACTURES, CHIPS, TILT & SNAPPED KEYS ===
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const tSec = nowPerf / 1000;
+        const magmaGlow = 0.65 + Math.sin(tSec * 7.5) * 0.35;
 
-        // 3C. Progressive Bomb Crack Fractures & Magma Fissures (Stage 1 -> 2 -> 3)
-        if (curDamage >= 1) {
-          ctx.save();
-          const tSec = nowPerf / 1000;
-          const magmaGlow = 0.65 + Math.sin(tSec * 7.5) * 0.35;
-          const craters = [
-            { cx: width * 0.23, cy: height * 0.44, seed: 1.1 },
-            { cx: width * 0.51, cy: height * 0.52, seed: 2.7 },
-            { cx: width * 0.79, cy: height * 0.41, seed: 4.3 },
-          ];
+        // Deterministic per-key pseudo-random helper (0..1)
+        const keyRand = (idx: number, salt: number) => {
+          const v = Math.sin((idx + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+          return v - Math.floor(v);
+        };
 
-          const activeCraters = curDamage === 1 ? [craters[1]] : curDamage === 2 ? [craters[0], craters[2]] : craters;
+        // 3.1 Hollow dark piano chassis & wooden keybed ribs visible beneath broken/missing keys
+        const hollowGrad = ctx.createLinearGradient(0, 0, 0, height);
+        hollowGrad.addColorStop(0, '#040203');
+        hollowGrad.addColorStop(0.55, '#0c0705');
+        hollowGrad.addColorStop(1, '#030202');
+        ctx.fillStyle = hollowGrad;
+        ctx.fillRect(0, 0, width, height);
 
-          // Blast soot & scorch patches
-          for (let c = 0; c < activeCraters.length; c++) {
-            const cr = activeCraters[c];
-            const rad = Math.min(width, height) * (0.28 + curDamage * 0.14);
-            const soot = ctx.createRadialGradient(cr.cx, cr.cy, 2, cr.cx, cr.cy, rad);
-            soot.addColorStop(0, `rgba(10, 5, 4, ${0.32 + curDamage * 0.16})`);
-            soot.addColorStop(0.55, `rgba(24, 12, 10, ${0.18 + curDamage * 0.1})`);
-            soot.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = soot;
+        for (let i = 0; i < whiteKeys.length; i++) {
+          const wk = whiteKeys[i];
+          const ribX = wk.x + wk.width * 0.42;
+          ctx.fillStyle = '#180f0a';
+          ctx.fillRect(ribX, 10, Math.max(2.5, wk.width * 0.16), height - 16);
+          ctx.fillStyle = '#090504';
+          ctx.fillRect(ribX + Math.max(2.5, wk.width * 0.16), 10, 1.5, height - 16);
+          if (curDamage >= 3 && keyRand(wk.idx, 9) < 0.55) {
+            ctx.strokeStyle = `rgba(249, 115, 22, ${0.45 * magmaGlow})`;
+            ctx.lineWidth = 1.6;
             ctx.beginPath();
-            ctx.arc(cr.cx, cr.cy, rad, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.moveTo(wk.x + 2, height * 0.35);
+            ctx.lineTo(wk.x + wk.width * 0.5, height * 0.62);
+            ctx.lineTo(wk.x + wk.width - 3, height * 0.85);
+            ctx.stroke();
+          }
+        }
+
+        // 3.2 Each individual WHITE KEY with its own fractures, chipped corners, tilt or snapped body
+        const gap = Math.max(1.3, Math.min(2.6, width / 410));
+        for (let i = 0; i < whiteKeys.length; i++) {
+          const wk = whiteKeys[i];
+          const r1 = keyRand(wk.idx, 1);
+          const r2 = keyRand(wk.idx, 2);
+          const r3 = keyRand(wk.idx, 3);
+          const r4 = keyRand(wk.idx, 4);
+
+          const isStudent = Boolean(studentPressed && studentPressed.has(wk.note));
+          const isPressed = pressedNotes.has(wk.note) || isStudent || demoNotes.has(wk.note);
+          const pressSink = isPressed ? 2.2 : 0;
+
+          // Determine per-key structural damage state
+          const isObliterated =
+            (curDamage === 2 && r1 < 0.10) ||
+            (curDamage === 3 && r1 < 0.26);
+
+          let snapRatio = 1.0;
+          if (isObliterated) {
+            snapRatio = 0.14 + r2 * 0.16; // jagged top stump only
+          } else if (curDamage === 2 && r1 < 0.42) {
+            snapRatio = 0.64 + r2 * 0.24; // lower section snapped off
+          } else if (curDamage === 3 && r1 < 0.72) {
+            snapRatio = 0.44 + r2 * 0.34;
           }
 
-          // Jagged branching fracture cracks across keys
-          const raysPerCrater = curDamage === 1 ? 7 : curDamage === 2 ? 11 : 15;
-          for (let c = 0; c < craters.length; c++) {
-            if (curDamage === 1 && c === 0) continue; // stage 1 starts localized center + right, grows every blast
-            const cr = craters[c];
-            for (let r = 0; r < raysPerCrater; r++) {
-              const baseAngle = (r / raysPerCrater) * Math.PI * 2 + cr.seed;
-              const reach = Math.min(width, height) * (0.28 + ((r * 37) % 10) * 0.045) * (0.65 + curDamage * 0.32);
-              const segs = 5;
-              const pts: { x: number; y: number }[] = [{ x: cr.cx, y: cr.cy }];
-              let px = cr.cx;
-              let py = cr.cy;
-              for (let s = 1; s <= segs; s++) {
-                const stepLen = reach / segs;
-                const jitter = Math.sin(r * 5.3 + s * 3.1 + cr.seed) * 0.55;
-                px += Math.cos(baseAngle + jitter) * stepLen;
-                py += Math.sin(baseAngle + jitter) * stepLen;
-                pts.push({ x: px, y: py });
-              }
+          const tiltRad =
+            curDamage === 1
+              ? (r1 < 0.4 ? (r2 - 0.5) * 0.014 : 0)
+              : curDamage === 2
+              ? (r2 - 0.5) * 0.068
+              : (r2 - 0.5) * 0.15;
 
-              // Stage 3 glowing lava fissures underneath the crack line
+          const keyDmgLevel =
+            curDamage === 1
+              ? r1 < 0.68
+                ? 1
+                : 0
+              : curDamage === 2
+              ? r1 < 0.85
+                ? 2
+                : 1
+              : 3;
+
+          const keyX = wk.x + gap / 2;
+          const keyW = wk.width - gap;
+          const fullH = wk.height - 4 + pressSink;
+
+          // Build per-key jagged silhouette path
+          const buildBrokenWhitePath = () => {
+            ctx.beginPath();
+            ctx.moveTo(keyX, 0);
+            ctx.lineTo(keyX + keyW, 0);
+
+            if (snapRatio < 0.99) {
+              // Snapped-off key with jagged fractured edge across the bottom of the remaining top piece
+              const baseBreakY = fullH * snapRatio;
+              const leftBreakY = baseBreakY + (r3 - 0.5) * Math.min(22, fullH * 0.14);
+              const rightBreakY = baseBreakY + (r4 - 0.5) * Math.min(22, fullH * 0.14);
+              ctx.lineTo(keyX + keyW, Math.max(8, rightBreakY));
+              const teeth = 4;
+              for (let t = teeth - 1; t >= 1; t--) {
+                const u = t / teeth;
+                const tx = keyX + u * keyW;
+                const ty =
+                  leftBreakY +
+                  (rightBreakY - leftBreakY) * u +
+                  (t % 2 === 0 ? -7 - r3 * 6 : 6 + r4 * 6);
+                ctx.lineTo(tx, Math.max(6, Math.min(fullH - 2, ty)));
+              }
+              ctx.lineTo(keyX, Math.max(8, leftBreakY));
+            } else if (keyDmgLevel >= 1 && r3 < 0.58) {
+              // Full-length key with a realistic broken corner or missing side notch bitten out
+              const notchRight = r4 >= 0.5;
+              if (notchRight) {
+                const chipStartY = fullH * (0.72 + r2 * 0.16);
+                const chipDepth = keyW * (0.28 + keyDmgLevel * 0.14);
+                ctx.lineTo(keyX + keyW, chipStartY);
+                ctx.lineTo(keyX + keyW - chipDepth * 0.7, chipStartY + (fullH - chipStartY) * 0.35);
+                ctx.lineTo(keyX + keyW - chipDepth, chipStartY + (fullH - chipStartY) * 0.7);
+                ctx.lineTo(keyX + keyW - chipDepth * 0.45, fullH);
+                ctx.lineTo(keyX, fullH);
+              } else {
+                const chipStartY = fullH * (0.72 + r2 * 0.16);
+                const chipDepth = keyW * (0.28 + keyDmgLevel * 0.14);
+                ctx.lineTo(keyX + keyW, fullH);
+                ctx.lineTo(keyX + chipDepth * 0.45, fullH);
+                ctx.lineTo(keyX + chipDepth, chipStartY + (fullH - chipStartY) * 0.68);
+                ctx.lineTo(keyX + chipDepth * 0.65, chipStartY + (fullH - chipStartY) * 0.32);
+                ctx.lineTo(keyX, chipStartY);
+              }
+            } else if (keyDmgLevel >= 2) {
+              // Side-edge mid-key notch
+              const ny = fullH * (0.45 + r3 * 0.25);
+              const nw = keyW * (0.22 + r4 * 0.18);
+              if (r4 >= 0.5) {
+                ctx.lineTo(keyX + keyW, ny - 6);
+                ctx.lineTo(keyX + keyW - nw, ny);
+                ctx.lineTo(keyX + keyW - nw * 0.4, ny + 8);
+                ctx.lineTo(keyX + keyW, ny + 12);
+                ctx.lineTo(keyX + keyW, fullH);
+                ctx.lineTo(keyX, fullH);
+              } else {
+                ctx.lineTo(keyX + keyW, fullH);
+                ctx.lineTo(keyX, fullH);
+                ctx.lineTo(keyX, ny + 12);
+                ctx.lineTo(keyX + nw * 0.4, ny + 8);
+                ctx.lineTo(keyX + nw, ny);
+                ctx.lineTo(keyX, ny - 6);
+              }
+            } else {
+              ctx.lineTo(keyX + keyW, fullH);
+              ctx.lineTo(keyX, fullH);
+            }
+            ctx.closePath();
+          };
+
+          ctx.save();
+          if (tiltRad !== 0) {
+            const pivotX = wk.x + wk.width / 2;
+            ctx.translate(pivotX, 0);
+            ctx.rotate(tiltRad);
+            ctx.translate(-pivotX, 0);
+          }
+
+          // Drop shadow under intact/broken key onto the hollow interior (plus note glow under snapped key!)
+          if (isPressed && snapRatio < 0.88) {
+            const slotGlow = ctx.createRadialGradient(
+              keyX + keyW / 2,
+              fullH * 0.72,
+              2,
+              keyX + keyW / 2,
+              fullH * 0.72,
+              Math.max(18, keyW * 0.9)
+            );
+            slotGlow.addColorStop(0, isStudent ? 'rgba(52, 211, 153, 0.55)' : 'rgba(34, 211, 238, 0.55)');
+            slotGlow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = slotGlow;
+            ctx.fillRect(keyX, fullH * snapRatio, keyW, fullH * (1 - snapRatio));
+          }
+          buildBrokenWhitePath();
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+          ctx.save();
+          ctx.translate(1.5, 2.5);
+          ctx.fill();
+          ctx.restore();
+
+          // Clip strictly to this key's broken silhouette and render its photorealistic surface
+          ctx.save();
+          buildBrokenWhitePath();
+          ctx.clip();
+
+          drawSingleWhiteKey(ctx, wk, width, theme, isPressed, isStudent);
+
+          // Per-key scorch mark near break / surface
+          if (keyDmgLevel >= 1) {
+            const scorchY = snapRatio < 0.99 ? fullH * snapRatio : fullH * (0.45 + r3 * 0.4);
+            const scorchX = keyX + keyW * (0.2 + r4 * 0.6);
+            const scRad = Math.max(12, keyW * (0.55 + keyDmgLevel * 0.25));
+            const sg = ctx.createRadialGradient(scorchX, scorchY, 1, scorchX, scorchY, scRad);
+            sg.addColorStop(0, `rgba(12, 6, 4, ${0.18 + keyDmgLevel * 0.14})`);
+            sg.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = sg;
+            ctx.fillRect(keyX, 0, keyW, fullH);
+          }
+
+          // Internal fracture crack lines strictly belonging to THIS key
+          if (keyDmgLevel >= 1) {
+            const crackCount = keyDmgLevel === 1 ? 1 : keyDmgLevel === 2 ? 2 : 3;
+            for (let ck = 0; ck < crackCount; ck++) {
+              const crSeed = keyRand(wk.idx, 10 + ck);
+              const fromLeft = (ck + Math.floor(r3 * 2)) % 2 === 0;
+              const startX = fromLeft ? keyX : keyX + keyW;
+              const startY = fullH * (0.18 + crSeed * 0.62);
+              const dir = fromLeft ? 1 : -1;
+              const pts = [
+                { x: startX, y: startY },
+                { x: startX + dir * keyW * (0.28 + crSeed * 0.18), y: startY + (ck % 2 === 0 ? 10 : -9) },
+                { x: startX + dir * keyW * (0.58 + crSeed * 0.22), y: startY + (ck % 2 === 0 ? -4 : 14) },
+                {
+                  x: startX + dir * keyW * (ck === 0 && keyDmgLevel >= 2 ? 1.0 : 0.78 + crSeed * 0.18),
+                  y: startY + (r4 - 0.4) * 28,
+                },
+              ];
+
               if (curDamage >= 3) {
                 ctx.beginPath();
                 ctx.moveTo(pts[0].x, pts[0].y);
                 for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p].x, pts[p].y);
-                ctx.strokeStyle = `rgba(249, 115, 22, ${0.78 * magmaGlow})`;
-                ctx.lineWidth = 4.6;
+                ctx.strokeStyle = `rgba(249, 115, 22, ${0.8 * magmaGlow})`;
+                ctx.lineWidth = 3.2;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
                 ctx.stroke();
 
-                ctx.strokeStyle = `rgba(253, 224, 71, ${0.9 * magmaGlow})`;
-                ctx.lineWidth = 1.6;
+                ctx.strokeStyle = `rgba(253, 224, 71, ${0.88 * magmaGlow})`;
+                ctx.lineWidth = 1.1;
                 ctx.stroke();
               }
 
-              // Dark jagged crack void
               ctx.beginPath();
               ctx.moveTo(pts[0].x, pts[0].y);
               for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p].x, pts[p].y);
               ctx.strokeStyle = '#09090b';
-              ctx.lineWidth = curDamage === 1 ? 1.4 : curDamage === 2 ? 2.3 : 2.8;
+              ctx.lineWidth = keyDmgLevel === 1 ? 1.2 : keyDmgLevel === 2 ? 1.8 : 2.1;
               ctx.lineCap = 'round';
               ctx.lineJoin = 'round';
               ctx.stroke();
 
-              // Crisp bevel edge highlight for depth
+              // Tiny branch off the crack inside this key
               ctx.beginPath();
-              ctx.moveTo(pts[0].x + 0.8, pts[0].y + 0.8);
-              for (let p = 1; p < pts.length; p++) ctx.lineTo(pts[p].x + 0.8, pts[p].y + 0.8);
-              ctx.strokeStyle = curDamage >= 3 ? 'rgba(251, 146, 60, 0.45)' : 'rgba(255, 255, 255, 0.25)';
-              ctx.lineWidth = 0.8;
+              ctx.moveTo(pts[1].x, pts[1].y);
+              ctx.lineTo(pts[1].x + dir * keyW * 0.22, pts[1].y + 13);
+              ctx.strokeStyle = '#18181b';
+              ctx.lineWidth = 0.9;
               ctx.stroke();
             }
           }
+          ctx.restore(); // end per-key clip
 
-          // Chipped missing dark chunks along keys in Stage 2 & Stage 3
-          if (curDamage >= 2) {
-            const chipStep = curDamage >= 3 ? 2 : 3;
-            for (let i = 0; i < whiteKeys.length; i += chipStep) {
-              const wk = whiteKeys[i];
-              const chipX = wk.x + wk.width * (0.2 + ((i * 3) % 5) * 0.12);
-              const chipY = height * (0.58 + ((i * 7) % 4) * 0.08);
-              const chipSize = 5 + curDamage * 3.2;
-              ctx.beginPath();
-              ctx.moveTo(chipX, chipY);
-              ctx.lineTo(chipX + chipSize, chipY - chipSize * 0.4);
-              ctx.lineTo(chipX + chipSize * 0.65, chipY + chipSize * 0.85);
-              ctx.closePath();
-              ctx.fillStyle = curDamage >= 3 && i % 2 === 0 ? '#7c2d12' : '#09090b';
-              ctx.fill();
-              if (curDamage >= 3 && i % 2 === 0) {
-                ctx.strokeStyle = `rgba(251, 146, 60, ${0.85 * magmaGlow})`;
-                ctx.lineWidth = 1.2;
-                ctx.stroke();
+          // Crisp 3D broken cross-section rim along snapped edge
+          if (snapRatio < 0.99 || (keyDmgLevel >= 1 && r3 < 0.58) || keyDmgLevel >= 2) {
+            buildBrokenWhitePath();
+            ctx.strokeStyle =
+              curDamage >= 3
+                ? `rgba(251, 146, 60, ${0.75 * magmaGlow})`
+                : 'rgba(15, 23, 42, 0.85)';
+            ctx.lineWidth = curDamage >= 3 ? 1.6 : 1.1;
+            ctx.stroke();
+          }
+
+          ctx.restore(); // end per-key tilt
+        }
+
+        // 3.3 Each individual BLACK KEY with its own fractures, chips, tilt or snapped body
+        for (let b = 0; b < blackKeys.length; b++) {
+          const bk = blackKeys[b];
+          const r1 = keyRand(bk.idx + 100, 1);
+          const r2 = keyRand(bk.idx + 100, 2);
+          const r3 = keyRand(bk.idx + 100, 3);
+
+          const isStudent = Boolean(studentPressed && studentPressed.has(bk.note));
+          const isPressed = pressedNotes.has(bk.note) || isStudent || demoNotes.has(bk.note);
+
+          const isObliterated =
+            (curDamage === 2 && r1 < 0.14) ||
+            (curDamage === 3 && r1 < 0.30);
+
+          let bSnap = 1.0;
+          if (isObliterated) {
+            bSnap = 0.18 + r2 * 0.18;
+          } else if (curDamage === 2 && r1 < 0.45) {
+            bSnap = 0.65 + r2 * 0.22;
+          } else if (curDamage === 3 && r1 < 0.72) {
+            bSnap = 0.48 + r2 * 0.30;
+          }
+
+          const bTilt =
+            curDamage === 1
+              ? 0
+              : curDamage === 2
+              ? (r2 - 0.5) * 0.08
+              : (r2 - 0.5) * 0.18;
+
+          const keyH = bk.height + (isPressed ? 1.5 : 0);
+
+          const buildBrokenBlackPath = () => {
+            ctx.beginPath();
+            ctx.moveTo(bk.x, 0);
+            ctx.lineTo(bk.x + bk.width, 0);
+            if (bSnap < 0.99) {
+              const by = Math.max(10, keyH * bSnap);
+              ctx.lineTo(bk.x + bk.width, by + (r3 - 0.5) * 8);
+              ctx.lineTo(bk.x + bk.width * 0.66, by - 5 + r2 * 4);
+              ctx.lineTo(bk.x + bk.width * 0.33, by + 5 - r3 * 4);
+              ctx.lineTo(bk.x, by + (r2 - 0.5) * 8);
+            } else if (curDamage >= 1 && r1 < 0.65) {
+              // Chipped front tip on black key
+              const chipH = keyH * 0.82;
+              if (r3 >= 0.5) {
+                ctx.lineTo(bk.x + bk.width, chipH);
+                ctx.lineTo(bk.x + bk.width * 0.45, keyH + 1);
+                ctx.lineTo(bk.x, keyH + 1);
+              } else {
+                ctx.lineTo(bk.x + bk.width, keyH + 1);
+                ctx.lineTo(bk.x + bk.width * 0.55, keyH + 1);
+                ctx.lineTo(bk.x, chipH);
               }
+            } else {
+              ctx.lineTo(bk.x + bk.width, keyH + 2);
+              ctx.lineTo(bk.x, keyH + 2);
             }
+            ctx.closePath();
+          };
+
+          ctx.save();
+          if (bTilt !== 0) {
+            const pivotX = bk.x + bk.width / 2;
+            ctx.translate(pivotX, 0);
+            ctx.rotate(bTilt);
+            ctx.translate(-pivotX, 0);
+          }
+
+          ctx.save();
+          buildBrokenBlackPath();
+          ctx.clip();
+
+          drawSingleBlackKey(ctx, bk, theme, isPressed, isStudent, true);
+
+          // Internal crack across this single black key
+          if (curDamage >= 2 || r1 < 0.55) {
+            const cy = keyH * (0.28 + r3 * 0.44);
+            ctx.beginPath();
+            ctx.moveTo(bk.x, cy);
+            ctx.lineTo(bk.x + bk.width * 0.45, cy + (r2 - 0.5) * 14);
+            ctx.lineTo(bk.x + bk.width, cy + (r3 - 0.5) * 12);
+            ctx.strokeStyle =
+              curDamage >= 3
+                ? `rgba(251, 146, 60, ${0.9 * magmaGlow})`
+                : 'rgba(148, 163, 184, 0.55)';
+            ctx.lineWidth = curDamage >= 3 ? 1.8 : 1.1;
+            ctx.stroke();
+          }
+          ctx.restore(); // end black key clip
+
+          if (bSnap < 0.99 || curDamage >= 2) {
+            buildBrokenBlackPath();
+            ctx.strokeStyle =
+              curDamage >= 3
+                ? `rgba(249, 115, 22, ${0.8 * magmaGlow})`
+                : 'rgba(71, 85, 105, 0.65)';
+            ctx.lineWidth = 1.0;
+            ctx.stroke();
           }
           ctx.restore();
         }
+
+        // 3.4 Stamp top fallboard rail cleanly above all broken keys
+        drawTopFallboardRail(ctx, 0, width, height, theme);
       }
 
       // 4. VIRTUAL TRANSPARENT HAND (MANO TRASPARENTE) & FINGERING GUIDANCE OVERLAY

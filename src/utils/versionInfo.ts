@@ -1,11 +1,11 @@
-export const APP_VERSION = '1.0.237';
-export const APP_BUILD_DATE = '14 Nov 2026 - 09:30';
-export const APP_COMMIT = 'a8d4e19';
+export const APP_VERSION = '1.0.238';
+export const APP_BUILD_DATE = '14 Nov 2026 - 09:50';
+export const APP_COMMIT = 'c4b7f28';
 export const APP_CHANGELOG = [
-  'Overload Detonator 100% blast now triggers a 60fps damped earthquake screen shake & flying key shrapnel',
-  'Progressive 4-stage piano destruction: hairline cracks → deep shatter splits → glowing magma fissures → smoking Abyssal Crater while music keeps playing uninterrupted',
-  'One-tap Repair button in the top bar (plus automatic key restoration on song switch or FX reset)',
-  'Dynamic GitHub Actions APK/AAB release versioning synced to v1.0.237 (versionCode 10237)',
+  'Realistic per-key piano destruction: every white and black key cracks, chips, tilts, snaps off individually and exposes the hollow interior keyframe underneath',
+  'Overload Detonator 100% blasts shake the screen, launch key shrapnel & advance through 4 destruction stages into the smoking Abyssal Crater while music keeps playing',
+  'One-tap Repair button in the top bar + automatic restore on song switch or FX reset',
+  'Dynamic GitHub Actions APK/AAB release versioning synced to v1.0.238 (versionCode 10238)',
 ];
 
 export interface ServerVersionInfo {
