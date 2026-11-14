@@ -31,10 +31,10 @@
       "username": "Pianista_957",
       "platform": "Browser Mobile",
       "firstSeen": "2026-11-11T05:48:17.662Z",
-      "lastSeen": "2026-11-14T06:30:44.067Z",
-      "lastView": "home",
-      "totalPings": 125,
-      "totalSessions": 82,
+      "lastSeen": "2026-11-14T08:30:16.376Z",
+      "lastView": "stats",
+      "totalPings": 129,
+      "totalSessions": 84,
       "screen": "444x985",
       "theme": "marble",
       "lastSong": "Baby Shark"
@@ -558,6 +558,30 @@
       "screen": "985x444",
       "theme": "rainbow",
       "lastSong": "Baby Shark"
+    },
+    "dev_1794638426108_vsn1rij": {
+      "deviceId": "dev_1794638426108_vsn1rij",
+      "username": "Pianista_452",
+      "platform": "Android App (APK)",
+      "firstSeen": "2026-11-14T06:40:29.835Z",
+      "lastSeen": "2026-11-14T06:41:34.096Z",
+      "lastView": "piano",
+      "totalPings": 6,
+      "totalSessions": 5,
+      "screen": "985x444",
+      "theme": "midnight",
+      "lastSong": "Inno alla Gioia (Ode to Joy - Completo)"
+    },
+    "dev_1793965380658_btoozc6": {
+      "deviceId": "dev_1793965380658_btoozc6",
+      "username": "Pianista_531",
+      "platform": "Registrato",
+      "firstSeen": "2026-11-13T02:01:54.899Z",
+      "lastSeen": "2026-11-13T02:01:54.899Z",
+      "lastView": "home",
+      "totalPings": 1,
+      "totalSessions": 1,
+      "theme": "midnight"
     }
   },
   "daily": {
@@ -609,13 +633,14 @@
     },
     "2026-11-14": {
       "devices": [
-        "dev_1792226201606_1h3tezw"
+        "dev_1792226201606_1h3tezw",
+        "dev_1794638426108_vsn1rij"
       ],
-      "pings": 1
+      "pings": 11
     }
   },
   "songs": {
-    "Inno alla Gioia (Ode to Joy - Completo)": 41,
+    "Inno alla Gioia (Ode to Joy - Completo)": 42,
     "Per Elisa (Für Elise - Completo)": 35,
     "La Primavera (Le Quattro Stagioni)": 4,
     "La Donna è Mobile (Rigoletto)": 1,

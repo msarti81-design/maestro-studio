@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { InteractiveSong } from '../types';
+import { InteractiveSong, CenterStageAnimationId } from '../types';
+import { CenterStageAnimator } from '../utils/centerStageAnimations';
 import { audioEngine } from '../utils/audioEngine';
 import { songPlaybackState } from '../utils/songPlaybackState';
 import { recordNoteHitBonus, recordSongCompletedBonus } from '../utils/gamification';
@@ -38,6 +39,7 @@ interface FallingNotesWaterfallProps {
   onActiveGuidanceChange?: (guidance: { note: string | null; finger: number | null; tip?: string | null; hand?: 'right' | 'left' } | null) => void;
   sheetScrollMode?: 'sweeping' | 'continuous';
   restartTrigger?: number;
+  centerAnimation?: CenterStageAnimationId;
 }
 
 interface KeyPosition {
@@ -95,9 +97,13 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   onActiveGuidanceChange,
   sheetScrollMode = 'sweeping',
   restartTrigger = 0,
+  centerAnimation = 'none',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const centerAnimationRef = useRef<CenterStageAnimationId>(centerAnimation);
+  centerAnimationRef.current = centerAnimation;
+  const centerStageAnimatorRef = useRef<CenterStageAnimator>(new CenterStageAnimator());
 
   const [isMelodyOnly, setIsMelodyOnly] = useState<boolean>(false);
   type WaterfallFxMode =
@@ -427,6 +433,9 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
   );
 
   const spawnNoteSparks = useCallback((rawNoteName: string, isBlack?: boolean) => {
+    if (centerAnimationRef.current !== 'none') {
+      centerStageAnimatorRef.current.triggerNote(noteNameToMidiNumber(rawNoteName));
+    }
     const mode = fxModeRef.current;
     if (mode === 'off' || viewModeRef.current === 'sheet') return;
     const keyPos =
@@ -734,6 +743,8 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             return next;
           });
         }
+      } else if (centerAnimationRef.current !== 'none') {
+        centerStageAnimatorRef.current.triggerNote(noteNameToMidiNumber(playedNote));
       }
     }
   }, [getTransposedNote, isMasterclassMode, spawnNoteSparks]);
@@ -1330,6 +1341,23 @@ export const FallingNotesWaterfall: React.FC<FallingNotesWaterfallProps> = React
             ctx.stroke();
           }
           ctx.restore();
+        }
+
+        // --- CENTER STAGE 8-BIT ANIMATION (Rendered centered behind falling notes) ---
+        if (centerAnimationRef.current !== 'none') {
+          centerStageAnimatorRef.current.draw(
+            ctx,
+            width,
+            height,
+            now,
+            centerAnimationRef.current,
+            {
+              hitLineY,
+              isPlaying: isPlayingRef.current,
+              energy,
+              opacity: 0.9,
+            }
+          );
         }
 
         // Smooth 3.8s travel speed for falling notes

@@ -16,6 +16,13 @@ export type StudioTheme =
   | 'animals'
   | 'candy';
 
+export type CenterStageAnimationId =
+  | 'none'
+  | 'pixel_runner'
+  | 'retro_coins'
+  | 'pixel_rocket'
+  | 'arcade_grid';
+
 export interface NoteEvent {
   note: string; // e.g. "C4"
   duration: string; // "4n", "8n", etc.

@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { audioEngine } from '../utils/audioEngine';
-import { InstrumentType, RecordedNote, InteractiveSong, NoteNotationFormat, SoundProfile, StudioTheme } from '../types';
+import { InstrumentType, RecordedNote, InteractiveSong, NoteNotationFormat, SoundProfile, StudioTheme, CenterStageAnimationId } from '../types';
+import {
+  CENTER_STAGE_ANIMATIONS,
+  CenterStageAnimator,
+  getCenterAnimationMeta,
+  loadCenterAnimation,
+  saveCenterAnimation,
+} from '../utils/centerStageAnimations';
 import {
   Home,
   Maximize,
@@ -45,7 +52,7 @@ import { MiniMapKeyboard } from './MiniMapKeyboard';
 import { CanvasPiano } from './CanvasPiano';
 import { getPublishedSongs } from '../utils/songStorage';
 import { getUsername } from '../utils/songStorage';
-import { midiEngine } from '../utils/midiEngine';
+import { midiEngine, noteNameToMidiNumber } from '../utils/midiEngine';
 import { pitchDetector } from '../utils/pitchDetector';
 import { loadGamificationState, UserGamificationState, AVAILABLE_BADGES } from '../utils/gamification';
 import { parseChallengeFromUrl, ChallengeData } from '../utils/challengeShare';
@@ -362,8 +369,15 @@ export const PianoView: React.FC<PianoViewProps> = ({
     }
   }, [selectedSongToPlay]);
 
-  // Options Modal
+  // Options Modal & Center Stage Animation Gallery Modal
   const [isOptionsModalOpen, setIsOptionsModalOpen] = useState<boolean>(false);
+  const [centerAnimation, setCenterAnimation] = useState<CenterStageAnimationId>(() => loadCenterAnimation());
+  const [isCenterAnimModalOpen, setIsCenterAnimModalOpen] = useState<boolean>(false);
+  const centerAnimationRef = useRef<CenterStageAnimationId>(centerAnimation);
+  centerAnimationRef.current = centerAnimation;
+  const freeStageCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const freeStageAnimatorRef = useRef<CenterStageAnimator>(new CenterStageAnimator());
+  const videoFallbackAnimatorRef = useRef<CenterStageAnimator>(new CenterStageAnimator());
 
   // Gamification (Daily Streaks, XP, Levels)
   const [gamification, setGamification] = useState<UserGamificationState>(() => loadGamificationState());
@@ -497,6 +511,17 @@ export const PianoView: React.FC<PianoViewProps> = ({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3200);
   }, []);
+
+  const handleSelectCenterAnimation = useCallback(
+    (id: CenterStageAnimationId) => {
+      setCenterAnimation(id);
+      centerAnimationRef.current = id;
+      saveCenterAnimation(id);
+      const meta = getCenterAnimationMeta(id);
+      showToast(id === 'none' ? '🚫 Center Stage Animation disabled' : `${meta.icon} Center Stage: ${meta.name}`);
+    },
+    [showToast]
+  );
 
   // --- VIDEO RECORDING (VERTICAL 9:16 REEL & HORIZONTAL 16:9 WITH ROTATE BANNER) ---
   type VideoRecordMode = 'vertical_reel' | 'horizontal_full';
@@ -886,9 +911,35 @@ export const PianoView: React.FC<PianoViewProps> = ({
       const wfTop = headerH;
       const wfHeight = Math.max(80, railTop - wfTop);
 
-      // Waterfall section
+      // Waterfall / Center Stage section
       if (waterfallCanvas && waterfallCanvas.width > 0 && waterfallCanvas.height > 0) {
         ctx.drawImage(waterfallCanvas, 0, 0, waterfallCanvas.width, waterfallCanvas.height, 0, wfTop, W, wfHeight);
+      } else if (centerAnimationRef.current !== 'none') {
+        const stageGrad = ctx.createRadialGradient(W / 2, wfTop + wfHeight / 2, 30, W / 2, wfTop + wfHeight / 2, 420);
+        stageGrad.addColorStop(0, 'rgba(34, 211, 238, 0.14)');
+        stageGrad.addColorStop(1, 'rgba(2, 6, 23, 0.98)');
+        ctx.fillStyle = stageGrad;
+        ctx.fillRect(0, wfTop, W, wfHeight);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, wfTop, W, wfHeight);
+        ctx.clip();
+        ctx.translate(0, wfTop);
+        videoFallbackAnimatorRef.current.draw(
+          ctx,
+          W,
+          wfHeight,
+          performance.now(),
+          centerAnimationRef.current,
+          {
+            isCompact: false,
+            hitLineY: wfHeight - 8,
+            isPlaying: true,
+            opacity: 1,
+          }
+        );
+        ctx.restore();
       } else {
         const stageGrad = ctx.createRadialGradient(W / 2, wfTop + wfHeight / 2, 30, W / 2, wfTop + wfHeight / 2, 380);
         stageGrad.addColorStop(0, 'rgba(245, 158, 11, 0.14)');
@@ -2393,6 +2444,12 @@ export const PianoView: React.FC<PianoViewProps> = ({
     audioEngine.playNote(note, '8n', instrument);
     window.dispatchEvent(new CustomEvent('piano:noteplayed', { detail: { note } }));
 
+    if (centerAnimationRef.current !== 'none') {
+      const midiPitch = noteNameToMidiNumber(note);
+      freeStageAnimatorRef.current.triggerNote(midiPitch);
+      videoFallbackAnimatorRef.current.triggerNote(midiPitch);
+    }
+
     if (remoteAudioRef.current && remoteAudioRef.current.paused && remoteAudioRef.current.srcObject) {
       remoteAudioRef.current.play().catch(() => {});
     }
@@ -2718,6 +2775,51 @@ export const PianoView: React.FC<PianoViewProps> = ({
     animId = requestAnimationFrame(heartbeat);
     return () => cancelAnimationFrame(animId);
   }, []);
+
+  // Free Play Center Stage Animation loop (runs when waterfall is hidden and center animation is active)
+  useEffect(() => {
+    const shouldRun = !earTrainingStandalone && !(showWaterfall && activeSong) && centerAnimation !== 'none';
+    if (!shouldRun) return;
+
+    let rafId = 0;
+    const renderFreeStage = (now: number) => {
+      const canvas = freeStageCanvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const cssW = Math.max(120, Math.floor(rect.width));
+        const cssH = Math.max(60, Math.floor(rect.height));
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const targetW = Math.floor(cssW * dpr);
+        const targetH = Math.floor(cssH * dpr);
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+          canvas.width = targetW;
+          canvas.height = targetH;
+        }
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.save();
+          ctx.scale(dpr, dpr);
+          const bg = ctx.createLinearGradient(0, 0, 0, cssH);
+          bg.addColorStop(0, '#040814');
+          bg.addColorStop(1, '#091124');
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, cssW, cssH);
+
+          freeStageAnimatorRef.current.draw(ctx, cssW, cssH, now, centerAnimationRef.current, {
+            isCompact: cssH < 125,
+            hitLineY: cssH - 2,
+            isPlaying: true,
+            opacity: 1,
+          });
+          ctx.restore();
+        }
+      }
+      rafId = requestAnimationFrame(renderFreeStage);
+    };
+
+    rafId = requestAnimationFrame(renderFreeStage);
+    return () => cancelAnimationFrame(rafId);
+  }, [earTrainingStandalone, showWaterfall, activeSong, centerAnimation]);
 
   // Re-sync geometry when gameplay keys or layout toggles change
   useEffect(() => {
@@ -3639,9 +3741,9 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     ? 'bg-emerald-500 text-slate-950 font-black shadow'
                     : 'text-slate-400 hover:text-white'
                 }`}
-                title="La mano ti guida e aspetta che tu suoni la nota corretta"
+                title="Hand guides you and waits until you play the right note"
               >
-                🎯 Pratica Passo-Passo
+                🎯 Step-by-Step
               </button>
             </div>
 
@@ -3654,7 +3756,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                     setScaleActiveIdx((prev) => Math.max(0, prev - 1));
                   }}
                   className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
-                  title="Nota precedente"
+                  title="Previous note"
                 >
                   <SkipBack className="w-3.5 h-3.5" />
                 </button>
@@ -4149,6 +4251,7 @@ export const PianoView: React.FC<PianoViewProps> = ({
                 onViewModeChange={setMasterclassViewMode}
                 sheetScrollMode={sheetScrollMode}
                 restartTrigger={waterfallRestartTrigger}
+                centerAnimation={centerAnimation}
                 isMasterclassMode={socialSession?.mode === 'masterclass' && activeSong.id.startsWith('masterclass_')}
                 onActiveGuidanceChange={setSongGuidance}
                 onMasterclassFinished={() => {
@@ -4172,19 +4275,56 @@ export const PianoView: React.FC<PianoViewProps> = ({
               />
             </div>
           ) : (
-            /* When waterfall is hidden, slim quick chords strip above keys */
-            <div className="shrink-0 w-full h-7 sm:h-8 flex items-center justify-center bg-slate-950/80 border-b border-slate-900/80 px-2 overflow-x-auto scrollbar-none gap-1.5 z-10">
-              <span className="text-[9px] text-slate-500 uppercase font-bold shrink-0">Chords:</span>
-              <div className="flex items-center gap-1 flex-nowrap">
-                {CHORD_PRESETS.map((chord) => (
-                  <button
-                    key={chord.name}
-                    onClick={() => audioEngine.playChord(chord.notes.map((n) => getTransposedNote(n)), '2n', instrument)}
-                    className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 border border-slate-800/80 rounded text-slate-300 hover:text-amber-400 text-[10px] font-semibold shrink-0 cursor-pointer transition-colors"
-                  >
-                    {chord.name}
-                  </button>
-                ))}
+            <div className="shrink-0 w-full flex flex-col">
+              {/* Free Play Center Stage 8-Bit Animation Canvas (when selected) */}
+              {centerAnimation !== 'none' && (
+                <div className="relative w-full h-24 sm:h-32 bg-slate-950 border-b border-slate-800/80 overflow-hidden shrink-0">
+                  <canvas ref={freeStageCanvasRef} className="w-full h-full block" />
+                  <div className="absolute top-1.5 right-2 flex items-center gap-1 z-10">
+                    <button
+                      onClick={() => setIsCenterAnimModalOpen(true)}
+                      className="px-2 py-0.5 rounded-lg bg-slate-900/85 hover:bg-slate-800 border border-cyan-500/40 text-cyan-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer backdrop-blur-sm shadow"
+                      title="Change Center Stage Animation"
+                    >
+                      <span>{getCenterAnimationMeta(centerAnimation).icon}</span>
+                      <span className="hidden xs:inline">{getCenterAnimationMeta(centerAnimation).name}</span>
+                      <span className="text-amber-300">Change</span>
+                    </button>
+                    <button
+                      onClick={() => handleSelectCenterAnimation('none')}
+                      className="w-5 h-5 rounded-lg bg-slate-900/85 hover:bg-rose-600/80 border border-slate-700 text-slate-300 hover:text-white text-[10px] font-bold flex items-center justify-center cursor-pointer backdrop-blur-sm"
+                      title="Hide Center Stage Animation"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Slim quick chords strip above keys */}
+              <div className="shrink-0 w-full h-7 sm:h-8 flex items-center justify-center bg-slate-950/80 border-b border-slate-900/80 px-2 overflow-x-auto scrollbar-none gap-1.5 z-10">
+                <span className="text-[9px] text-slate-500 uppercase font-bold shrink-0">Chords:</span>
+                <div className="flex items-center gap-1 flex-nowrap">
+                  {CHORD_PRESETS.map((chord) => (
+                    <button
+                      key={chord.name}
+                      onClick={() => {
+                        const transposed = chord.notes.map((n) => getTransposedNote(n));
+                        audioEngine.playChord(transposed, '2n', instrument);
+                        if (centerAnimationRef.current !== 'none') {
+                          transposed.forEach((cn) => {
+                            const mv = noteNameToMidiNumber(cn);
+                            freeStageAnimatorRef.current.triggerNote(mv);
+                            videoFallbackAnimatorRef.current.triggerNote(mv);
+                          });
+                        }
+                      }}
+                      className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 border border-slate-800/80 rounded text-slate-300 hover:text-amber-400 text-[10px] font-semibold shrink-0 cursor-pointer transition-colors"
+                    >
+                      {chord.name}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -4306,6 +4446,35 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* COMPACT TRIGGER FOR CENTER STAGE ANIMATION GALLERY MODAL */}
+              <div className="bg-gradient-to-r from-cyan-500/15 via-slate-800/85 to-amber-500/15 p-3 rounded-xl border border-cyan-500/35 flex items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900/90 border border-cyan-400/40 flex items-center justify-center text-base shrink-0">
+                    {getCenterAnimationMeta(centerAnimation).icon}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-white text-xs flex items-center gap-1.5 flex-wrap">
+                      <span>Center Stage Animation</span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono">
+                        {getCenterAnimationMeta(centerAnimation).name}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">
+                      8-bit reactive backdrop in Waterfall, Free Play &amp; Video
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsOptionsModalOpen(false);
+                    setIsCenterAnimModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-amber-400 hover:brightness-110 text-slate-950 font-black text-[11px] shrink-0 cursor-pointer shadow"
+                >
+                  Choose →
+                </button>
+              </div>
 
               {/* DEFAULT VIEW MODE ON SONG START */}
               <div className="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700/80 space-y-2.5">
@@ -5371,6 +5540,95 @@ export const PianoView: React.FC<PianoViewProps> = ({
                   <span>Share (TikTok / Reels)</span>
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SCROLLABLE CENTER STAGE ANIMATION GALLERY MODAL */}
+      {isCenterAnimModalOpen && (
+        <div
+          className="fixed inset-0 z-[130] bg-slate-950/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4"
+          onClick={() => setIsCenterAnimModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[88dvh] bg-slate-900 border-2 border-cyan-500/50 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-950/90 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="text-xl shrink-0">🕹️</span>
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wide truncate">
+                    Center Stage Animations (Scroll to view all)
+                  </h3>
+                  <p className="text-[10px] text-cyan-300/85 truncate">
+                    100% Copyright-Safe Retro 8-Bit Stage • Active in Waterfall, Free Play &amp; Video
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCenterAnimModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center cursor-pointer shrink-0"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Options List */}
+            <div className="p-3 sm:p-4 overflow-y-auto touch-pan-y overscroll-contain space-y-2.5">
+              {CENTER_STAGE_ANIMATIONS.map((anim) => {
+                const isSelected = centerAnimation === anim.id;
+                return (
+                  <button
+                    key={anim.id}
+                    onClick={() => {
+                      handleSelectCenterAnimation(anim.id);
+                      setIsCenterAnimModalOpen(false);
+                    }}
+                    className={`w-full p-3 rounded-xl border-2 text-left transition-all cursor-pointer flex items-start gap-3 bg-gradient-to-r ${anim.accentGradient} ${
+                      isSelected
+                        ? `${anim.borderActive} shadow-lg shadow-cyan-500/15`
+                        : 'border-slate-700/80 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-slate-950/80 border border-slate-700 flex items-center justify-center text-2xl shrink-0">
+                      {anim.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs sm:text-sm font-black text-white">{anim.name}</span>
+                          <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-950/80 text-amber-300 border border-amber-500/30">
+                            {anim.badge}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-500 text-slate-950 flex items-center gap-1 shrink-0">
+                            <Check className="w-3 h-3" />
+                            <span>ACTIVE</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] font-semibold text-cyan-200 mt-0.5">{anim.tagline}</div>
+                      <p className="text-[10px] text-slate-300 mt-1 leading-relaxed">{anim.description}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-2.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between shrink-0 text-[10px] text-slate-400">
+              <span>Reacts live to every note, chord &amp; MIDI hit</span>
+              <button
+                onClick={() => setIsCenterAnimModalOpen(false)}
+                className="px-3.5 py-1 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg cursor-pointer text-xs"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

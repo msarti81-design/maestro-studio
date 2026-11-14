@@ -374,16 +374,16 @@ async function startServer() {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json({
       success: true,
-      version: "1.0.233",
-      buildDate: "2026-11-13 22:55",
-      commit: "e5c3a19",
+      version: "1.0.234",
+      buildDate: "2026-11-14 07:10",
+      commit: "c8a4f20",
       server: "freeserv.it/Song",
       status: "online",
       features: [
-        "Scrollable 14-FX Gallery modal so all falling-note visual effects are reachable on mobile landscape",
-        "Top-pinned title editor in Sheet Composer so the soft keyboard never covers the title field",
-        "Integrated Pop Rainbow, Pet & Paws, and Sweet Pastel keyboards + elevated Video modal & auto-restart on video start",
-        "Signed release AAB & APK generation for Google Play Console v1.0.233 (versionCode 10233)",
+        "4 Copyright-Safe Retro 8-Bit Center Stage Animations (Pixel Runner, Retro Coins & Blocks, Space Rocket, Neon Arcade Grid) for Waterfall, Free Play & Video",
+        "Scrollable Center Stage Animation Gallery modal triggered via compact button inside 3-dots Options menu",
+        "Scrollable 14-FX Gallery modal & Top-Pinned Title Editor in Sheet Composer",
+        "Signed release AAB & APK generation synced to v1.0.234 (versionCode 10234)",
       ],
     });
   });
